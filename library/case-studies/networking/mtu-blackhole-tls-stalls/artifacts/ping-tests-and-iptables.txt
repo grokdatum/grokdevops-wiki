@@ -1,0 +1,40 @@
+# MTU probe tests from client 10.10.5.22
+# Date: 2026-02-18
+
+$ ping -M do -s 1400 -c 2 10.20.30.50
+PING 10.20.30.50 (10.20.30.50) 1400(1428) bytes of data.
+1408 bytes from 10.20.30.50: icmp_seq=1 ttl=62 time=1.23 ms
+1408 bytes from 10.20.30.50: icmp_seq=2 ttl=62 time=1.19 ms
+--- 10.20.30.50 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1002ms
+
+$ ping -M do -s 1450 -c 2 10.20.30.50
+PING 10.20.30.50 (10.20.30.50) 1450(1478) bytes of data.
+--- 10.20.30.50 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1008ms
+
+$ ping -M do -s 1420 -c 2 10.20.30.50
+PING 10.20.30.50 (10.20.30.50) 1420(1448) bytes of data.
+1428 bytes from 10.20.30.50: icmp_seq=1 ttl=62 time=1.25 ms
+1428 bytes from 10.20.30.50: icmp_seq=2 ttl=62 time=1.21 ms
+
+$ ping -M do -s 1430 -c 2 10.20.30.50
+PING 10.20.30.50 (10.20.30.50) 1430(1458) bytes of data.
+--- 10.20.30.50 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1005ms
+
+# Effective path MTU: 1428 + 28 (IP+ICMP headers) = 1448 bytes
+# Tunnel overhead: 1500 - 1448 = 52 bytes (consistent with IPsec ESP)
+
+# iptables on VPN gateway (gw-vpn01, 10.15.0.1):
+$ sudo iptables -L FORWARD -n -v --line-numbers
+Chain FORWARD (policy ACCEPT 1284930 packets, 892M bytes)
+num   pkts bytes target   prot opt in     out     source          destination
+1    45201 3.2M  ACCEPT   all  --  eth0   tun0    10.10.0.0/16    10.20.0.0/16
+2    43998 156M  ACCEPT   all  --  tun0   eth0    10.20.0.0/16    10.10.0.0/16
+3     8921 712K  DROP     icmp --  *      *       0.0.0.0/0       0.0.0.0/0
+4      201  16K  LOG      all  --  *      *       0.0.0.0/0       0.0.0.0/0       LOG flags 0 level 4 prefix "FW-DROP: "
+5      201  16K  DROP     all  --  *      *       0.0.0.0/0       0.0.0.0/0
+
+# Rule 3 drops ALL ICMP traffic including Fragmentation Needed (type 3 code 4)
+# Note the 8921 packet count -- these are likely PMTUD messages being silently dropped

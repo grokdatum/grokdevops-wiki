@@ -1,0 +1,136 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+🔍 HINT 1: Observing the Problem
+
+Let's investigate the permission denied error:
+
+1️⃣ Check pod status:
+   kubectl get pod writer-app -n k8squest
+   kubectl logs writer-app -n k8squest
+
+   What error message do you see?
+
+2️⃣ Check the pod's security context:
+   kubectl get pod writer-app -n k8squest -o yaml | grep -A 5 securityContext
+
+   What user/group is the container running as?
+
+3️⃣ Check the volume mount:
+   kubectl exec writer-app -n k8squest -- ls -la /data 2>/dev/null || echo "Pod not running"
+
+   If pod runs briefly, check what permissions the volume has
+
+4️⃣ Look for fsGroup:
+   kubectl get pod writer-app -n k8squest -o jsonpath='{.spec.securityContext.fsGroup}'
+
+   Is fsGroup configured?
+
+📝 Key Observation:
+The container runs as user 1000, but the volume is owned by root (user 0)!
+
+🤔 Questions:
+• What is fsGroup?
+• How do volume permissions work in Kubernetes?
+• What's the difference between runAsUser and fsGroup?
+
+## Hint 2
+🎯 HINT 2: Understanding Volume Permissions
+
+The problem is the volume ownership doesn't match the container user!
+
+📚 How Volume Permissions Work:
+
+**Default Behavior:**
+- Volumes are owned by root (user 0, group 0)
+- Container runs as user 1000
+- User 1000 can't write to root-owned directory!
+
+**Container Security Context:**
+```yaml
+containers:
+- securityContext:
+    runAsUser: 1000    # Container runs as this user
+    runAsGroup: 1000   # Container runs as this group
+```
+
+**Pod Security Context with fsGroup:**
+```yaml
+spec:
+  securityContext:
+    fsGroup: 1000  # ✅ Changes volume ownership to group 1000!
+```
+
+🔍 How fsGroup Works:
+
+1. Volume is mounted
+2. Kubernetes changes ownership: `chown -R :1000 /volume`
+3. Volume group = 1000
+4. User 1000 (in group 1000) can now write!
+
+**Without fsGroup:**
+```bash
+drwxr-xr-x  2 root root  4096 /data  # User 1000 can't write
+```
+
+**With fsGroup: 1000:**
+```bash
+drwxrwsr-x  2 root 1000  4096 /data  # Group 1000 can write!
+```
+
+💡 The Solution:
+Add fsGroup to pod's securityContext:
+```yaml
+spec:
+  securityContext:
+    fsGroup: 1000  # Match runAsGroup
+```
+
+💡 Action: Set fsGroup in the pod spec's securityContext!
+
+## Hint 3
+✅ HINT 3: Complete Solution
+
+Fix: Add fsGroup to pod securityContext
+
+📝 In Pod spec:
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: writer-app
+spec:
+  securityContext:  # ✅ Add at pod level!
+    fsGroup: 1000
+  containers:
+  - name: app
+    securityContext:  # Container level
+      runAsUser: 1000
+      runAsGroup: 1000
+    volumeMounts:
+    - name: data
+      mountPath: /data
+```
+
+🔑 Key Points:
+- fsGroup goes in **spec.securityContext** (pod level)
+- runAsUser goes in **containers.securityContext** (container level)
+- fsGroup should match runAsGroup for proper permissions
+
+🚀 Apply:
+```bash
+kubectl delete -f broken.yaml
+kubectl apply -f solution.yaml
+kubectl logs writer-app -n k8squest
+# Should show "Write successful!"
+```
+
+🔍 Verify permissions:
+```bash
+kubectl exec writer-app -n k8squest -- ls -la /data
+# Should show group ownership as 1000
+```
+
+💡 Remember: fsGroup changes volume group ownership so the container user can write!
+

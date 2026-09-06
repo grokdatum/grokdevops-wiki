@@ -1,0 +1,1745 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="On 2025-09-03 at 11:18 UTC, Infrastructure Engineer Dariusz Kowalczyk was running a terraform plan for a routine S3 bucket encryption upgrade when he.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/near-miss/s3-policy-nearly-deletes-backups/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Postmortem: S3 Bucket Policy Change Nearly Deletes All Backup Archives - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Postmortem: S3 Bucket Policy Change Nearly Deletes All Backup Archives - GrokDevOps Wiki" />
+<meta property="og:description" content="On 2025-09-03 at 11:18 UTC, Infrastructure Engineer Dariusz Kowalczyk was running a terraform plan for a routine S3 bucket encryption upgrade when he." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/near-miss/s3-policy-nearly-deletes-backups.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/near-miss/s3-policy-nearly-deletes-backups/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Postmortem: S3 Bucket Policy Change Nearly Deletes All Backup Archives - GrokDevOps Wiki" />
+<meta property="twitter:description" content="On 2025-09-03 at 11:18 UTC, Infrastructure Engineer Dariusz Kowalczyk was running a terraform plan for a routine S3 bucket encryption upgrade when he." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/near-miss/s3-policy-nearly-deletes-backups.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#postmortem-s3-bucket-policy-change-nearly-deletes-all-backup-archives" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Postmortem: S3 Bucket Policy Change Nearly Deletes All Backup Archives
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-all-times-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline (All times UTC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Impact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customer-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customer Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-would-have-happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Would Have Happened
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root Cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happened-technical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happened (Technical)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contributing Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-we-got-lucky-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What We Got Lucky About
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-we-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How We Detected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-this-almost-wasnt-caught" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why This Almost Wasn't Caught
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-went-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Well
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-could-have-gone-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Could Have Gone Better
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lessons-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lessons Learned
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../portal/tags/#tag:postmortem" class="md-tag">postmortem</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="postmortem-s3-bucket-policy-change-nearly-deletes-all-backup-archives">Postmortem: S3 Bucket Policy Change Nearly Deletes All Backup Archives<a class="headerlink" href="#postmortem-s3-bucket-policy-change-nearly-deletes-all-backup-archives" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ID</strong></td>
+<td>PM-029</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2025-09-03</td>
+</tr>
+<tr>
+<td><strong>Severity</strong></td>
+<td>Near-Miss</td>
+</tr>
+<tr>
+<td><strong>Duration</strong></td>
+<td>0m (no customer impact)</td>
+</tr>
+<tr>
+<td><strong>Time to Detect</strong></td>
+<td>7m (caught during plan review)</td>
+</tr>
+<tr>
+<td><strong>Time to Mitigate</strong></td>
+<td>2h 14m (state reconciliation)</td>
+</tr>
+<tr>
+<td><strong>Customer Impact</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Revenue Impact</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Teams Involved</strong></td>
+<td>Infrastructure Engineering, Data Engineering, Compliance, Security</td>
+</tr>
+<tr>
+<td><strong>Postmortem Author</strong></td>
+<td>Nadia Ferrara</td>
+</tr>
+<tr>
+<td><strong>Postmortem Date</strong></td>
+<td>2025-09-05</td>
+</tr>
+</tbody>
+</table>
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>On 2025-09-03 at 11:18 UTC, Infrastructure Engineer Dariusz Kowalczyk was running a <code>terraform plan</code> for a routine S3 bucket encryption upgrade when he noticed an unexpected change in the plan output: the lifecycle policy governing transition to Glacier storage and retention of backup archives was being deleted. The root cause was Terraform state drift — someone had manually modified the bucket's lifecycle policy through the AWS Console, causing Terraform's recorded state to diverge from the actual AWS resource. When Terraform reconciled the in-code configuration against the drifted state, it generated a plan that would have removed the lifecycle policy entirely. Without that policy, the bucket's default 7-day object expiration rule would have applied to all 2.3TB of Glacier-tiered backup archives — deleting 18 months of database snapshots, audit logs, and compliance-required data after 7 days. Dariusz caught the destructive change because he read the full plan output rather than scrolling to the resource he intended to change.</p>
+<h2 id="timeline-all-times-utc">Timeline (All times UTC)<a class="headerlink" href="#timeline-all-times-utc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>08:30</td>
+<td>Unknown actor (determined later to be Data Engineering on-call) manually modifies the S3 lifecycle policy on <code>vantage-backups-prod</code> via AWS Console, changing the Glacier transition threshold from 90 days to 60 days; does not update Terraform state or open a change ticket</td>
+</tr>
+<tr>
+<td>11:11</td>
+<td>Dariusz Kowalczyk opens Terraform PR for <code>s3-encryption-upgrade</code> branch; runs <code>terraform plan</code> targeting <code>module.s3_backups</code></td>
+</tr>
+<tr>
+<td>11:14</td>
+<td>Terraform plan output is 284 lines; Dariusz begins reviewing from the top</td>
+</tr>
+<tr>
+<td>11:18</td>
+<td>Dariusz reaches line 241 of the plan output: <code>- lifecycle_rule</code> block marked for deletion; reads the full block and recognizes it as the backup retention policy</td>
+</tr>
+<tr>
+<td>11:19</td>
+<td>Dariusz runs <code>terraform state show aws_s3_bucket_lifecycle_configuration.backups</code> and sees the state does not match the real AWS resource; concludes state drift</td>
+</tr>
+<tr>
+<td>11:21</td>
+<td>Dariusz does NOT run <code>terraform apply</code>; opens Slack thread in <code>#infra-incidents</code>: "Found state drift in S3 backup bucket lifecycle policy — plan would delete it. Holding apply. Need eyes on this."</td>
+</tr>
+<tr>
+<td>11:25</td>
+<td>Infrastructure lead Nadia Ferrara joins thread; confirms the severity (7-day expiry would apply to Glacier archives)</td>
+</tr>
+<tr>
+<td>11:30</td>
+<td>Data Engineering on-call Brendan Okafor identifies himself as the person who made the manual console change; explains he was testing a retention policy optimization and intended to update Terraform afterward</td>
+</tr>
+<tr>
+<td>11:45</td>
+<td>Nadia opens change ticket CHG-0892 to formally track the remediation</td>
+</tr>
+<tr>
+<td>12:10</td>
+<td>Dariusz runs <code>terraform import</code> to pull the real lifecycle configuration into Terraform state</td>
+</tr>
+<tr>
+<td>12:55</td>
+<td>Terraform code updated in <code>s3-encryption-upgrade</code> branch to reflect the intended 60-day transition; new <code>terraform plan</code> shows only the encryption change (zero lifecycle changes)</td>
+</tr>
+<tr>
+<td>13:32</td>
+<td>Plan reviewed and approved by Nadia and Security lead Olamide Adeyemi</td>
+</tr>
+<tr>
+<td>13:35</td>
+<td><code>terraform apply</code> executed; S3 bucket encryption upgraded; lifecycle policy preserved and correct</td>
+</tr>
+<tr>
+<td>14:00</td>
+<td>Postmortem opened; change ticket CHG-0892 marked resolved</td>
+</tr>
+<tr>
+<td>14:30</td>
+<td>Compliance team (Radhika Sharma) notified of the near-miss; regulatory retention scope confirmed: 7-year retention required for audit logs and compliance snapshots</td>
+</tr>
+</tbody>
+</table>
+<h2 id="impact">Impact<a class="headerlink" href="#impact" title="Permanent link">&para;</a></h2>
+<h3 id="customer-impact">Customer Impact<a class="headerlink" href="#customer-impact" title="Permanent link">&para;</a></h3>
+<p>None — <code>terraform apply</code> was not executed until the plan was corrected. No AWS resources were modified during the detection and remediation window.</p>
+<h3 id="internal-impact">Internal Impact<a class="headerlink" href="#internal-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Dariusz Kowalczyk (Infrastructure Engineering): ~3 hours (plan review, investigation, state import, code update, apply)</li>
+<li>Nadia Ferrara (Infrastructure lead): ~2 hours (incident coordination, plan review, approval)</li>
+<li>Brendan Okafor (Data Engineering): ~1 hour (explaining the console change, reviewing corrected plan)</li>
+<li>Olamide Adeyemi (Security): ~1 hour (plan approval, process review)</li>
+<li>Radhika Sharma (Compliance): ~1 hour (regulatory scope assessment, process notification)</li>
+<li>Total: approximately 8 engineering-hours</li>
+</ul>
+<h3 id="data-impact">Data Impact<a class="headerlink" href="#data-impact" title="Permanent link">&para;</a></h3>
+<p>None. No data was deleted, modified, or moved. The 2.3TB of Glacier-tiered archives remain intact and correctly governed by the lifecycle policy.</p>
+<h2 id="what-would-have-happened">What Would Have Happened<a class="headerlink" href="#what-would-have-happened" title="Permanent link">&para;</a></h2>
+<p>If Dariusz had run <code>terraform apply</code> without reading the full plan output — a common practice when a plan is long and the engineer is confident in their narrow change — the <code>aws_s3_bucket_lifecycle_configuration.backups</code> resource would have been deleted. This would have left the <code>vantage-backups-prod</code> bucket with only its baseline configuration, which includes a 7-day object expiration rule applied to all storage tiers.</p>
+<p>AWS Glacier objects subject to an S3 object expiration rule are permanently deleted when the rule fires. There is no Glacier "undelete" operation and no AWS support path to recover objects after expiration. The 2.3TB of affected data includes: 18 months of nightly PostgreSQL RDS snapshots (the primary recovery point for Vantage Analytics' production database); 14 months of application audit logs (user actions, data access events); 6 months of SOC 2 compliance evidence packages; and 2 years of customer data export archives required for data subject request (DSR) fulfillment under GDPR Article 20.</p>
+<p>The compliance scope is the most severe dimension of this scenario. Under SOC 2 Type II, audit logs must be retained for a minimum of 12 months (and Vantage's MSA with enterprise customers requires 7 years). Under GDPR Article 5(1)(e) and the company's data retention policy, DSR archives must be retained for 5 years. Deletion of these records would have been a material audit finding, potentially resulting in loss of SOC 2 certification, breach of enterprise customer MSAs, and GDPR regulatory action. Recovery would have been impossible — Glacier deletion is permanent — and the only remediation would have been an attestation of data loss to regulators and affected customers.</p>
+<p>Beyond the compliance dimension, losing 18 months of RDS snapshots would have reduced the operational recovery capability to only the most recent automated backup (AWS automated backups, 35-day maximum retention). Any incident requiring point-in-time recovery beyond 35 days would have had no recovery option.</p>
+<h2 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<h3 id="what-happened-technical">What Happened (Technical)<a class="headerlink" href="#what-happened-technical" title="Permanent link">&para;</a></h3>
+<p>Terraform tracks AWS resource configurations in a state file (<code>terraform.tfstate</code>). When an engineer makes a change directly via the AWS Console or CLI — bypassing Terraform — the real AWS resource diverges from what Terraform has recorded in state. This is called state drift. On the next <code>terraform plan</code> that targets the affected resource, Terraform computes the diff between its in-code configuration and its recorded state, then proposes changes to bring the real resource in line with the code. Crucially: Terraform does not know the real resource has been modified. It sees only that its code and its state disagree, and it plans to make the real resource match the code.</p>
+<p>In this case, Brendan had manually changed the lifecycle policy's Glacier transition threshold from 90 days to 60 days via the AWS Console. The Terraform code still had <code>transition_in_days = 90</code>. Terraform's state still reflected the old value (90 days). The real AWS resource now had 60 days. When Dariusz ran <code>terraform plan</code> to add encryption to the bucket, Terraform evaluated the full <code>module.s3_backups</code> module — including the lifecycle resource. It saw code saying 90 days, state saying 90 days (matching), and correctly determined no change was needed for that field.</p>
+<p>However, Brendan's console modification had also added the lifecycle rule using a slightly different API representation. The <code>lifecycle_rule</code> block's <code>id</code> field — set implicitly by the console — did not match the <code>id</code> value in Terraform's code. Terraform interpreted the presence of an unrecognized <code>id</code> as a new resource and the absence of the expected <code>id</code> as a resource that had been deleted outside of Terraform. Its plan therefore showed: delete the Terraform-managed lifecycle rule (which it believed was no longer present in AWS), and create the new lifecycle rule with the correct 90-day threshold. The net effect of applying this plan would have been a window — potentially days — during which the bucket had no lifecycle rule at all while the replacement was being created, followed by a rule with the wrong threshold (90 instead of the intended 60).</p>
+<p>More critically, the deletion of the current lifecycle rule would have removed the 7-day expiration override, and depending on the bucket's default settings, the expiration rule might have fired on Glacier objects during the no-lifecycle window.</p>
+<h3 id="contributing-factors">Contributing Factors<a class="headerlink" href="#contributing-factors" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Manual console change without Terraform state update:</strong> Brendan made a console change without creating a change ticket, updating Terraform code, or running <code>terraform state import</code> to sync the state file. This is a well-understood anti-pattern ("ClickOps in a Terraform-managed environment") but had not been enforced via guardrails. The organization had a policy against it but no technical controls.</li>
+<li><strong>Long plan output reduces effective review probability:</strong> The <code>terraform plan</code> output was 284 lines because the full module was targeted. The lifecycle policy deletion appeared on line 241. Engineers reviewing long plans under time pressure tend to focus on the top (their intended change) and assume the rest is noise. Dariusz read the full output, but this was above-average diligence, not a reliable process.</li>
+<li><strong>Destructive changes (resource deletion) not highlighted or flagged separately:</strong> Terraform's default output treats a <code>- resource_block</code> deletion the same as a <code>~ attribute_change</code>. There was no CI step or workflow step that extracted and separately surfaced all destructive operations (deletions, replacements) for focused human review.</li>
+</ol>
+<h3 id="what-we-got-lucky-about">What We Got Lucky About<a class="headerlink" href="#what-we-got-lucky-about" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Dariusz read 241 lines of plan output.</strong> The lifecycle policy deletion appeared on line 241 of a 284-line plan. The encryption change Dariusz was actually there to apply appeared in the first 40 lines. The normal behavior — reviewing the top of the output where the intended change is, confirming it looks right, and running apply — would have missed the lifecycle deletion entirely. Dariusz's habit of reading full plan output before applying is not universal on the team and is not enforced by any process.</li>
+<li><strong>The console change happened 2.5 hours before the Terraform run.</strong> If Brendan had made the console change and Dariusz had run the Terraform plan on the same day within minutes, the incident investigation would have been significantly harder — the CloudTrail event would have been buried deeper. The 2.5-hour gap made the correlation straightforward once Brendan identified himself.</li>
+</ol>
+<h2 id="detection">Detection<a class="headerlink" href="#detection" title="Permanent link">&para;</a></h2>
+<h3 id="how-we-detected">How We Detected<a class="headerlink" href="#how-we-detected" title="Permanent link">&para;</a></h3>
+<p>Dariusz caught the lifecycle policy deletion by reading the complete <code>terraform plan</code> output before running <code>terraform apply</code>. The deletion block appeared 40 lines below the intended encryption change. No automated tooling flagged it.</p>
+<h3 id="why-this-almost-wasnt-caught">Why This Almost Wasn't Caught<a class="headerlink" href="#why-this-almost-wasnt-caught" title="Permanent link">&para;</a></h3>
+<p>There was no automated or process control that separately surfaced destructive operations in Terraform plans. The standard workflow on the team was to run <code>terraform plan</code>, review the output quickly for the expected change, and apply. A 284-line plan with a destructive change buried in line 241 is unlikely to be caught by an engineer who is focused on a specific resource. This near-miss was prevented by one engineer's individual diligence, which is not a reliable control.</p>
+<h2 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h2>
+<h3 id="what-went-well">What Went Well<a class="headerlink" href="#what-went-well" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Dariusz immediately stopped the apply workflow when he identified the destructive change and escalated to <code>#infra-incidents</code> before doing anything further. This is the correct instinct and prevented any accidental application.</li>
+<li>Brendan proactively identified himself as the source of the console change within 9 minutes of the Slack thread, which accelerated the root cause analysis significantly and avoided a lengthy CloudTrail audit.</li>
+<li>The corrected plan was reviewed by both an Infrastructure lead and the Security lead before apply. This multi-eyes review step for corrected plans was the right call given what was at stake.</li>
+</ol>
+<h3 id="what-could-have-gone-better">What Could Have Gone Better<a class="headerlink" href="#what-could-have-gone-better" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The console change was made without a change ticket, Slack notification, or Terraform state update. There is an existing policy against untracked manual changes to Terraform-managed resources, but it is not enforced technically. The policy existed on paper only.</li>
+<li>The <code>terraform plan</code> workflow had no step that extracted and separately highlighted destructive operations. A one-line <code>grep</code> for <code># aws_</code> entries with <code>will be destroyed</code> or <code>must be replaced</code> would have surfaced the lifecycle deletion immediately, before a human read 241 lines.</li>
+</ol>
+<h2 id="action-items">Action Items<a class="headerlink" href="#action-items" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Action</th>
+<th>Priority</th>
+<th>Owner</th>
+<th>Status</th>
+<th>Due Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PM029-01</td>
+<td>Add CI step to all Terraform plan pipelines that extracts and posts all destructive operations (destroy, replace) as a separate summary comment on the PR, blocked from merge until a second engineer explicitly approves the destruction</td>
+<td>P0</td>
+<td>Infrastructure Engineering</td>
+<td>In Progress</td>
+<td>2025-09-10</td>
+</tr>
+<tr>
+<td>PM029-02</td>
+<td>Enable AWS Config rules and CloudTrail alerts for manual changes to S3 lifecycle policies on backup buckets; route alerts to <code>#infra-incidents</code> and open a drift-detection ticket automatically</td>
+<td>P0</td>
+<td>Nadia Ferrara</td>
+<td>Open</td>
+<td>2025-09-12</td>
+</tr>
+<tr>
+<td>PM029-03</td>
+<td>Enable S3 Object Lock (compliance mode) on <code>vantage-backups-prod</code> for objects in Glacier, with a retention period matching the regulatory minimum (7 years for compliance data)</td>
+<td>P0</td>
+<td>Dariusz Kowalczyk</td>
+<td>Open</td>
+<td>2025-09-17</td>
+</tr>
+<tr>
+<td>PM029-04</td>
+<td>Run <code>terraform plan</code> in drift-detection mode across all managed buckets weekly; alert on any unexpected state divergence</td>
+<td>P1</td>
+<td>Infrastructure Engineering</td>
+<td>Open</td>
+<td>2025-09-24</td>
+</tr>
+<tr>
+<td>PM029-05</td>
+<td>Publish and enforce "no console changes to Terraform-managed resources" policy with technical guardrail: SCP denying S3 lifecycle modifications outside the infrastructure CI/CD role</td>
+<td>P1</td>
+<td>Security / Olamide Adeyemi</td>
+<td>Open</td>
+<td>2025-09-30</td>
+</tr>
+<tr>
+<td>PM029-06</td>
+<td>Audit all backup and compliance S3 buckets for Object Lock enablement status and retention period compliance; report findings to Compliance team</td>
+<td>P1</td>
+<td>Radhika Sharma + Infrastructure</td>
+<td>Open</td>
+<td>2025-09-19</td>
+</tr>
+</tbody>
+</table>
+<h2 id="lessons-learned">Lessons Learned<a class="headerlink" href="#lessons-learned" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Reading the full Terraform plan is not optional for production changes.</strong> Long plan outputs bury important information. The team cannot rely on individual engineers having the diligence to read 284-line outputs. The fix is a process that programmatically surfaces destructive operations — not a norm that requires heroic attention to detail.</li>
+<li><strong>"ClickOps" in a Terraform-managed environment creates invisible time bombs.</strong> Manual console changes do not cause immediate harm, but they create state drift that can manifest as destructive operations in the next Terraform run — potentially weeks or months later, and in a context completely unrelated to the original change. Technical guardrails (SCPs, IAM deny policies) are more reliable than behavioral policies.</li>
+<li><strong>For irreplaceable data, application-level immutability is the last line of defense.</strong> S3 Object Lock (compliance mode) would have made this scenario impossible: the lifecycle rule could have been deleted from Terraform, but the underlying Glacier objects would have been protected from deletion by a hardware-enforced retention policy regardless of what S3 bucket configuration said. Compliance data should be protected at the object level, not just at the bucket policy level.</li>
+</ol>
+<h2 id="cross-references">Cross-References<a class="headerlink" href="#cross-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Failure Pattern:</strong> Terraform State Drift / Destructive Plan Operation / Manual Infrastructure Change</li>
+<li><strong>Topic Packs:</strong> Terraform State Management, S3 Data Lifecycle, AWS Object Lock, Infrastructure as Code Governance</li>
+<li><strong>Runbook:</strong> INFRA-RB-007 — Terraform State Drift Recovery; INFRA-RB-012 — S3 Backup Integrity Verification</li>
+<li><strong>Decision Tree:</strong> Infrastructure Triage → Unexpected Terraform Plan Change → Is the change destructive? → Yes → Stop, investigate state drift before applying</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="April 8, 2026 23:43:45 UTC">April 8, 2026 23:43:45</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 23:53:02 UTC">March 19, 2026 23:53:02</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

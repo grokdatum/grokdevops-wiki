@@ -1,0 +1,42 @@
+---
+tags:
+- linux
+- l1
+- flashcard-deck
+- inodes
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [Filesystems & Storage](../../../../library/portal/topics.md) | **Domain:** Linux
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+inodes/a1b2c3d4e5f6	inodes	easy	inodes,linux,filesystem	What is an inode?	An inode is a data structure on a Linux filesystem that stores metadata about a file — permissions, owner, group, size, timestamps, and pointers to data blocks. Everything except the filename. The filename is stored in the directory entry, which maps the name to an inode number. Each file has exactly one inode.	training/library/topics/inodes/primer.md
+inodes/b2c3d4e5f6a7	inodes	easy	inodes,commands	How do you check inode usage on a filesystem?	df -i shows inode usage per filesystem (total, used, free, percentage). ls -i <file> shows a file's inode number. stat <file> shows full inode details. find / -xdev -printf '%h\n' | sort | uniq -c | sort -rn | head finds directories with the most files (inode consumers).	training/library/topics/inodes/primer.md
+inodes/c3d4e5f6a7b8	inodes	medium	inodes,exhaustion	What happens when a filesystem runs out of inodes?	You cannot create new files, directories, symlinks, or sockets even if disk space is available. The error is "No space left on device" which is misleading — df shows free space but df -i shows 100% inode usage. Common cause: millions of tiny files (mail queues, session files, container layers, package caches).	training/library/topics/inodes/primer.md
+inodes/d4e5f6a7b8c9	inodes	medium	inodes,hardlinks	How do inodes relate to hard links?	A hard link is an additional directory entry pointing to the same inode. The inode's link count tracks how many names reference it. The file's data is only freed when the link count drops to zero and no process has it open. This is why you can delete a file that a process is using — the data persists until the process closes it.	training/library/topics/inodes/primer.md
+inodes/e5f6a7b8c9d0	inodes	hard	inodes,internals	What does an inode contain internally?	An inode stores: file type (regular, directory, symlink, socket, device), permissions (mode bits), owner UID, group GID, size in bytes, timestamps (atime, mtime, ctime), link count, and pointers to data blocks (direct pointers + indirect/double-indirect/triple-indirect pointers for large files). On ext4, inodes are 256 bytes by default.	training/library/topics/inodes/primer.md
+inodes/f6a7b8c9d0e1	inodes	medium	inodes,recovery	How do you recover from inode exhaustion?	1) Find directories with the most files: find / -xdev -printf '%h\n' | sort | uniq -c | sort -rn | head -20. 2) Delete unnecessary small files (old logs, temp files, cached sessions). 3) For container hosts, prune unused images/layers: docker system prune. 4) Long-term: use XFS (dynamic inode allocation) instead of ext4 (fixed at mkfs time).	training/library/topics/inodes/primer.md
+inodes/a7b8c9d0e1f2	inodes	easy	inodes,symlinks	How do inodes differ for symlinks vs hard links?	A symlink is a separate file with its own inode — its data block contains the path to the target. A hard link shares the same inode as the original file. Symlinks can cross filesystem boundaries and point to directories; hard links cannot. Deleting the symlink target leaves a dangling symlink; deleting one hard link leaves others intact.	training/library/topics/inodes/primer.md
+inodes/b8c9d0e1f2a3	inodes	hard	inodes,ext4	How are inodes allocated on ext4 vs XFS?	ext4 allocates a fixed number of inodes at mkfs time (based on bytes-per-inode ratio, default 16384). You cannot add more without reformatting. XFS allocates inodes dynamically — it creates new inodes as needed from free space, so you only run out when the disk is truly full. This makes XFS better for workloads with many small files.	training/library/topics/inodes/primer.md
+inodes/c9d0e1f2a3b4	inodes	medium	inodes,containers	Why are inodes important in containerized environments?	Each container layer adds files with their own inodes on the host filesystem. Dense container hosts (running hundreds of containers) can exhaust inodes even with ample disk space. Docker's overlay2 storage driver is better than aufs for inode efficiency. Monitor inode usage alongside disk space on container hosts.	training/library/topics/inodes/primer.md
+inodes/d0e1f2a3b4c5	inodes	medium	inodes,timestamps	What are the three inode timestamps and when do they update?	atime (access time): updated when file data is read (often disabled via noatime mount for performance). mtime (modification time): updated when file data is written. ctime (change time): updated when inode metadata changes (permissions, ownership, link count). ctime cannot be set manually — it always reflects the last metadata change.	training/library/topics/inodes/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [Case Study: Disk Full Root Services Down](../../../../library/case-studies/datacenter_ops/disk-full-root-services-down/README.md) (Case Study, L1) — Filesystems & Storage
+- [Case Study: NVMe Drive Disappeared](../../../../library/case-studies/datacenter_ops/nvme-drive-disappeared/README.md) (Case Study, L2) — Filesystems & Storage
+- [Case Study: Runaway Logs Fill Disk](../../../../library/case-studies/linux_ops/runaway-logs-fill-disk/README.md) (Case Study, L1) — Filesystems & Storage
+- [Case Study: Stuck NFS Mount](../../../../library/case-studies/linux_ops/stuck-nfs-mount/README.md) (Case Study, L2) — Filesystems & Storage
+- [Deep Dive: Linux Filesystem Internals](../../../../library/deep-dives/linux.filesystem.internals.md) (deep_dive, L2) — Filesystems & Storage
+- [Deep Dive: Linux Performance Debugging](../../../../library/deep-dives/linux.performance.debugging.md) (deep_dive, L2) — Filesystems & Storage
+- [Disk & Storage Ops](../../../../library/topics/disk-and-storage-ops/index.md) (Topic Pack, L1) — Filesystems & Storage
+- [Inodes](../../../../library/topics/inodes/index.md) (Topic Pack, L1) — Filesystems & Storage
+- [Kernel Troubleshooting](../../../../library/topics/kernel-troubleshooting/index.md) (Topic Pack, L3) — Filesystems & Storage
+- Linux Filesystem Flashcards *(CLI)* (flashcard_deck, L1) — Filesystems & Storage
+
+<!-- wiki:related:end -->

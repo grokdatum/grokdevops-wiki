@@ -1,0 +1,247 @@
+## Objective
+Fix the Ingress path rules to route traffic correctly
+
+## Hint 1
+🔍 OBSERVATION HINT
+
+What to Look For:
+==================
+
+You're getting 404 errors when trying to access http://myapp.local, but the Ingress
+and Service both exist. The issue is in HOW the Ingress is routing traffic.
+
+Check These Areas:
+------------------
+
+1. **Ingress Configuration**
+   View your Ingress:
+   ```bash
+   kubectl describe ingress web-ingress -n k8squest
+   ```
+
+   Look at the "Rules" section. What path is configured?
+
+2. **Path Matching**
+   The Ingress has a path configured, but is it the RIGHT path?
+
+   Questions to ask:
+   • What path is your Ingress looking for?
+   • What path are you trying to access?
+   • Do they match?
+
+3. **Service Endpoints**
+   Check if the Service has endpoints:
+   ```bash
+   kubectl get endpoints web-service -n k8squest
+   ```
+
+🎯 Key Questions:
+-----------------
+
+• When you access http://myapp.local, what path are you actually requesting?
+• What path did you configure in the Ingress?
+• Does the path in broken.yaml match the path you're requesting?
+
+💭 Think About:
+---------------
+
+If your application serves content at the root ("/"), but your Ingress is
+configured to route "/api", what happens when someone accesses "/"?
+
+Hint: The request never matches the Ingress rule, so you get 404!
+
+---
+Read hint-2.txt when you need more specific direction.
+
+## Hint 2
+🧭 DIRECTION HINT
+
+The Problem Identified:
+========================
+
+Your Ingress is configured with the WRONG PATH. This is a classic path mismatch issue.
+
+Current Situation:
+------------------
+
+```yaml
+# In broken.yaml
+spec:
+  rules:
+  - host: myapp.local
+    http:
+      paths:
+      - path: /api        # ❌ WRONG!
+        pathType: Prefix
+        backend:
+          service:
+            name: web-service
+            port:
+              number: 80
+```
+
+What's Happening:
+-----------------
+
+1. **Your Request:**
+   - You access: http://myapp.local/
+   - Path requested: "/"
+
+2. **Ingress Configuration:**
+   - Ingress looks for: "/api"
+   - Does "/" match "/api"? NO!
+
+3. **Result:**
+   - Request doesn't match any Ingress rule
+   - Returns: 404 Not Found
+
+The Fix:
+--------
+
+The application (nginx) serves content at the ROOT path ("/"), not at "/api".
+
+You need to change the Ingress path from "/api" to "/" so it matches the actual
+requests being made.
+
+Path Types Explained:
+---------------------
+
+• **Prefix**: Matches /path and /path/anything
+  - "/api" matches: /api, /api/users, /api/v1/posts
+  - "/api" does NOT match: /, /home, /app
+
+• **Exact**: Matches ONLY the exact path
+  - "/api" matches: /api only
+  - "/api" does NOT match: /api/users, /api/
+
+For this level, you want to match ALL requests to myapp.local, so use:
+- path: /
+- pathType: Prefix
+
+This will match /, /index.html, /css/style.css, etc.
+
+What to Do:
+-----------
+
+Edit broken.yaml and change the path from "/api" to "/", then reapply:
+
+```bash
+# After editing
+kubectl apply -f broken.yaml
+kubectl get ingress web-ingress -n k8squest
+```
+
+---
+Read hint-3.txt if you need the exact solution.
+
+## Hint 3
+✅ SOLUTION HINT
+
+Complete Fix:
+=============
+
+Here's exactly what to change in broken.yaml:
+
+**Change This:**
+```yaml
+spec:
+  rules:
+  - host: myapp.local
+    http:
+      paths:
+      - path: /api        # ❌ WRONG PATH
+        pathType: Prefix
+```
+
+**To This:**
+```yaml
+spec:
+  rules:
+  - host: myapp.local
+    http:
+      paths:
+      - path: /           # ✅ CORRECT PATH
+        pathType: Prefix
+```
+
+Step-by-Step:
+-------------
+
+1. **Edit the broken.yaml file:**
+   Find the Ingress resource and locate the `path: /api` line.
+   Change it to `path: /`
+
+2. **Apply the fix:**
+   ```bash
+   kubectl apply -f broken.yaml
+   ```
+
+3. **Verify the change:**
+   ```bash
+   kubectl describe ingress web-ingress -n k8squest
+   ```
+
+   You should see:
+   ```
+   Rules:
+     Host           Path  Backends
+     ----           ----  --------
+     myapp.local
+                    /     web-service:80 (10.244.0.x:80)
+   ```
+
+4. **Test the Ingress:**
+   ```bash
+   # Add entry to /etc/hosts if needed
+   echo "127.0.0.1 myapp.local" | sudo tee -a /etc/hosts
+
+   # Test with curl (if Ingress controller is running)
+   curl http://myapp.local/
+   ```
+
+Why This Works:
+---------------
+
+**Path Matching Logic:**
+- Request: http://myapp.local/ → Path: "/"
+- Ingress rule: path: "/" + pathType: Prefix
+- Match: "/" starts with "/" ✅
+- Route: Request goes to web-service:80
+
+**Before (broken):**
+- Request: http://myapp.local/ → Path: "/"
+- Ingress rule: path: "/api" + pathType: Prefix
+- Match: "/" does NOT start with "/api" ❌
+- Result: 404 Not Found
+
+Alternative Solution (Optional):
+---------------------------------
+
+If you actually WANTED to serve the app at /api, you could:
+
+1. Keep path: /api in Ingress
+2. Access the app at http://myapp.local/api/
+3. Or use an Ingress annotation to rewrite the path:
+
+```yaml
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+```
+
+This would strip "/api" and send "/" to the backend. But for this level,
+the simple fix is changing the path to "/".
+
+Validation:
+-----------
+
+After applying, run:
+```bash
+./validate.sh
+```
+
+You should see: ✅ VALIDATION PASSED!
+
+---
+Check solution.yaml to see the complete working configuration.
+

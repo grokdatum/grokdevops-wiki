@@ -1,0 +1,7398 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Deep dive into IAM users, roles, policies, policy evaluation logic, AssumeRole, cross-account access, permission boundaries, and Access Denied debugging.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/lessons/aws-iam-the-permissions-puzzle/">
+      
+      
+        <link rel="prev" href="../ansible-playbook-debugging/">
+      
+      
+        <link rel="next" href="../kubernetes-debugging-when-pods-wont-behave/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>AWS IAM: The Permissions Puzzle - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="AWS IAM: The Permissions Puzzle - GrokDevOps Wiki" />
+<meta property="og:description" content="Deep dive into IAM users, roles, policies, policy evaluation logic, AssumeRole, cross-account access, permission boundaries, and Access Denied debugging." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/aws-iam-the-permissions-puzzle.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/lessons/aws-iam-the-permissions-puzzle/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="AWS IAM: The Permissions Puzzle - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Deep dive into IAM users, roles, policies, policy evaluation logic, AssumeRole, cross-account access, permission boundaries, and Access Denied debugging." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/aws-iam-the-permissions-puzzle.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#aws-iam-the-permissions-puzzle" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              AWS IAM: The Permissions Puzzle
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-End Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    End-to-End Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-click-a-link/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Click a Link
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-press-power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Press Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-docker-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `docker build`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-kubectl-apply/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `kubectl apply`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-helm-install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `helm install`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-git-push-to-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `git push` to CI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pxe-boot-from-network-to-running-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE Boot: From Network to Running Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh-is-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SSH Is More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strace-reading-the-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    strace: Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-type-a-regex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Type a Regex
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ebpf-the-linux-superpower/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    eBPF: The Linux Superpower
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-inside-a-linux-pipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens Inside a Linux Pipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-proc-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The /proc Filesystem: Linux's Hidden API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-to-read-a-flame-graph/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to Read a Flame Graph
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../iptables-following-a-packet-through-the-chains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    iptables: Following a Packet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-subnet-calculator-in-your-head/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Subnet Calculator in Your Head
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-kubernetes-evicts-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Kubernetes Evicts Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tmux-and-the-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tmux and the Terminal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../opentelemetry-following-a-request-across-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenTelemetry: Following a Request Across Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-services-how-traffic-finds-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Services: How Traffic Finds Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../log-pipelines-from-printf-to-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Pipelines: From printf to Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../container-registries-where-your-images-actually-live/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container Registries: Where Your Images Actually Live
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../envoy-the-proxy-thats-everywhere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Envoy: The Proxy That's Everywhere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-node-lifecycle-from-provision-to-decommission/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Node Lifecycle: From Provision to Decommission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-from-scratch-to-production-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes: From Scratch to Production Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Incident-Driven
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Incident-Driven
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-hanging-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Hanging Deploy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-disk-that-filled-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Disk That Filled Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-database-that-wouldnt-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Database That Wouldn't Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-mysterious-latency-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Mysterious Latency Spike
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-terraform-state-disaster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Terraform State Disaster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cascading-timeout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cascading Timeout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-rollback-that-wasnt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Rollback That Wasn't
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../when-the-queue-backs-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When the Queue Backs Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-split-brain-nightmare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Split-Brain Nightmare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cloud-bill-surprise/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cloud Bill Surprise
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-backup-nobody-tested/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Backup Nobody Tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-your-certificate-expires/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Your Certificate Expires
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-load-balancer-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Load Balancer Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-monitoring-that-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Monitoring That Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../redis-in-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis in Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elasticsearch-for-people-who-didnt-choose-it/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Elasticsearch Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mysql-operations-the-database-you-inherited/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MySQL Operations: The Database You Inherited
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mongodb-the-document-database-that-surprised-everyone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MongoDB: The Document Database That Surprised Everyone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server-hardware-when-the-blinky-lights-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Hardware: When the Blinky Lights Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../etcd-the-database-that-runs-kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    etcd: The Database That Runs Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-lambda-the-function-that-runs-itself/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS Lambda: The Function That Runs Itself
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-rds-the-managed-database-tradeoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS RDS: The Managed Database Tradeoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-ec2-the-virtual-server-you-never-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS EC2: The Virtual Server You Never See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kafka-the-log-that-runs-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kafka: The Log That Runs Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differential Diagnosis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Differential Diagnosis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connection-refused/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connection Refused
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permission-denied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permission Denied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../out-of-memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Out of Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-vs-ansible-vs-helm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform vs Ansible vs Helm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-nginx-config-that-broke-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Nginx Config That Broke Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-playbook-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible Playbook Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS IAM: The Permissions Puzzle
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS IAM: The Permissions Puzzle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-zero-who-am-i" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step Zero: Who Am I?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cast-of-characters-users-roles-and-groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Cast of Characters: Users, Roles, and Groups
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Cast of Characters: Users, Roles, and Groups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#iam-users-the-permanent-residents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IAM Users — The Permanent Residents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iam-roles-the-costume-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IAM Roles — The Costume Changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iam-groups-the-organizers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IAM Groups — The Organizers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-use-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to Use What
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-policy-language-reading-json-that-controls-your-career" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Policy Language: Reading JSON That Controls Your Career
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-evaluation-flowchart-how-aws-actually-decides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Evaluation Flowchart: How AWS Actually Decides
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cross-domain-bridge-linux-permissions-and-k8s-rbac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Cross-Domain Bridge: Linux Permissions and K8s RBAC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-access-denied-debugging-ladder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The "Access Denied" Debugging Ladder
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The &#34;Access Denied&#34; Debugging Ladder">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rung-1-verify-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 1: Verify Identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rung-2-simulate-the-action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 2: Simulate the Action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rung-3-decode-the-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 3: Decode the Error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rung-4-check-all-policy-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 4: Check All Policy Layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rung-5-check-cloudtrail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 5: Check CloudTrail
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#war-story-the-wildcard-that-cost-50000" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        War Story: The Wildcard That Cost $50,000
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-account-access-the-two-sided-handshake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-Account Access: The Two-Sided Handshake
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#permission-boundaries-the-ceiling-that-cannot-be-broken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Permission Boundaries: The Ceiling That Cannot Be Broken
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#service-control-policies-the-organizational-guardrails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service Control Policies: The Organizational Guardrails
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solving-the-mystery-our-pipeline-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solving the Mystery: Our Pipeline Case
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-misconfigurations-the-greatest-hits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Misconfigurations: The Greatest Hits
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Misconfigurations: The Greatest Hits">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-wildcard-resource-resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Wildcard Resource ("Resource": "*")
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-overly-broad-trust-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Overly Broad Trust Policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-forgotten-policy-attachment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Forgotten Policy Attachment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-s3-bucket-vs-object-arn-confusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. S3 Bucket vs Object ARN Confusion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-eventual-consistency-surprises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Eventual Consistency Surprises
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-identity-verification-2-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Identity Verification (2 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-policy-simulation-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Policy Simulation (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-find-the-overly-permissive-roles-10-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Find the Overly Permissive Roles (10 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-4-cross-domain-comparison-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Cross-Domain Comparison (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Related Lessons">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pages-that-link-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pages that link here
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-debugging-when-pods-wont-behave/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Debugging: When Pods Won't Behave
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dns-ops-when-nslookup-isnt-enough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DNS Operations: When nslookup Isn't Enough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-gateways-the-front-door-to-your-microservices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateways: The Front Door to Your Microservices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Archaeological
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Archaeological
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-init-scripts-to-systemd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    From Init Scripts to systemd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-dns-is-always-the-problem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why DNS Is Always the Problem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-everything-uses-json-now/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why Everything Uses JSON Now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-yaml-keeps-breaking-your-deploys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why YAML Keeps Breaking Your Deploys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-and-the-art-of-not-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus and the Art of Not Alerting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../understanding-distributed-systems-without-a-phd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Understanding Distributed Systems Without a PhD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-service-mesh-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Service Mesh Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-ntp-matters-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why NTP Matters More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../raid-why-your-disks-will-fail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAID: Why Your Disks Will Fail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../make-and-makefiles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Make and Makefiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-kubernetes-migration-that-took-a-year/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Kubernetes Migration That Took a Year
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gitops-the-repo-is-the-truth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitOps: The Repo Is the Truth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../s3-the-object-store-that-runs-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    S3: The Object Store That Runs the Internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bgp-how-the-internet-routes-your-packets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BGP: How the Internet Routes Your Packets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slos-when-good-enough-is-a-number/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SLOs: When Good Enough Is a Number
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-internals-the-content-addressable-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Git Internals: The Content-Addressable Filesystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-under-the-hood/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus: Under the Hood
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adversarial
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Adversarial
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-container-escape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Container Escape
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-git-disaster-recovery-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Git Disaster Recovery Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-engineering-breaking-things-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Engineering: Breaking Things on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../supply-chain-security-trusting-your-dependencies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply Chain Security: Trusting Your Dependencies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cgroups-and-namespaces-containers-are-a-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cgroups and Namespaces: Containers Are a Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-hardening-closing-the-doors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Hardening: Closing the Doors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bash-the-patterns-that-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bash: The Patterns That Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build-Up
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Build-Up
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deploy-a-web-app-from-nothing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy a Web App From Nothing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../secrets-management-without-tears/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets Management Without Tears
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-incident-response-actually-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Incident Response Actually Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-postmortem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Postmortem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-runbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-vpc-the-network-you-cant-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS VPC: The Network You Can't See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../load-testing-finding-the-breaking-point/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load Testing: Finding the Breaking Point
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packer-building-machine-images-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packer: Building Machine Images That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-networking-bridges-bonds-and-vlans/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Networking: Bridges, Bonds, and VLANs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kustomize-kubernetes-config-without-templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kustomize: Kubernetes Config Without Templates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vault-secrets-that-expire-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vault: Secrets That Expire on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../github-actions-ci-cd-that-lives-in-your-repo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Actions: CI/CD That Lives in Your Repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grafana-dashboards-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grafana: Dashboards That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compliance-as-code-automating-the-auditor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compliance as Code: Automating the Auditor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-modules-building-infrastructure-legos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform Modules: Building Infrastructure LEGOs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-compose-the-local-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Compose: The Local Cluster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../systemd-the-init-system-you-cant-avoid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    systemd: The Init System You Can't Avoid
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nginx-the-swiss-army-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nginx: The Swiss Army Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-from-playbook-to-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible: From Playbook to Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capacity-planning-math-before-midnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capacity Planning: Math Before Midnight
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-storage-lvm-filesystems-and-beyond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Storage: LVM, Filesystems, and Beyond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parallel
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Parallel
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../text-processing-jq-awk-sed-in-the-trenches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing: jq, awk, and sed in the Trenches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_9" id="__nav_5_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Learning Path
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python Learning Path
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-zero-to-script-for-the-terminal-native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Zero to Script for the Terminal Native
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-data-wrangling-for-ops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Data Wrangling for Ops
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-automating-everything-apis-and-infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Automating Everything — APIs and Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_10" id="__nav_5_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    More Lessons
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    More Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-ansible/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Ansible
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-system-automation-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python System Automation Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-zero-who-am-i" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step Zero: Who Am I?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cast-of-characters-users-roles-and-groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Cast of Characters: Users, Roles, and Groups
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Cast of Characters: Users, Roles, and Groups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#iam-users-the-permanent-residents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IAM Users — The Permanent Residents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iam-roles-the-costume-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IAM Roles — The Costume Changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iam-groups-the-organizers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IAM Groups — The Organizers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-use-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to Use What
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-policy-language-reading-json-that-controls-your-career" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Policy Language: Reading JSON That Controls Your Career
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-evaluation-flowchart-how-aws-actually-decides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Evaluation Flowchart: How AWS Actually Decides
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-cross-domain-bridge-linux-permissions-and-k8s-rbac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Cross-Domain Bridge: Linux Permissions and K8s RBAC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-access-denied-debugging-ladder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The "Access Denied" Debugging Ladder
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The &#34;Access Denied&#34; Debugging Ladder">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rung-1-verify-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 1: Verify Identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rung-2-simulate-the-action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 2: Simulate the Action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rung-3-decode-the-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 3: Decode the Error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rung-4-check-all-policy-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 4: Check All Policy Layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rung-5-check-cloudtrail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rung 5: Check CloudTrail
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#war-story-the-wildcard-that-cost-50000" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        War Story: The Wildcard That Cost $50,000
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-account-access-the-two-sided-handshake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-Account Access: The Two-Sided Handshake
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#permission-boundaries-the-ceiling-that-cannot-be-broken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Permission Boundaries: The Ceiling That Cannot Be Broken
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#service-control-policies-the-organizational-guardrails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service Control Policies: The Organizational Guardrails
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solving-the-mystery-our-pipeline-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solving the Mystery: Our Pipeline Case
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-misconfigurations-the-greatest-hits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Misconfigurations: The Greatest Hits
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Misconfigurations: The Greatest Hits">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-wildcard-resource-resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Wildcard Resource ("Resource": "*")
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-overly-broad-trust-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Overly Broad Trust Policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-forgotten-policy-attachment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Forgotten Policy Attachment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-s3-bucket-vs-object-arn-confusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. S3 Bucket vs Object ARN Confusion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-eventual-consistency-surprises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Eventual Consistency Surprises
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-identity-verification-2-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Identity Verification (2 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-policy-simulation-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Policy Simulation (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-find-the-overly-permissive-roles-10-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Find the Overly Permissive Roles (10 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-4-cross-domain-comparison-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Cross-Domain Comparison (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Related Lessons">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pages-that-link-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pages that link here
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Lessons
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../connection-refused/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Differential Diagnosis
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:access-denied-debugging" class="md-tag">access-denied-debugging</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:assumerole" class="md-tag">assumerole</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:cross-account-access" class="md-tag">cross-account-access</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:iam-usersrolespolicies" class="md-tag">iam-users/roles/policies</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:k8s-rbac-parallels" class="md-tag">k8s-rbac-parallels</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:lesson" class="md-tag">lesson</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:linux-permissions-parallels" class="md-tag">linux-permissions-parallels</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:permission-boundaries" class="md-tag">permission-boundaries</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:policy-evaluation-logic" class="md-tag">policy-evaluation-logic</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:scps" class="md-tag">scps</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="aws-iam-the-permissions-puzzle">AWS IAM — The Permissions Puzzle<a class="headerlink" href="#aws-iam-the-permissions-puzzle" title="Permanent link">&para;</a></h1>
+<p><strong>Topics:</strong> IAM users/roles/policies, policy evaluation logic, AssumeRole, cross-account access, permission boundaries, SCPs, Access Denied debugging, Linux permissions parallels, K8s RBAC parallels
+<strong>Level:</strong> L1–L2 (Foundations to Operations)
+<strong>Time:</strong> 60–90 minutes
+<strong>Prerequisites:</strong> None (everything is explained from scratch)</p>
+<hr />
+<h2 id="the-mission">The Mission<a class="headerlink" href="#the-mission" title="Permanent link">&para;</a></h2>
+<p>It's Thursday afternoon. Your team's deployment pipeline just started failing:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>An error occurred (AccessDenied) when calling the PutObject operation:
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Access Denied
+</code></pre></div>
+<p>The pipeline worked yesterday. Nobody changed the IAM policies — or so they claim. The
+deploy is blocked, staging is stale, and the product manager is pinging Slack every four
+minutes.</p>
+<p>You need to find out <em>which</em> of AWS's overlapping permission layers said no, <em>why</em> it said
+no, and <em>how</em> to fix it without giving the pipeline more access than it needs. This lesson
+teaches you to think through IAM the way you'd think through any multi-layer system: by
+understanding each layer, then systematically eliminating candidates.</p>
+<hr />
+<h2 id="step-zero-who-am-i">Step Zero: Who Am I?<a class="headerlink" href="#step-zero-who-am-i" title="Permanent link">&para;</a></h2>
+<p>Before you debug <em>permissions</em>, debug <em>identity</em>. In 40% or more of "Access Denied"
+investigations, the caller isn't who you think it is.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>aws<span class="w"> </span>sts<span class="w"> </span>get-caller-identity
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nt">"UserId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AROA3XFRBF23XDCLKWQ6P:deploy-session"</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">"Account"</span><span class="p">:</span><span class="w"> </span><span class="s2">"123456789012"</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">"Arn"</span><span class="p">:</span><span class="w"> </span><span class="s2">"arn:aws:sts::123456789012:assumed-role/deploy-role/deploy-session"</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">}</span>
+</code></pre></div>
+<p>Read this output carefully:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What it tells you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Account</code></td>
+<td>Which AWS account you're operating in</td>
+</tr>
+<tr>
+<td><code>Arn</code></td>
+<td>The identity making API calls — user, role, or assumed-role session</td>
+</tr>
+<tr>
+<td><code>UserId</code></td>
+<td>Starts with <code>AROA</code> for assumed roles, <code>AIDA</code> for IAM users</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Gotcha:</strong> On an EC2 instance, the AWS CLI picks up credentials from the instance
+metadata service (the instance profile role). Inside an EKS pod, IRSA injects a web
+identity token. If your <code>~/.aws/credentials</code> file has stale keys, the CLI might use
+<em>those</em> instead of the role you expect. Environment variables (<code>AWS_ACCESS_KEY_ID</code>)
+override instance metadata, and instance metadata overrides config files. The
+<a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html">credential resolution order</a>
+is: env vars &gt; config files &gt; instance metadata. Getting this wrong is the single most
+common IAM debugging dead end.</p>
+</blockquote>
+<p>This is your first move in <em>every</em> IAM investigation. Tattoo it on your forearm if needed.</p>
+<hr />
+<h2 id="the-cast-of-characters-users-roles-and-groups">The Cast of Characters: Users, Roles, and Groups<a class="headerlink" href="#the-cast-of-characters-users-roles-and-groups" title="Permanent link">&para;</a></h2>
+<p>IAM has three principal types. They exist for different reasons, and choosing the wrong
+one creates problems that compound over months.</p>
+<h3 id="iam-users-the-permanent-residents">IAM Users — The Permanent Residents<a class="headerlink" href="#iam-users-the-permanent-residents" title="Permanent link">&para;</a></h3>
+<p>An IAM user is a long-lived identity with persistent credentials: a password for console
+access and optionally access keys for API calls. Every user gets an ARN:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>arn:aws:iam::123456789012:user/alice
+</code></pre></div>
+<p>Users are appropriate for humans who need console access (with MFA) and for legacy
+integrations that cannot use temporary credentials. For almost everything else, they are
+the wrong choice.</p>
+<h3 id="iam-roles-the-costume-changes">IAM Roles — The Costume Changes<a class="headerlink" href="#iam-roles-the-costume-changes" title="Permanent link">&para;</a></h3>
+<p>A role is an identity you <em>assume</em>. It has no permanent credentials. When you assume a
+role, AWS STS gives you temporary credentials that expire (default: 1 hour, max: 12
+hours).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Assume a role and get temporary credentials</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>aws<span class="w"> </span>sts<span class="w"> </span>assume-role<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--role-arn<span class="w"> </span>arn:aws:iam::123456789012:role/deploy-role<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--role-session-name<span class="w"> </span>debug-session
+</code></pre></div>
+<p>Roles have two policy surfaces: a <strong>trust policy</strong> (who can assume this role) and
+<strong>permission policies</strong> (what the role can do once assumed).</p>
+<blockquote>
+<p><strong>Name Origin:</strong> The term "assume role" comes from theater — an actor <em>assumes a role</em>
+by putting on a costume and playing a character. In AWS, your original identity
+temporarily takes on a different set of permissions, like an actor stepping into a part.
+When the session expires, you're back to being yourself.</p>
+</blockquote>
+<h3 id="iam-groups-the-organizers">IAM Groups — The Organizers<a class="headerlink" href="#iam-groups-the-organizers" title="Permanent link">&para;</a></h3>
+<p>Groups are collections of users. They exist solely to attach policies to multiple users at
+once. Groups <strong>cannot</strong> be used as principals in resource policies — you can't write a
+bucket policy that allows a group. They're an organizational convenience, nothing more.</p>
+<h3 id="when-to-use-what">When to Use What<a class="headerlink" href="#when-to-use-what" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Use</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Human console access</td>
+<td>IAM user + MFA</td>
+<td>Needs persistent password</td>
+</tr>
+<tr>
+<td>EC2 instance needing AWS access</td>
+<td>IAM role via instance profile</td>
+<td>Temporary creds, auto-rotated</td>
+</tr>
+<tr>
+<td>Lambda function</td>
+<td>IAM role (execution role)</td>
+<td>Lambda assumes it automatically</td>
+</tr>
+<tr>
+<td>EKS pod</td>
+<td>IAM role via IRSA</td>
+<td>Pod-level isolation, not node-level</td>
+</tr>
+<tr>
+<td>CI/CD pipeline</td>
+<td>IAM role via OIDC federation</td>
+<td>No long-lived keys to leak</td>
+</tr>
+<tr>
+<td>Cross-account access</td>
+<td>IAM role with trust policy</td>
+<td>Both sides must agree</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Mental Model:</strong> Think of users as <em>people with house keys</em> and roles as <em>security
+badges that expire</em>. If someone steals a house key, they have access forever (until you
+change the lock). If someone steals a badge, it stops working at 5pm.</p>
+</blockquote>
+<hr />
+<h2 id="flashcard-check-1">Flashcard Check #1<a class="headerlink" href="#flashcard-check-1" title="Permanent link">&para;</a></h2>
+<p>Cover the answers, test yourself:</p>
+<p><strong>Q: What is the first command you should run when debugging "Access Denied" in AWS?</strong></p>
+<p><code>aws sts get-caller-identity</code> — to verify you're authenticated as the principal you expect.</p>
+<p><strong>Q: What's the key difference between an IAM user and an IAM role?</strong></p>
+<p>Users have permanent credentials; roles provide temporary credentials via STS. Roles are assumed, users are authenticated.</p>
+<p><strong>Q: Can an IAM group be used as a principal in an S3 bucket policy?</strong></p>
+<p>No. Groups can only be used to attach policies to users. They cannot appear as principals in resource-based policies.</p>
+<hr />
+<h2 id="the-policy-language-reading-json-that-controls-your-career">The Policy Language: Reading JSON That Controls Your Career<a class="headerlink" href="#the-policy-language-reading-json-that-controls-your-career" title="Permanent link">&para;</a></h2>
+<p>IAM policies are JSON documents. Every permission in AWS is defined in this format. Learn
+to read it fluently — you'll see thousands of these.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">"Version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2012-10-17"</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"Statement"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">      </span><span class="nt">"Sid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AllowDeployToUploadArtifacts"</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="nt">"Effect"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Allow"</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">      </span><span class="nt">"Action"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">        </span><span class="s2">"s3:PutObject"</span><span class="p">,</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">        </span><span class="s2">"s3:GetObject"</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">      </span><span class="p">],</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">      </span><span class="nt">"Resource"</span><span class="p">:</span><span class="w"> </span><span class="s2">"arn:aws:s3:::deploy-artifacts-prod/*"</span><span class="p">,</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">      </span><span class="nt">"Condition"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">        </span><span class="nt">"StringEquals"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">          </span><span class="nt">"aws:RequestedRegion"</span><span class="p">:</span><span class="w"> </span><span class="s2">"us-east-1"</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">        </span><span class="p">}</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="p">}</span>
+</code></pre></div>
+<p>Breaking it down:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Version</code></td>
+<td>Always <code>"2012-10-17"</code>. The other version (<code>"2008-10-17"</code>) is ancient and breaks variable substitution.</td>
+</tr>
+<tr>
+<td><code>Sid</code></td>
+<td>Statement ID — optional, human-readable label</td>
+</tr>
+<tr>
+<td><code>Effect</code></td>
+<td><code>Allow</code> or <code>Deny</code>. That's it. Two options.</td>
+</tr>
+<tr>
+<td><code>Action</code></td>
+<td>What API calls this covers. <code>s3:PutObject</code>, <code>ec2:RunInstances</code>, etc.</td>
+</tr>
+<tr>
+<td><code>Resource</code></td>
+<td>Which specific resources — as ARNs. Scope this as tightly as possible.</td>
+</tr>
+<tr>
+<td><code>Condition</code></td>
+<td>Optional restrictions: IP ranges, tags, MFA status, time of day</td>
+</tr>
+</tbody>
+</table>
+<p>There are three places policies can live:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Where</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Managed policies</strong></td>
+<td>Standalone, attached to users/roles/groups</td>
+<td>Reusable, versioned, auditable</td>
+</tr>
+<tr>
+<td><strong>Inline policies</strong></td>
+<td>Embedded in a single user/role/group</td>
+<td>Tightly coupled — harder to find</td>
+</tr>
+<tr>
+<td><strong>Resource policies</strong></td>
+<td>Attached to the resource (S3 bucket, KMS key)</td>
+<td>Controls who can access <em>this</em> resource</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Gotcha:</strong> Inline policies do not appear in the IAM policy list. If you have 200 roles
+with inline policies, auditing who can do what requires checking every principal
+individually. Use managed policies. Always. The only acceptable inline policy is the
+trust policy on a role (which AWS requires to be inline).</p>
+</blockquote>
+<hr />
+<h2 id="the-evaluation-flowchart-how-aws-actually-decides">The Evaluation Flowchart: How AWS Actually Decides<a class="headerlink" href="#the-evaluation-flowchart-how-aws-actually-decides" title="Permanent link">&para;</a></h2>
+<p>This is the core mental model. When an API call arrives, AWS evaluates policies in a
+specific order. Understanding this order is the difference between random debugging and
+systematic elimination.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>API Request arrives
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>        │
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        ▼
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>┌─────────────────────┐
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>│ Explicit Deny in     │──── YES ──→ DENIED (game over)
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│ ANY policy?          │
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>└──────────┬──────────┘
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>           │ NO
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>           ▼
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>┌─────────────────────┐
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>│ SCP allows it?       │──── NO ───→ DENIED (org guardrail)
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>│ (Organization level) │
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>└──────────┬──────────┘
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>           │ YES
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>           ▼
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>┌─────────────────────┐
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>│ Resource-based policy│──── YES, same ──→ ALLOWED
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>│ allows it?           │     account        (early exit)
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>└──────────┬──────────┘
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>           │ NO / cross-account
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>           ▼
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>┌─────────────────────┐
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>│ Permission boundary  │──── NO ───→ DENIED (ceiling hit)
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>│ allows it?           │
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>└──────────┬──────────┘
+<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>           │ YES
+<a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a>           ▼
+<a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a>┌─────────────────────┐
+<a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a>│ Session policy       │──── NO ───→ DENIED (session filter)
+<a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a>│ allows it?           │
+<a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a>└──────────┬──────────┘
+<a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a>           │ YES
+<a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a>           ▼
+<a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a>┌─────────────────────┐
+<a id="__codelineno-6-35" name="__codelineno-6-35" href="#__codelineno-6-35"></a>│ Identity-based policy│──── YES ──→ ALLOWED
+<a id="__codelineno-6-36" name="__codelineno-6-36" href="#__codelineno-6-36"></a>│ allows it?           │
+<a id="__codelineno-6-37" name="__codelineno-6-37" href="#__codelineno-6-37"></a>└──────────┬──────────┘
+<a id="__codelineno-6-38" name="__codelineno-6-38" href="#__codelineno-6-38"></a>           │ NO
+<a id="__codelineno-6-39" name="__codelineno-6-39" href="#__codelineno-6-39"></a>           ▼
+<a id="__codelineno-6-40" name="__codelineno-6-40" href="#__codelineno-6-40"></a>      DENIED (implicit — nothing allowed it)
+</code></pre></div>
+<p>The critical rules to memorize:</p>
+<ol>
+<li><strong>Explicit Deny always wins.</strong> It doesn't matter what else allows the action. An explicit <code>"Effect": "Deny"</code> anywhere in the chain overrides everything.</li>
+<li><strong>Implicit deny is the default.</strong> If nothing explicitly allows an action, it's denied.</li>
+<li><strong>SCPs are guardrails, not grants.</strong> They restrict what's <em>possible</em> in an account but never <em>give</em> permissions.</li>
+<li><strong>Permission boundaries are ceilings.</strong> The effective permissions are the <em>intersection</em> of the identity policy and the boundary — not the union.</li>
+<li><strong>Cross-account is stricter.</strong> Both the source account's identity policy AND the target account's resource policy must allow the action. One-sided access doesn't work.</li>
+</ol>
+<blockquote>
+<p><strong>Under the Hood:</strong> The policy evaluation engine is not a simple if/else chain. AWS uses
+an internal system called Zelkova, based on satisfiability modulo theories (SMT) — the
+same mathematical foundations used in formal verification of hardware. IAM Access
+Analyzer uses Zelkova to <em>prove</em> whether a policy can grant access to external
+principals, providing mathematically certain answers rather than heuristic guesses. This
+was introduced in 2019.</p>
+</blockquote>
+<hr />
+<h2 id="the-cross-domain-bridge-linux-permissions-and-k8s-rbac">The Cross-Domain Bridge: Linux Permissions and K8s RBAC<a class="headerlink" href="#the-cross-domain-bridge-linux-permissions-and-k8s-rbac" title="Permanent link">&para;</a></h2>
+<p>IAM is not the only permission system you'll wrestle with. The mental model transfers
+directly to Linux file permissions and Kubernetes RBAC. Here's the Rosetta Stone:</p>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>AWS IAM</th>
+<th>Linux</th>
+<th>K8s RBAC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Identity</strong></td>
+<td>IAM user/role</td>
+<td>UID/GID</td>
+<td>User/ServiceAccount</td>
+</tr>
+<tr>
+<td><strong>What they can do</strong></td>
+<td>IAM policy</td>
+<td>rwx bits + ACLs</td>
+<td>Role/ClusterRole</td>
+</tr>
+<tr>
+<td><strong>Binding identity to permissions</strong></td>
+<td>Attach policy to role</td>
+<td>chown + chmod</td>
+<td>RoleBinding/ClusterRoleBinding</td>
+</tr>
+<tr>
+<td><strong>Scope</strong></td>
+<td>Account / resource ARN</td>
+<td>File / directory</td>
+<td>Namespace / cluster</td>
+</tr>
+<tr>
+<td><strong>Deny override</strong></td>
+<td>Explicit Deny wins</td>
+<td>No read bit = denied</td>
+<td>No RBAC rule = denied</td>
+</tr>
+<tr>
+<td><strong>Escalation guard</strong></td>
+<td>Permission boundary</td>
+<td>sudo / capabilities</td>
+<td><code>escalate</code> verb restriction</td>
+</tr>
+<tr>
+<td><strong>Org-level guardrail</strong></td>
+<td>SCP</td>
+<td>SELinux / AppArmor</td>
+<td>Pod Security Standards</td>
+</tr>
+<tr>
+<td><strong>"Who am I?"</strong></td>
+<td><code>aws sts get-caller-identity</code></td>
+<td><code>id</code></td>
+<td><code>kubectl auth whoami</code></td>
+</tr>
+<tr>
+<td><strong>"Can I do X?"</strong></td>
+<td><code>aws iam simulate-principal-policy</code></td>
+<td><code>test -r file</code></td>
+<td><code>kubectl auth can-i</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Name Origin:</strong> The word "principal" comes from Latin <em>principalis</em> — "first, chief."
+In security, a principal is any entity that can be authenticated: a user, a role, a
+service, a process. You'll see it in IAM (principals in policies), Kerberos (principal
+names), and TLS (the subject of a certificate). Same word, same concept, across every
+permission system.</p>
+</blockquote>
+<p>The parallels go deep. In Linux, when you can't read a file:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>$<span class="w"> </span>cat<span class="w"> </span>/etc/shadow
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cat:<span class="w"> </span>/etc/shadow:<span class="w"> </span>Permission<span class="w"> </span>denied
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>$<span class="w"> </span>ls<span class="w"> </span>-la<span class="w"> </span>/etc/shadow
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>-rw-r-----<span class="w"> </span><span class="m">1</span><span class="w"> </span>root<span class="w"> </span>shadow<span class="w"> </span><span class="m">1234</span><span class="w"> </span>Mar<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="m">08</span>:00<span class="w"> </span>/etc/shadow
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>$<span class="w"> </span>id
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nv">uid</span><span class="o">=</span><span class="m">1000</span><span class="o">(</span>deploy<span class="o">)</span><span class="w"> </span><span class="nv">gid</span><span class="o">=</span><span class="m">1000</span><span class="o">(</span>deploy<span class="o">)</span><span class="w"> </span><span class="nv">groups</span><span class="o">=</span><span class="m">1000</span><span class="o">(</span>deploy<span class="o">)</span>,27<span class="o">(</span>sudo<span class="o">)</span>
+</code></pre></div>
+<p>Your debugging ladder is: check identity (<code>id</code>), check permissions (<code>ls -la</code>), check
+group membership, check ACLs (<code>getfacl</code>), check if SELinux is blocking (<code>getenforce</code>,
+<code>audit2why</code>).</p>
+<p>In Kubernetes, when a service account can't list pods:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>$<span class="w"> </span>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>production
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>Error<span class="w"> </span>from<span class="w"> </span>server<span class="w"> </span><span class="o">(</span>Forbidden<span class="o">)</span>:<span class="w"> </span>pods<span class="w"> </span>is<span class="w"> </span>forbidden:<span class="w"> </span>User<span class="w"> </span><span class="s2">"system:serviceaccount:ci:deployer"</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>cannot<span class="w"> </span>list<span class="w"> </span>resource<span class="w"> </span><span class="s2">"pods"</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>API<span class="w"> </span>group<span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>namespace<span class="w"> </span><span class="s2">"production"</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># Debug: can this SA do what we need?</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>$<span class="w"> </span>kubectl<span class="w"> </span>auth<span class="w"> </span>can-i<span class="w"> </span>list<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span>--as<span class="o">=</span>system:serviceaccount:ci:deployer
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>no
+</code></pre></div>
+<p>Same pattern: check identity, check what's granted, find the gap.</p>
+<blockquote>
+<p><strong>Mental Model:</strong> Every permission system is a gate with the same three questions:
+<em>Who are you?</em> (authentication), <em>What do you want to do?</em> (action + resource), and
+<em>Are you allowed?</em> (authorization). The specifics vary — JSON policies vs rwx bits vs
+RBAC rules — but the debugging ladder is universal: verify identity first, then check
+each authorization layer from the outside in.</p>
+</blockquote>
+<hr />
+<h2 id="flashcard-check-2">Flashcard Check #2<a class="headerlink" href="#flashcard-check-2" title="Permanent link">&para;</a></h2>
+<p><strong>Q: In AWS policy evaluation, what always wins — an explicit Allow or an explicit Deny?</strong></p>
+<p>Explicit Deny. Always. An explicit Deny in any policy (SCP, identity, resource, boundary) overrides all Allows.</p>
+<p><strong>Q: What is a permission boundary?</strong></p>
+<p>A permission boundary is a managed policy attached to an IAM role or user that sets the <em>maximum</em> permissions that identity can have. The effective permissions are the intersection of the boundary and the identity policy — the boundary is a ceiling, not a floor.</p>
+<p><strong>Q: What is the K8s equivalent of <code>aws sts get-caller-identity</code>?</strong></p>
+<p><code>kubectl auth whoami</code> (or <code>kubectl auth can-i --list</code> to see what the current identity can do).</p>
+<hr />
+<h2 id="the-access-denied-debugging-ladder">The "Access Denied" Debugging Ladder<a class="headerlink" href="#the-access-denied-debugging-ladder" title="Permanent link">&para;</a></h2>
+<p>Back to our failing pipeline. Here's the systematic approach — a checklist that eliminates
+one layer at a time, starting with the most common causes.</p>
+<h3 id="rung-1-verify-identity">Rung 1: Verify Identity<a class="headerlink" href="#rung-1-verify-identity" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>aws<span class="w"> </span>sts<span class="w"> </span>get-caller-identity
+</code></pre></div>
+<p>If the ARN is not the role you expect, you have a credential resolution problem, not a
+permission problem. Check environment variables, AWS profiles, and instance metadata.</p>
+<h3 id="rung-2-simulate-the-action">Rung 2: Simulate the Action<a class="headerlink" href="#rung-2-simulate-the-action" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>aws<span class="w"> </span>iam<span class="w"> </span>simulate-principal-policy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span>--policy-source-arn<span class="w"> </span>arn:aws:iam::123456789012:role/deploy-role<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span>--action-names<span class="w"> </span>s3:PutObject<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span>--resource-arns<span class="w"> </span><span class="s2">"arn:aws:s3:::deploy-artifacts-prod/build-42.tar.gz"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span>--query<span class="w"> </span><span class="s1">'EvaluationResults[].{Action:EvalActionName,Decision:EvalDecision}'</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">[</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">        </span><span class="nt">"Action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"s3:PutObject"</span><span class="p">,</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">        </span><span class="nt">"Decision"</span><span class="p">:</span><span class="w"> </span><span class="s2">"implicitDeny"</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="p">]</span>
+</code></pre></div>
+<p>The simulator tests the identity-based policies <em>without</em> making a real API call. If it
+says <code>implicitDeny</code>, no identity policy grants the action. If it says <code>explicitDeny</code>,
+something is actively blocking.</p>
+<blockquote>
+<p><strong>Trivia:</strong> The policy simulator cannot evaluate resource-based policies, SCPs, or
+VPC endpoint policies. It only tests identity-based policies and permission boundaries.
+For a full picture, you need to check each layer manually. This limitation trips up
+even experienced engineers who treat the simulator result as the final answer.</p>
+</blockquote>
+<h3 id="rung-3-decode-the-error">Rung 3: Decode the Error<a class="headerlink" href="#rung-3-decode-the-error" title="Permanent link">&para;</a></h3>
+<p>Some AWS services return encoded authorization messages. Decode them:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>aws<span class="w"> </span>sts<span class="w"> </span>decode-authorization-message<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>--encoded-message<span class="w"> </span><span class="s2">"&lt;paste-encoded-message&gt;"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span>jq<span class="w"> </span><span class="s1">'.DecodedMessage | fromjson'</span>
+</code></pre></div>
+<p>This shows which policy denied, what action, what resource, and which conditions failed.
+Not all services provide this — S3, notably, does not. But when it's available, it's a
+goldmine.</p>
+<h3 id="rung-4-check-all-policy-layers">Rung 4: Check All Policy Layers<a class="headerlink" href="#rung-4-check-all-policy-layers" title="Permanent link">&para;</a></h3>
+<p>Work through each layer from the evaluation flowchart:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Identity policies (managed + inline)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>aws<span class="w"> </span>iam<span class="w"> </span>list-attached-role-policies<span class="w"> </span>--role-name<span class="w"> </span>deploy-role
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>aws<span class="w"> </span>iam<span class="w"> </span>list-role-policies<span class="w"> </span>--role-name<span class="w"> </span>deploy-role
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="c1"># Permission boundary</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>aws<span class="w"> </span>iam<span class="w"> </span>get-role<span class="w"> </span>--role-name<span class="w"> </span>deploy-role<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">  </span>--query<span class="w"> </span><span class="s1">'Role.PermissionsBoundary.PermissionsBoundaryArn'</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="c1"># Resource policy (S3 bucket policy in this case)</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>aws<span class="w"> </span>s3api<span class="w"> </span>get-bucket-policy<span class="w"> </span>--bucket<span class="w"> </span>deploy-artifacts-prod<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.Policy | fromjson'</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="c1"># VPC endpoint policy (if traffic goes through a VPC endpoint)</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>aws<span class="w"> </span>ec2<span class="w"> </span>describe-vpc-endpoints<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="w">  </span>--filters<span class="w"> </span><span class="s2">"Name=service-name,Values=com.amazonaws.us-east-1.s3"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="w">  </span>--query<span class="w"> </span><span class="s1">'VpcEndpoints[].PolicyDocument'</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="c1"># SCPs (requires Organization management account access)</span>
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a>aws<span class="w"> </span>organizations<span class="w"> </span>list-policies-for-target<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a><span class="w">  </span>--target-id<span class="w"> </span><span class="m">123456789012</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a><span class="w">  </span>--filter<span class="w"> </span>SERVICE_CONTROL_POLICY
+</code></pre></div>
+<h3 id="rung-5-check-cloudtrail">Rung 5: Check CloudTrail<a class="headerlink" href="#rung-5-check-cloudtrail" title="Permanent link">&para;</a></h3>
+<p>CloudTrail logs every API call, including denied ones:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>aws<span class="w"> </span>cloudtrail<span class="w"> </span>lookup-events<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span>--lookup-attributes<span class="w"> </span><span class="nv">AttributeKey</span><span class="o">=</span>EventName,AttributeValue<span class="o">=</span>PutObject<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span>--start-time<span class="w"> </span><span class="k">$(</span>date<span class="w"> </span>-u<span class="w"> </span>-d<span class="w"> </span><span class="s1">'1 hour ago'</span><span class="w"> </span>+%Y-%m-%dT%H:%M:%SZ<span class="k">)</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span>--query<span class="w"> </span><span class="s1">'Events[?contains(CloudTrailEvent, `AccessDenied`)].CloudTrailEvent'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span>--output<span class="w"> </span>text<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'fromjson | {errorCode, errorMessage, requestParameters}'</span>
+</code></pre></div>
+<p>CloudTrail is your audit trail. It tells you <em>exactly</em> when the denial happened, from
+which IP, with which credentials. If the pipeline was working yesterday and isn't today,
+CloudTrail shows you what changed.</p>
+<hr />
+<h2 id="war-story-the-wildcard-that-cost-50000">War Story: The Wildcard That Cost $50,000<a class="headerlink" href="#war-story-the-wildcard-that-cost-50000" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>War Story:</strong> A startup's engineer needed to give a deployment role access to upload
+artifacts to S3. Under deadline pressure, they wrote <code>"Resource": "*"</code> instead of
+scoping to the deploy bucket. The role also had <code>s3:DeleteObject</code>. Two weeks later, an
+automated cleanup script — running with the same role — deleted objects from a billing
+analytics bucket that fed financial reporting. The data loss wasn't discovered until
+month-end reconciliation. Recovery from S3 versioning took 12 hours of engineering time.
+The root cause wasn't malice — it was <code>"Resource": "*"</code> under time pressure.</p>
+</blockquote>
+<p>The lesson: <code>"Resource": "*"</code> in an Allow statement is a security finding, full stop.
+Scope to specific ARNs. Future-you will thank past-you.</p>
+<hr />
+<h2 id="cross-account-access-the-two-sided-handshake">Cross-Account Access: The Two-Sided Handshake<a class="headerlink" href="#cross-account-access-the-two-sided-handshake" title="Permanent link">&para;</a></h2>
+<p>Cross-account role assumption requires both accounts to agree. Think of it as two locks on
+one door — both must be unlocked.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>Account A (source)                    Account B (target)
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>┌─────────────────────┐              ┌──────────────────────┐
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>│ ci-pipeline role     │─── STS ────→│ cross-account-deploy │
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>│                      │  AssumeRole │         role          │
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>│ Identity policy must │              │ Trust policy must    │
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>│ allow sts:AssumeRole │              │ allow Account A's    │
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>│ on the target role   │              │ principal             │
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>└─────────────────────┘              └──────────────────────┘
+</code></pre></div>
+<p>In Account B, the trust policy on the target role says <em>who</em> can assume it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">"Version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2012-10-17"</span><span class="p">,</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">"Statement"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span><span class="nt">"Effect"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Allow"</span><span class="p">,</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span><span class="nt">"Principal"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">      </span><span class="nt">"AWS"</span><span class="p">:</span><span class="w"> </span><span class="s2">"arn:aws:iam::111111111111:role/ci-pipeline"</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">    </span><span class="nt">"Action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sts:AssumeRole"</span><span class="p">,</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="w">    </span><span class="nt">"Condition"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="w">      </span><span class="nt">"StringEquals"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="w">        </span><span class="nt">"sts:ExternalId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"deploy-2026-prod"</span>
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="w">  </span><span class="p">}]</span>
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="p">}</span>
+</code></pre></div>
+<p>In Account A, the source role's identity policy says <em>where</em> it can assume roles:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">"Version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2012-10-17"</span><span class="p">,</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">"Statement"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">    </span><span class="nt">"Effect"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Allow"</span><span class="p">,</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">    </span><span class="nt">"Action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sts:AssumeRole"</span><span class="p">,</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">    </span><span class="nt">"Resource"</span><span class="p">:</span><span class="w"> </span><span class="s2">"arn:aws:iam::222222222222:role/cross-account-deploy"</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">  </span><span class="p">}]</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="p">}</span>
+</code></pre></div>
+<p>Both must exist. One-sided = Access Denied.</p>
+<blockquote>
+<p><strong>Gotcha:</strong> If the trust policy uses <code>"Principal": {"AWS": "arn:aws:iam::111111111111:root"}</code>,
+it trusts the <em>entire</em> source account — any user or role in that account can assume the
+target role. Scope to specific role ARNs. The <code>sts:ExternalId</code> condition adds defense
+against the "confused deputy" problem, where a third-party service might be tricked into
+assuming roles on behalf of the wrong customer.</p>
+</blockquote>
+<hr />
+<h2 id="permission-boundaries-the-ceiling-that-cannot-be-broken">Permission Boundaries: The Ceiling That Cannot Be Broken<a class="headerlink" href="#permission-boundaries-the-ceiling-that-cannot-be-broken" title="Permanent link">&para;</a></h2>
+<p>Permission boundaries solve a real organizational problem: how do you let developers
+create their own IAM roles (for Lambda functions, for example) without those roles
+becoming backdoors to admin access?</p>
+<p>A permission boundary is a managed policy attached to a role that sets the <em>maximum</em>
+permissions, regardless of what identity policies are attached. The effective permissions
+are:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>Effective = Identity Policy ∩ Permission Boundary
+</code></pre></div>
+<p>That's an intersection, not a union. If the boundary allows S3 and DynamoDB, but the
+identity policy grants <code>AdministratorAccess</code>, the role can still only touch S3 and
+DynamoDB.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Check whether a role has a boundary</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>aws<span class="w"> </span>iam<span class="w"> </span>get-role<span class="w"> </span>--role-name<span class="w"> </span>deploy-role<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span>--query<span class="w"> </span><span class="s1">'Role.PermissionsBoundary'</span>
+</code></pre></div>
+<p>If this returns a boundary ARN, that boundary caps everything the role can do. The most
+common debugging miss: the identity policy allows the action, the resource policy allows
+it, but a permission boundary silently blocks it.</p>
+<blockquote>
+<p><strong>War Story:</strong> A platform team gave developers permission to create IAM roles for their
+Lambda functions but forgot to require a permission boundary. A developer — with no
+malicious intent — created a role with <code>AdministratorAccess</code> attached. That Lambda
+function could now read secrets from every other team's S3 buckets, modify DynamoDB
+tables it had no business touching, and create new IAM users. The fix was adding a
+condition to the developers' CreateRole permissions:
+<code>"iam:PermissionsBoundary": "arn:aws:iam::123456789012:policy/dev-boundary"</code>.
+Without that condition, CreateRole permission is effectively a privilege escalation path.</p>
+</blockquote>
+<hr />
+<h2 id="service-control-policies-the-organizational-guardrails">Service Control Policies: The Organizational Guardrails<a class="headerlink" href="#service-control-policies-the-organizational-guardrails" title="Permanent link">&para;</a></h2>
+<p>SCPs are the outermost fence. They're managed at the AWS Organizations level and restrict
+what member accounts can do — even if the account's own IAM policies allow it.</p>
+<p>SCPs <strong>do not grant</strong> permissions. They only restrict. Think of them as a whitelist of
+what's <em>possible</em> in the account. A common SCP pattern:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">"Version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2012-10-17"</span><span class="p">,</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="nt">"Statement"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">    </span><span class="nt">"Sid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"DenyRegionsOutsideUS"</span><span class="p">,</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">    </span><span class="nt">"Effect"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Deny"</span><span class="p">,</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">    </span><span class="nt">"Action"</span><span class="p">:</span><span class="w"> </span><span class="s2">"*"</span><span class="p">,</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">    </span><span class="nt">"Resource"</span><span class="p">:</span><span class="w"> </span><span class="s2">"*"</span><span class="p">,</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">    </span><span class="nt">"Condition"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">      </span><span class="nt">"StringNotEquals"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">        </span><span class="nt">"aws:RequestedRegion"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"us-east-1"</span><span class="p">,</span><span class="w"> </span><span class="s2">"us-west-2"</span><span class="p">]</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">      </span><span class="p">},</span>
+<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="w">      </span><span class="nt">"ArnNotLike"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="w">        </span><span class="nt">"aws:PrincipalARN"</span><span class="p">:</span><span class="w"> </span><span class="s2">"arn:aws:iam::*:role/OrganizationAdmin"</span>
+<a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-20-16" name="__codelineno-20-16" href="#__codelineno-20-16"></a><span class="w">  </span><span class="p">}]</span>
+<a id="__codelineno-20-17" name="__codelineno-20-17" href="#__codelineno-20-17"></a><span class="p">}</span>
+</code></pre></div>
+<p>This denies <em>all</em> API calls outside <code>us-east-1</code> and <code>us-west-2</code>, except for a break-glass
+admin role. No identity policy can override this — SCPs are evaluated before identity
+policies in the chain.</p>
+<blockquote>
+<p><strong>Trivia:</strong> SCPs do not affect the management (root) account of the organization. If
+you're debugging "Access Denied" in a member account and the action works fine from the
+management account, an SCP is your prime suspect. Use
+<code>aws organizations list-policies-for-target</code> to see which SCPs apply to the account.</p>
+</blockquote>
+<hr />
+<h2 id="flashcard-check-3">Flashcard Check #3<a class="headerlink" href="#flashcard-check-3" title="Permanent link">&para;</a></h2>
+<p><strong>Q: For cross-account access, what two things must both be true?</strong></p>
+<p>The source account's identity policy must allow <code>sts:AssumeRole</code> on the target role, AND the target role's trust policy must allow the source account's principal. Both sides must agree.</p>
+<p><strong>Q: What is the relationship between a permission boundary and an identity policy?</strong></p>
+<p>Effective permissions are the <em>intersection</em> of the two. The boundary is a ceiling — identity policies cannot exceed it.</p>
+<p><strong>Q: Do SCPs grant permissions?</strong></p>
+<p>No. SCPs only restrict. They define the maximum possible permissions for an account. Actual permissions require identity policies (and optionally resource policies).</p>
+<hr />
+<h2 id="solving-the-mystery-our-pipeline-case">Solving the Mystery: Our Pipeline Case<a class="headerlink" href="#solving-the-mystery-our-pipeline-case" title="Permanent link">&para;</a></h2>
+<p>Let's return to our failing deploy. Walking the ladder:</p>
+<p><strong>Rung 1</strong> — <code>get-caller-identity</code> shows the correct role. Identity is fine.</p>
+<p><strong>Rung 2</strong> — <code>simulate-principal-policy</code> returns <code>implicitDeny</code> for <code>s3:PutObject</code>. The
+identity policy doesn't grant this action.</p>
+<p><strong>Rung 3</strong> — No encoded message available (S3 doesn't provide them).</p>
+<p><strong>Rung 4</strong> — We check the attached policies:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>aws<span class="w"> </span>iam<span class="w"> </span>list-attached-role-policies<span class="w"> </span>--role-name<span class="w"> </span>deploy-role
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="p">{</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">    </span><span class="nt">"AttachedPolicies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">        </span><span class="p">{</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">            </span><span class="nt">"PolicyName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"deploy-artifacts-v2"</span><span class="p">,</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">            </span><span class="nt">"PolicyArn"</span><span class="p">:</span><span class="w"> </span><span class="s2">"arn:aws:iam::123456789012:policy/deploy-artifacts-v2"</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">        </span><span class="p">}</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">    </span><span class="p">]</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="p">}</span>
+</code></pre></div>
+<p>We pull the policy:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>aws<span class="w"> </span>iam<span class="w"> </span>get-policy-version<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span>--policy-arn<span class="w"> </span>arn:aws:iam::123456789012:policy/deploy-artifacts-v2<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span>--version-id<span class="w"> </span>v2<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">  </span>--query<span class="w"> </span><span class="s1">'PolicyVersion.Document'</span>
+</code></pre></div>
+<p>The policy allows <code>s3:PutObject</code> on <code>arn:aws:s3:::deploy-artifacts-staging/*</code> — staging,
+not prod. Someone updated the policy to version 2 yesterday and changed the bucket name.
+The version they tested was for staging. The production bucket ARN was lost in the edit.</p>
+<p><strong>Root cause:</strong> A policy version change that swapped the Resource ARN. CloudTrail confirms
+the <code>CreatePolicyVersion</code> event at 16:42 yesterday, by <code>alice</code>.</p>
+<p><strong>Fix:</strong> Create a new policy version (v3) with the correct production bucket ARN, and set
+it as the default version:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>aws<span class="w"> </span>iam<span class="w"> </span>create-policy-version<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span>--policy-arn<span class="w"> </span>arn:aws:iam::123456789012:policy/deploy-artifacts-v2<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">  </span>--policy-document<span class="w"> </span>file://corrected-policy.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">  </span>--set-as-default
+</code></pre></div>
+<blockquote>
+<p><strong>Under the Hood:</strong> IAM policies support up to 5 versions. When you create a 6th,
+you must delete an old version first. The default version is the one that's active.
+Non-default versions are saved drafts — useful for rollback. Many teams don't know this
+versioning exists, which means they can't answer "what did this policy look like
+yesterday?"</p>
+</blockquote>
+<hr />
+<h2 id="common-misconfigurations-the-greatest-hits">Common Misconfigurations: The Greatest Hits<a class="headerlink" href="#common-misconfigurations-the-greatest-hits" title="Permanent link">&para;</a></h2>
+<p>These are the patterns that show up in security audits over and over:</p>
+<h3 id="1-wildcard-resource-resource">1. Wildcard Resource (<code>"Resource": "*"</code>)<a class="headerlink" href="#1-wildcard-resource-resource" title="Permanent link">&para;</a></h3>
+<p>Grants the action on <em>every</em> resource in the account. An Allow for <code>s3:DeleteObject</code> with
+<code>"Resource": "*"</code> means every bucket — including backups, audit logs, and billing data.</p>
+<h3 id="2-overly-broad-trust-policy">2. Overly Broad Trust Policy<a class="headerlink" href="#2-overly-broad-trust-policy" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="p">{</span><span class="nt">"Principal"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"AWS"</span><span class="p">:</span><span class="w"> </span><span class="s2">"*"</span><span class="p">}}</span>
+</code></pre></div>
+<p>This allows <em>any</em> AWS principal in <em>any</em> account to assume the role. Functionally open to
+the entire internet. Use IAM Access Analyzer to find these.</p>
+<h3 id="3-forgotten-policy-attachment">3. Forgotten Policy Attachment<a class="headerlink" href="#3-forgotten-policy-attachment" title="Permanent link">&para;</a></h3>
+<p>You create a perfect least-privilege policy. You create the role. You forget
+<code>aws iam attach-role-policy</code>. The role has zero permissions. You spend 30 minutes
+debugging the policy JSON when no policy was attached at all.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Quick check: is anything attached?</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>aws<span class="w"> </span>iam<span class="w"> </span>list-attached-role-policies<span class="w"> </span>--role-name<span class="w"> </span>app-role
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>aws<span class="w"> </span>iam<span class="w"> </span>list-role-policies<span class="w"> </span>--role-name<span class="w"> </span>app-role
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># Both empty? That's your problem.</span>
+</code></pre></div>
+<h3 id="4-s3-bucket-vs-object-arn-confusion">4. S3 Bucket vs Object ARN Confusion<a class="headerlink" href="#4-s3-bucket-vs-object-arn-confusion" title="Permanent link">&para;</a></h3>
+<p><code>ListBucket</code> operates on the <em>bucket</em> (<code>arn:aws:s3:::my-bucket</code>). <code>GetObject</code> operates
+on <em>objects</em> (<code>arn:aws:s3:::my-bucket/*</code>). You need both ARN forms in your policy. Missing
+one gives partial access that confuses everyone.</p>
+<h3 id="5-eventual-consistency-surprises">5. Eventual Consistency Surprises<a class="headerlink" href="#5-eventual-consistency-surprises" title="Permanent link">&para;</a></h3>
+<p>IAM is eventually consistent. Policy changes can take up to 60 seconds to propagate
+globally. You attach a policy, immediately test, it fails, you think the policy is wrong.
+Wait 30 seconds and try again before debugging.</p>
+<blockquote>
+<p><strong>Under the Hood:</strong> IAM is a global service replicated to every AWS region. When you
+create a policy, it's written to the primary store and asynchronously replicated. STS
+tokens issued <em>before</em> a policy change remain valid until they expire — up to 12 hours
+for role sessions. This means revoking a role's permissions does not immediately revoke
+active sessions. To force-terminate sessions, use the IAM console's "Revoke active
+sessions" feature, which inserts an inline deny policy with a timestamp condition.</p>
+</blockquote>
+<hr />
+<h2 id="exercises">Exercises<a class="headerlink" href="#exercises" title="Permanent link">&para;</a></h2>
+<h3 id="exercise-1-identity-verification-2-minutes">Exercise 1: Identity Verification (2 minutes)<a class="headerlink" href="#exercise-1-identity-verification-2-minutes" title="Permanent link">&para;</a></h3>
+<p>If you have AWS CLI configured, run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>aws<span class="w"> </span>sts<span class="w"> </span>get-caller-identity
+</code></pre></div>
+<details>
+<summary>What to look for</summary>
+
+Note the `Arn` field. Is it a user (`arn:aws:iam::...:user/...`), an assumed role
+(`arn:aws:sts::...:assumed-role/...`), or a root account? If you're on an EC2 instance or
+in an EKS pod, verify you're using the expected role, not the node instance role.
+</details>
+
+<h3 id="exercise-2-policy-simulation-5-minutes">Exercise 2: Policy Simulation (5 minutes)<a class="headerlink" href="#exercise-2-policy-simulation-5-minutes" title="Permanent link">&para;</a></h3>
+<p>Pick a role in your account and simulate an action:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Replace with a real role ARN and action</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>aws<span class="w"> </span>iam<span class="w"> </span>simulate-principal-policy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span>--policy-source-arn<span class="w"> </span>arn:aws:iam::YOUR_ACCOUNT:role/YOUR_ROLE<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span>--action-names<span class="w"> </span>s3:GetObject<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">  </span>--resource-arns<span class="w"> </span><span class="s2">"arn:aws:s3:::some-bucket/some-key"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span>--query<span class="w"> </span><span class="s1">'EvaluationResults[].{Action:EvalActionName,Decision:EvalDecision}'</span>
+</code></pre></div>
+<details>
+<summary>Interpreting results</summary>
+
+- `allowed` — identity policy explicitly allows
+- `implicitDeny` — nothing in the identity policy grants this action
+- `explicitDeny` — a Deny statement actively blocks this action
+
+Remember: the simulator does NOT evaluate resource-based policies, SCPs, or VPC endpoint
+policies. A result of `allowed` here does not guarantee the real API call will succeed.
+</details>
+
+<h3 id="exercise-3-find-the-overly-permissive-roles-10-minutes">Exercise 3: Find the Overly Permissive Roles (10 minutes)<a class="headerlink" href="#exercise-3-find-the-overly-permissive-roles-10-minutes" title="Permanent link">&para;</a></h3>
+<p>List all roles in your account with <code>AdministratorAccess</code> attached:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>aws<span class="w"> </span>iam<span class="w"> </span>list-entities-for-policy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span>--policy-arn<span class="w"> </span>arn:aws:iam::aws:policy/AdministratorAccess<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span>--query<span class="w"> </span><span class="s1">'{Users:PolicyUsers[].UserName,Roles:PolicyRoles[].RoleName,Groups:PolicyGroups[].GroupName}'</span>
+</code></pre></div>
+<details>
+<summary>What to do with the results</summary>
+
+Every entry in this list is a potential full-account compromise if the principal is
+breached. For each role: does it genuinely need admin? Can it be scoped to specific
+services? For each user: is MFA enabled? For each group: who's in it?
+</details>
+
+<h3 id="exercise-4-cross-domain-comparison-15-minutes">Exercise 4: Cross-Domain Comparison (15 minutes)<a class="headerlink" href="#exercise-4-cross-domain-comparison-15-minutes" title="Permanent link">&para;</a></h3>
+<p>Pick a K8s service account in your cluster and compare its debugging flow to IAM:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># K8s: who am I?</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>kubectl<span class="w"> </span>auth<span class="w"> </span>whoami
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># K8s: can this SA do what I think?</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>kubectl<span class="w"> </span>auth<span class="w"> </span>can-i<span class="w"> </span>list<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="w">    </span>--as<span class="o">=</span>system:serviceaccount:ci:deployer
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="c1"># K8s: what can this SA do?</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>kubectl<span class="w"> </span>auth<span class="w"> </span>can-i<span class="w"> </span>--list<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a><span class="w">    </span>--as<span class="o">=</span>system:serviceaccount:ci:deployer
+</code></pre></div>
+<details>
+<summary>What's similar, what's different</summary>
+
+**Similar:** Both use the pattern of checking identity first, then checking what
+permissions exist. Both default-deny — if no rule explicitly allows, access is blocked.
+
+**Different:** K8s RBAC has no "explicit deny" — it's purely additive. If a RoleBinding
+grants access, you can't block it with another role. AWS IAM has explicit deny that
+overrides all allows. K8s RBAC scope is determined by the *binding* type (RoleBinding vs
+ClusterRoleBinding), while AWS IAM scope is determined by the *resource ARN* in the
+policy.
+</details>
+
+<hr />
+<h2 id="cheat-sheet">Cheat Sheet<a class="headerlink" href="#cheat-sheet" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Who am I?</td>
+<td><code>aws sts get-caller-identity</code></td>
+</tr>
+<tr>
+<td>Simulate permissions</td>
+<td><code>aws iam simulate-principal-policy --policy-source-arn ARN --action-names ACTION --resource-arns RESOURCE</code></td>
+</tr>
+<tr>
+<td>Decode auth error</td>
+<td><code>aws sts decode-authorization-message --encoded-message MSG \| jq '.DecodedMessage \| fromjson'</code></td>
+</tr>
+<tr>
+<td>List role's managed policies</td>
+<td><code>aws iam list-attached-role-policies --role-name ROLE</code></td>
+</tr>
+<tr>
+<td>List role's inline policies</td>
+<td><code>aws iam list-role-policies --role-name ROLE</code></td>
+</tr>
+<tr>
+<td>Get inline policy document</td>
+<td><code>aws iam get-role-policy --role-name ROLE --policy-name POLICY</code></td>
+</tr>
+<tr>
+<td>Check permission boundary</td>
+<td><code>aws iam get-role --role-name ROLE --query 'Role.PermissionsBoundary'</code></td>
+</tr>
+<tr>
+<td>Get S3 bucket policy</td>
+<td><code>aws s3api get-bucket-policy --bucket BUCKET \| jq '.Policy \| fromjson'</code></td>
+</tr>
+<tr>
+<td>List SCPs on account</td>
+<td><code>aws organizations list-policies-for-target --target-id ACCT_ID --filter SERVICE_CONTROL_POLICY</code></td>
+</tr>
+<tr>
+<td>Find admin roles</td>
+<td><code>aws iam list-entities-for-policy --policy-arn arn:aws:iam::aws:policy/AdministratorAccess</code></td>
+</tr>
+<tr>
+<td>Assume cross-account role</td>
+<td><code>aws sts assume-role --role-arn ARN --role-session-name NAME --external-id ID</code></td>
+</tr>
+<tr>
+<td>Check CloudTrail for denials</td>
+<td><code>aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=ACTION</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>The Access Denied Ladder (memorize this order):</strong></p>
+<ol>
+<li><code>get-caller-identity</code> — am I who I think I am?</li>
+<li><code>simulate-principal-policy</code> — does my identity policy allow this?</li>
+<li><code>decode-authorization-message</code> — what specifically was denied?</li>
+<li>Check all layers: identity policy, permission boundary, resource policy, VPC endpoint policy, SCP</li>
+<li><code>cloudtrail lookup-events</code> — when did this start failing and what changed?</li>
+</ol>
+<p><strong>Policy Evaluation Order (memorize this):</strong></p>
+<p>Explicit Deny &gt; SCP &gt; Resource Policy (same-account shortcut) &gt; Permission Boundary &gt; Session Policy &gt; Identity Policy &gt; Implicit Deny</p>
+<hr />
+<h2 id="takeaways">Takeaways<a class="headerlink" href="#takeaways" title="Permanent link">&para;</a></h2>
+<ul>
+<li>
+<p><strong>Start every IAM investigation with <code>aws sts get-caller-identity</code>.</strong> Wrong identity is the #1 cause of "Access Denied" — before wrong policy.</p>
+</li>
+<li>
+<p><strong>Explicit Deny always wins.</strong> An explicit Deny in any layer — SCP, identity policy, resource policy, boundary — cannot be overridden. This is the foundational rule of IAM policy evaluation.</p>
+</li>
+<li>
+<p><strong>Permission systems share a universal pattern.</strong> AWS IAM, Linux file permissions, and K8s RBAC all answer the same three questions: who are you, what do you want, are you allowed? The debugging approach transfers across all of them.</p>
+</li>
+<li>
+<p><strong>Roles with temporary credentials are the default.</strong> IAM users with long-lived access keys are the exception, not the norm. If you're creating access keys, ask yourself whether a role would work instead.</p>
+</li>
+<li>
+<p><strong><code>"Resource": "*"</code> is a security finding.</strong> Every wildcard resource in an Allow statement is a blast radius waiting to expand. Scope to specific ARNs.</p>
+</li>
+<li>
+<p><strong>Cross-account access requires both sides to agree.</strong> The source account's identity policy AND the target account's trust policy must both allow the action. One-sided is denied.</p>
+</li>
+</ul>
+<hr />
+<h2 id="related-lessons">Related Lessons<a class="headerlink" href="#related-lessons" title="Permanent link">&para;</a></h2>
+<ul>
+<li>
+<p><strong><a href="../permission-denied/">Permission Denied</a></strong> — The Linux-side version of this lesson: file permissions, sudo, capabilities, SELinux, container users, K8s RBAC. Same debugging ladder, different layers.</p>
+</li>
+<li>
+<p><strong><a href="../secrets-management-without-tears/">Secrets Management Without Tears</a></strong> — What happens after you get permissions right: managing the secrets those permissions protect. Covers env vars, Vault, K8s secrets, and rotation.</p>
+</li>
+<li>
+<p><strong><a href="../the-container-escape/">The Container Escape</a></strong> — When container isolation fails, IAM becomes the last line of defense. Covers namespaces, capabilities, seccomp, and why running as root inside a container is worse than you think.</p>
+</li>
+</ul>
+<!-- wiki:backlinks:start -->
+
+<h3 id="pages-that-link-here">Pages that link here<a class="headerlink" href="#pages-that-link-here" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../aws-ec2-the-virtual-server-you-never-see/">Aws Ec2 The Virtual Server You Never See</a></li>
+<li><a href="../aws-lambda-the-function-that-runs-itself/">Aws Lambda The Function That Runs Itself</a></li>
+<li><a href="../aws-rds-the-managed-database-tradeoff/">Aws Rds The Managed Database Tradeoff</a></li>
+<li><a href="../">Cross-Domain Lessons</a></li>
+<li><a href="../python-automating-everything-apis-and-infrastructure/">Python Automating Everything Apis And Infrastructure</a></li>
+<li><a href="../s3-the-object-store-that-runs-the-internet/">S3 — The Object Store That Runs the Internet</a></li>
+</ul>
+<!-- wiki:backlinks:end -->
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="August 19, 2026 13:40:59 UTC">August 19, 2026 13:40:59</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 23, 2026 01:38:00 UTC">March 23, 2026 01:38:00</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../ansible-playbook-debugging/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Ansible Playbook Debugging">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Ansible Playbook Debugging
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../kubernetes-debugging-when-pods-wont-behave/" class="md-footer__link md-footer__link--next" aria-label="Next: Kubernetes Debugging: When Pods Won&#39;t Behave">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Kubernetes Debugging: When Pods Won't Behave
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../portal/js/random-content.js"></script>
+      
+        <script src="../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../portal/js/graph.js"></script>
+      
+        <script src="../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

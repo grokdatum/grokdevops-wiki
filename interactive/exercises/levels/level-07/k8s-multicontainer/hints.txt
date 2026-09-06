@@ -1,0 +1,40 @@
+## Objective
+Fix the sidecar container so the entire pod can run successfully
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the pod status: `kubectl get pod app-with-logging -n k8squest`
+
+Look at the READY column. You should see something like "1/2" meaning only 1 of 2 containers is ready.
+
+Run `kubectl describe pod app-with-logging -n k8squest` and look at the container statuses.
+Which container is failing?
+
+## Hint 2
+🧭 Direction Hint:
+
+The "log-sidecar" container is crashing. To see why:
+
+`kubectl logs app-with-logging -c log-sidecar -n k8squest`
+
+The error shows that the file `/var/log/nonexistent.log` doesn't exist. The `tail -f` command fails immediately when the file is missing, causing the container to crash.
+
+You need to fix the command to either:
+1. Create the file first, or
+2. Use a different command that doesn't require a pre-existing file
+
+## Hint 3
+💡 Near-Solution Hint:
+
+Steps to fix:
+1. Delete the pod: `kubectl delete pod app-with-logging -n k8squest`
+2. Edit broken.yaml and change the log-sidecar command to something that works:
+   ```
+   command: ["sh", "-c", "while true; do echo 'Logging...' >> /var/log/app.log; sleep 5; done"]
+   ```
+3. Apply: `kubectl apply -f broken.yaml`
+4. Verify both containers running: `kubectl get pod app-with-logging -n k8squest`
+
+You should see "2/2" in the READY column!
+

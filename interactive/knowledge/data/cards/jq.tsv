@@ -1,0 +1,47 @@
+---
+tags:
+- cli
+- l1
+- flashcard-deck
+- jq
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [jq / JSON Processing](../../../../library/portal/topics.md) | **Domain:** CLI Tools
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+jq/a1c2e3f4b5d6	jq	easy	jq, basics, json	How do you pretty-print a JSON file using jq?	Pipe it through jq with the identity filter: cat file.json | jq . (or jq . file.json). The dot (.) is the identity filter that outputs the input unchanged but formatted.\n\nExample: curl -s https://api.github.com | jq . — instant pretty-printed JSON. Dot = identity filter.	training/library/topics/jq/primer.md
+jq/b2d3f4a5c6e7	jq	easy	jq, basics, output	What does the -r flag do in jq?	The -r (raw output) flag strips the surrounding double quotes from string output. Essential for using jq output in shell scripts and pipelines.\n\nExample: without -r: '"John"'. With -r: 'John'. Essential: NAME=$(jq -r '.name' file.json)	training/library/topics/jq/primer.md
+jq/c3e4a5b6d7f8	jq	easy	jq, arrays	How do you iterate over all elements of a JSON array in jq?	Use the .[] filter. For example, echo '[1,2,3]' | jq '.[]' outputs each element on its own line.\n\nRemember: .[] iterates arrays AND objects. On objects, it outputs values (not keys). Use keys[] for keys.\n\nGotcha: .[] on an empty array produces no output (not null). Pipe to `length` first if you need to check.	training/library/topics/jq/primer.md
+jq/d4f5b6c7e8a9	jq	medium	jq, select, filtering	How do you filter JSON array elements by a condition using jq?	Use the select() function. For example: jq '.items[] | select(.status == "failed")' keeps only elements where status equals "failed".\n\nRemember: select() keeps elements where the condition is true, drops the rest. Like SQL WHERE.\n\nExample: jq '[.[] | select(.age > 30)]' wraps results back into an array. Without the outer [], you get bare values.	training/library/topics/jq/primer.md
+jq/e5a6c7d8f9b0	jq	medium	jq, map, transform	How do you apply a transformation to every element of a JSON array in jq?	Use the map() function. For example: jq 'map(.name)' extracts the name field from every object in the array, returning a new array of names.\n\nRemember: map(f) = [.[] | f]. It is syntactic sugar for iterating and re-collecting into an array.\n\nGotcha: map() always returns an array. If you want bare values, use .[] | .name instead of map(.name).	training/library/topics/jq/primer.md
+jq/f6b7d8e9a0c1	jq	medium	jq, slurp	What does jq's -s (slurp) mode do?	It reads all JSON inputs into a single array before applying the filter. Useful for combining multiple JSON lines (JSONL) into one array for sorting, counting, or aggregation.\n\nExample: cat *.json | jq -s 'sort_by(.timestamp) | .[-1]' — combines JSONL, sorts, outputs latest.	training/library/topics/jq/primer.md
+jq/a7c8e9f0b1d2	jq	medium	jq, reduce, aggregation	How do you sum numeric values across JSON objects using jq?	Use reduce: jq 'reduce .[] as $item (0; . + $item.count)'. This initializes an accumulator at 0 and adds each item's count field.\n\nRemember: reduce syntax: `reduce .[] as $item (INIT; UPDATE)`. INIT is the starting value, UPDATE is applied per element.\n\nAnalogy: reduce is jq's fold/accumulate — same concept as Python's functools.reduce or JavaScript's Array.reduce.	training/library/topics/jq/primer.md
+jq/b8d9f0a1c2e3	jq	hard	jq, construction	How do you construct a new JSON object from selected fields using jq?	Use object construction syntax: jq '{name: .metadata.name, status: .status.phase}'. This builds a new object with only the specified fields.\n\nExample: jq '.items[] | {name: .metadata.name, cpu: .status.capacity.cpu}' — clean summaries from verbose JSON.	training/library/topics/jq/primer.md
+jq/c9e0a1b2d3f4	jq	hard	jq, string, interpolation	How do you build formatted strings using jq's string interpolation?	Use \() inside a quoted string with -r: jq -r '"\(.host):\(.port)"'. Parenthesized expressions are evaluated and inserted into the string.\n\nExample: jq -r '"\(.name)\t\(.status)"' — tab-separated output for shell scripts without JSON objects.	training/library/topics/jq/primer.md
+jq/d0f1b2c3e4a5	jq	hard	jq, yq, yaml	How does yq relate to jq, and how do you convert YAML to JSON with it?	yq applies jq-like filter syntax to YAML files. Convert YAML to JSON with: yq -o json file.yaml. Edit YAML in place with: yq -i '.spec.replicas = 5' deployment.yaml.\n\nExample: yq -i '.spec.replicas = 5' deployment.yaml — edit YAML in place. Same jq-like syntax for YAML.	training/library/topics/jq/primer.md
+jq/e1a2b3c4d5f6	jq	medium	jq, alternative, operator	What does the alternative operator (//) do in jq, and when is it useful?	The // operator returns the right-hand value when the left is null or false: .name // "unknown". Essential for providing defaults when parsing JSON with optional fields, e.g., .config.timeout // 30.\n\nExample: .timeout // 30 returns 30 if null. Chain: .x // .y // "default". Essential for optional fields.	
+jq/f2b3c4d5e6a7	jq	medium	jq, conditional, logic	How do you write an if-then-else expression in jq?	Syntax: if .status == "error" then "FAIL" elif .status == "warn" then "WARN" else "OK" end. The else clause is required. The expression returns a value — it does not branch control flow.\n\nExample: if .status == "error" then "FAIL" else "OK" end — else is required. Returns a value.	
+jq/a3c4d5e6f7b8	jq	hard	jq, group_by, aggregation	How do you group JSON array elements by a field and count each group using jq?	Use group_by followed by map: jq 'group_by(.status) | map({status: .[0].status, count: length})'. group_by sorts and partitions the array into sub-arrays sharing the same key value.\n\nRemember: group_by sorts first, then groups. Output is an array of arrays. Use map to transform each group.\n\nExample: Count HTTP status codes: jq 'group_by(.status) | map({status: .[0].status, count: length})' — instant histogram.	
+jq/b4d5e6f7a8c9	jq	hard	jq, recursive, descent	What does the recursive descent operator (..) do in jq?	The .. operator recursively descends into all values of the input. \nExample: jq '.. | .name? // empty' extracts every "name" field at any nesting depth. Useful for searching deeply nested or variable-structure JSON.	
+jq/c5e6f7a8b9d0	jq	medium	jq, format, output	What do the @base64, @csv, and @json format strings do in jq?	@base64 encodes a string to Base64 (decode with @base64d). @csv formats an array as a CSV row. @json re-serializes a value as a JSON string (useful for embedding JSON inside JSON). Use with -r for raw output.	
+jq/d6f7a8b9c0e1	jq	hard	jq, error, handling	How do you handle errors gracefully in jq using try-catch?	Use try-catch: jq 'try (.items[] | .name) catch "parse error"'. The try expression evaluates the filter; if it fails, catch provides a fallback value. Without catch, try silently suppresses errors and produces no output.	
+jq/d64106a54fa7	jq	medium	jq, path, getpath, setpath	How do you use jq path expressions to manipulate deeply nested JSON?	path(.a.b[].c) returns arrays of path segments. getpath(["a","b",0,"c"]) retrieves the value at that path. setpath(["a","b",0,"c"]; "new") sets it. Useful for programmatic traversal when the structure varies — you can iterate paths and transform values without hardcoding the nesting.	training/library/topics/jq/primer.md
+jq/22702e1b8ea5	jq	easy	jq, curl, api, pipeline	How do you combine curl and jq to filter API responses in a pipeline?	curl -s https://api.example.com/items | jq '.results[] | {name: .name, status: .status}'. The -s flag silences curl progress. Pipe JSON output directly to jq for filtering. Add -f to curl to fail on HTTP errors, or use --fail-with-body (curl 7.76+) to still see the error response body.	training/library/topics/jq/primer.md
+jq/9b4f02dd9bbc	jq	medium	jq, arg, argjson, variables	What is the difference between jq --arg and --argjson?	--arg name value passes value as a jq string ($name). --argjson name value parses value as JSON ($name can be a number, boolean, array, or object). Use --arg for string interpolation in filters; use --argjson when you need to compare against numbers or inject structured data.	training/library/topics/jq/primer.md
+jq/347fbb6f4d75	jq	hard	jq, env, ENV, environment	How do you access environment variables inside jq filters?	Use env.VAR_NAME or $ENV.VAR_NAME. \nExample: jq --null-input 'env.HOME' prints the HOME variable. $ENV is an object of all env vars: $ENV | keys lists them. Useful for parameterizing filters in CI/CD pipelines without --arg: jq '.version = env.BUILD_VERSION' config.json.	training/library/topics/jq/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [Modern CLI Drills](../../../../library/drills/modern_cli_drills.md) (Drill, L0) — jq / JSON Processing
+- [Modern CLI Tools](../../../../library/topics/modern-cli/index.md) (Topic Pack, L0) — jq / JSON Processing
+- [Skillcheck: Modern CLI Tools](../../../../library/skillchecks/modern-cli-tools.skillcheck.md) (Assessment, L0) — jq / JSON Processing
+- [YAML, JSON & Config Formats](../../../../library/topics/yaml-json-config/index.md) (Topic Pack, L1) — jq / JSON Processing
+- [jq](../../../../library/topics/jq/index.md) (Topic Pack, L1) — jq / JSON Processing
+
+<!-- wiki:related:end -->

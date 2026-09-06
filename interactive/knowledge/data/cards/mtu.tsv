@@ -1,0 +1,39 @@
+---
+tags:
+- networking
+- l1
+- flashcard-deck
+- mtu
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [MTU](../../../../library/portal/topics.md) | **Domain:** Networking
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+mtu/ae9d2222dec3	mtu	easy	mtu, networking, basics	What is MTU and what is the standard Ethernet MTU?	MTU (Maximum Transmission Unit) is the largest packet size in bytes that a network interface will transmit without fragmentation. Standard Ethernet MTU is 1500 bytes.\n\nName origin: the 1500-byte standard dates to the 1980 DIX Ethernet spec — a compromise between efficiency and buffer memory costs on early NICs.\n\nUnder the hood: 1500 bytes is payload only. Full Ethernet frame = 1518 bytes (14B header + 4B FCS). With 802.1Q VLAN tag: 1522 bytes.\n\nRemember: MTU = Maximum Transmission Unit. Ethernet=1500. Jumbo=9000.\n\nGotcha: Mismatch = fragmentation/drops. Entire path must match for jumbo.	training/library/topics/mtu/primer.md
+mtu/872b7c95877b	mtu	easy	mtu, jumbo-frames, datacenter	What are jumbo frames and when are they used?	"Jumbo frames use MTU 9000 (up to 9216). They reduce per-packet overhead and CPU usage for bulk transfers. Used within datacenters on dedicated storage/cluster networks where every device in the path supports them.\n\nRemember: Jumbo(9000) reduces CPU overhead. Every device in path must support them.\n\nGotcha: Even one device in the path that doesn\'t support jumbo frames will cause silent packet drops. Test end-to-end with `ping -M do -s 8972`.\n\nName origin: ""Jumbo"" because 9000 bytes is 6x the standard 1500-byte Ethernet MTU."	training/library/topics/mtu/primer.md
+mtu/d450d2cff57d	mtu	easy	mtu, commands, linux	How do you check and set the MTU of a Linux interface?	Check: ip link show eth0 (shows mtu value) or cat /sys/class/net/eth0/mtu. Set: ip link set dev eth0 mtu 9000.\n\nGotcha: ip link set changes are not persistent. Configure MTU permanently in /etc/netplan/*.yaml, /etc/network/interfaces, or a NetworkManager profile.\n\nRemember: MTU issues cause subtle problems. Test: `ping -M do -s 1472 host` (1472+28=1500).	training/library/topics/mtu/primer.md
+mtu/3f19ea89cd26	mtu	medium	mtu, pmtud, icmp	How does Path MTU Discovery (PMTUD) work?	"The sender sets the Don't Fragment (DF) bit on packets. If a router along the path cannot forward a packet because it exceeds the link MTU, it drops it and sends back an ICMP ""Fragmentation Needed"" message. The sender reduces packet size and retries.\n\nRemember: PMTUD uses ICMP. Blocked ICMP → black hole → stalled connections.\n\nGotcha: Allow ICMP type 3 code 4 to fix PMTUD black holes."	training/library/topics/mtu/primer.md
+mtu/3eff31b4d558	mtu	medium	mtu, blackhole, firewall	What is an MTU blackhole and what are its symptoms?	"An MTU blackhole occurs when ICMP ""Fragmentation Needed"" messages are blocked by a firewall, breaking PMTUD. Symptoms: small packets work (ping, DNS, SSH login) but large transfers hang (SCP, HTTP downloads). TCP connections establish but data transfer stalls.\n\nRemember: MTU = Maximum Transmission Unit. Ethernet=1500. Jumbo=9000.\n\nGotcha: Mismatch = fragmentation/drops. Entire path must match for jumbo."	training/library/topics/mtu/primer.md
+mtu/3f3bc9948f59	mtu	medium	mtu, debugging, ping	How do you test path MTU using ping on Linux?	Use ping -M do -s <size> <host>. The -M do flag sets the Don't Fragment bit. Start with ping -M do -s 1472 <host> (1472 + 28 bytes header = 1500). If it fails, reduce the size. Binary search to find the exact path MTU.\n\nRemember: PMTUD uses ICMP. Blocked ICMP → black hole → stalled connections.\n\nGotcha: Allow ICMP type 3 code 4 to fix PMTUD black holes.	training/library/topics/mtu/primer.md
+mtu/b55f510138fb	mtu	medium	mtu, overlay, vxlan	Why do overlay networks like VXLAN require lower MTU?	Overlay protocols add encapsulation headers (VXLAN adds 50 bytes, GRE adds 24 bytes). On a 1500 underlay, the effective MTU for VXLAN is 1450. Pods/containers must use this reduced MTU or large packets will be dropped.\n\nRemember: MTU issues cause subtle problems. Test: `ping -M do -s 1472 host` (1472+28=1500).	training/library/topics/mtu/primer.md
+mtu/ee368cc87a49	mtu	hard	mtu, mss-clamping, iptables	What is TCP MSS clamping and when should you use it?	MSS clamping forces smaller TCP segments by rewriting the MSS option in SYN packets. Use when you cannot fix MTU everywhere: iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu. This avoids fragmentation without requiring end-host MTU changes.\n\nRemember: MTU issues cause subtle problems. Test: `ping -M do -s 1472 host` (1472+28=1500).	training/library/topics/mtu/primer.md
+mtu/8914656c55a8	mtu	hard	mtu, fragmentation, debugging	Why is IP fragmentation problematic and how do you detect it?	Fragmentation is bad because: one lost fragment requires full retransmission, it increases router CPU, stateful firewalls may drop fragments, and it enables DoS attacks. Detect with: tcpdump -i eth0 'ip[6:2] & 0x3fff != 0' (matches fragmented packets) or netstat -s | grep -i frag.\n\nRemember: Fragmentation = performance+security hit. Avoid with correct MTU settings.	training/library/topics/mtu/primer.md
+mtu/b65d0e675e4e	mtu	hard	mtu, kubernetes, cni	How does MTU misconfiguration affect Kubernetes pod networking?	If CNI plugin MTU exceeds the underlay effective MTU (e.g., pod MTU 1500 on VXLAN underlay), large pod-to-pod transfers fail silently. DNS works but HTTP hangs. Fix by setting pod MTU = underlay MTU minus overlay overhead (e.g., 1450 for VXLAN on 1500). Verify with kubectl exec -it <pod> -- ip link show eth0.\n\nRemember: MTU issues cause subtle problems. Test: `ping -M do -s 1472 host` (1472+28=1500).	training/library/topics/mtu/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [Case Study: Jumbo Frames Partial](../../../../library/case-studies/networking/jumbo-frames-partial/README.md) (Case Study, L2) — MTU
+- [Case Study: MTU Blackhole TLS Stalls](../../../../library/case-studies/networking/mtu-blackhole-tls-stalls/README.md) (Case Study, L2) — MTU
+- [Case Study: SSH Timeout — MTU Mismatch, Fix Is Terraform Variable](../../../../library/case-studies/cross-domain/ssh-timeout-mtu-terraform/README.md) (Case Study, L2) — MTU
+- [MTU](../../../../library/topics/mtu/index.md) (Topic Pack, L1) — MTU
+- [Networking Deep Dive](../../../../library/topics/networking/index.md) (Topic Pack, L1) — MTU
+- [Runbook: MTU Mismatch](../../../../library/runbooks/networking/mtu-mismatch.md) (Runbook, L2) — MTU
+- [Scenario: MTU Blackhole](../../../../library/scenarios/networking/mtu-blackhole.md) (Scenario, L2) — MTU
+
+<!-- wiki:related:end -->

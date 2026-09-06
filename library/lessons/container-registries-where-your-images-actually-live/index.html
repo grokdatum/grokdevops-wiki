@@ -1,0 +1,7669 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Explains container registry internals including OCI distribution spec, content-addressable storage, tags vs digests, authentication, garbage collection, and vulnerability scanning.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/lessons/container-registries-where-your-images-actually-live/">
+      
+      
+        <link rel="prev" href="../log-pipelines-from-printf-to-dashboard/">
+      
+      
+        <link rel="next" href="../envoy-the-proxy-thats-everywhere/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Container Registries: Where Your Images Actually Live - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Container Registries: Where Your Images Actually Live - GrokDevOps Wiki" />
+<meta property="og:description" content="Explains container registry internals including OCI distribution spec, content-addressable storage, tags vs digests, authentication, garbage collection, and vulnerability scanning." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/container-registries-where-your-images-actually-live.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/lessons/container-registries-where-your-images-actually-live/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Container Registries: Where Your Images Actually Live - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Explains container registry internals including OCI distribution spec, content-addressable storage, tags vs digests, authentication, garbage collection, and vulnerability scanning." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/container-registries-where-your-images-actually-live.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#container-registries-where-your-images-actually-live" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Container Registries: Where Your Images Actually Live
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-End Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    End-to-End Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-click-a-link/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Click a Link
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-press-power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Press Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-docker-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `docker build`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-kubectl-apply/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `kubectl apply`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-helm-install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `helm install`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-git-push-to-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `git push` to CI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pxe-boot-from-network-to-running-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE Boot: From Network to Running Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh-is-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SSH Is More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strace-reading-the-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    strace: Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-type-a-regex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Type a Regex
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ebpf-the-linux-superpower/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    eBPF: The Linux Superpower
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-inside-a-linux-pipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens Inside a Linux Pipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-proc-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The /proc Filesystem: Linux's Hidden API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-to-read-a-flame-graph/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to Read a Flame Graph
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../iptables-following-a-packet-through-the-chains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    iptables: Following a Packet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-subnet-calculator-in-your-head/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Subnet Calculator in Your Head
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-kubernetes-evicts-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Kubernetes Evicts Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tmux-and-the-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tmux and the Terminal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../opentelemetry-following-a-request-across-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenTelemetry: Following a Request Across Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-services-how-traffic-finds-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Services: How Traffic Finds Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../log-pipelines-from-printf-to-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Pipelines: From printf to Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container Registries: Where Your Images Actually Live
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container Registries: Where Your Images Actually Live
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-a-container-registry-really" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is a Container Registry, Really?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-happens-when-you-docker-pull" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happens When You docker pull
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What Happens When You docker pull">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-resolve-the-tag-to-a-manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Resolve the tag to a manifest
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-download-the-config-blob" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Download the config blob
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-download-each-layer-in-parallel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Download each layer (in parallel)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-verify-and-unpack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4: Verify and unpack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#see-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See it yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-tags-lie-and-digests-dont" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Tags Lie and Digests Don't
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why Tags Lie and Digests Don&#39;t">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tags-are-mutable-pointers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tags are mutable pointers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#digests-are-immutable-identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Digests are immutable identifiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-practical-difference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The practical difference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-get-the-digest-of-an-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to get the digest of an image
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registry-authentication-who-gets-to-pull" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry Authentication: Who Gets to Pull?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Registry Authentication: Who Gets to Pull?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-authentication-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The authentication flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#registry-specific-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry-specific authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-architecture-images-one-tag-many-platforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Architecture Images: One Tag, Many Platforms
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Multi-Architecture Images: One Tag, Many Platforms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-docker-hub-rate-limiting-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Docker Hub Rate Limiting Problem
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Docker Hub Rate Limiting Problem">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#solutions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solutions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registry-mirroring-and-pull-through-caches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry Mirroring and Pull-Through Caches
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Registry Mirroring and Pull-Through Caches">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-mirroring-matters-for-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why mirroring matters for production
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registry-garbage-collection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry Garbage Collection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Registry Garbage Collection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-garbage-collection-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What garbage collection does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-gc-on-popular-registries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running GC on popular registries
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vulnerability-scanning-at-the-registry-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vulnerability Scanning at the Registry Level
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#image-promotion-pipelines-dev-to-staging-to-prod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image Promotion Pipelines: Dev to Staging to Prod
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Image Promotion Pipelines: Dev to Staging to Prod">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#promotion-by-re-tagging-not-rebuilding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Promotion by re-tagging (not rebuilding)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cost-management-storage-and-egress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cost Management: Storage and Egress
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cost Management: Storage and Egress">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-to-control-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to control costs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-war-room-a-tag-overwrite-postmortem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The War Room: A Tag Overwrite Postmortem
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The War Room: A Tag Overwrite Postmortem">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-changed-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What changed after
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-inspect-a-real-manifest-2-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Inspect a real manifest (2 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-compare-tag-vs-digest-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Compare tag vs digest (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-build-a-promotion-pipeline-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Build a promotion pipeline (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-4-investigate-rate-limit-headers-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Investigate rate limit headers (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cheat Sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-registry-endpoints-oci-distribution-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key registry endpoints (OCI Distribution Spec)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../envoy-the-proxy-thats-everywhere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Envoy: The Proxy That's Everywhere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-node-lifecycle-from-provision-to-decommission/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Node Lifecycle: From Provision to Decommission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-from-scratch-to-production-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes: From Scratch to Production Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Incident-Driven
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Incident-Driven
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-hanging-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Hanging Deploy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-disk-that-filled-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Disk That Filled Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-database-that-wouldnt-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Database That Wouldn't Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-mysterious-latency-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Mysterious Latency Spike
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-terraform-state-disaster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Terraform State Disaster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cascading-timeout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cascading Timeout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-rollback-that-wasnt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Rollback That Wasn't
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../when-the-queue-backs-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When the Queue Backs Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-split-brain-nightmare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Split-Brain Nightmare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cloud-bill-surprise/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cloud Bill Surprise
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-backup-nobody-tested/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Backup Nobody Tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-your-certificate-expires/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Your Certificate Expires
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-load-balancer-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Load Balancer Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-monitoring-that-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Monitoring That Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../redis-in-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis in Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elasticsearch-for-people-who-didnt-choose-it/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Elasticsearch Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mysql-operations-the-database-you-inherited/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MySQL Operations: The Database You Inherited
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mongodb-the-document-database-that-surprised-everyone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MongoDB: The Document Database That Surprised Everyone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server-hardware-when-the-blinky-lights-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Hardware: When the Blinky Lights Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../etcd-the-database-that-runs-kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    etcd: The Database That Runs Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-lambda-the-function-that-runs-itself/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS Lambda: The Function That Runs Itself
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-rds-the-managed-database-tradeoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS RDS: The Managed Database Tradeoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-ec2-the-virtual-server-you-never-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS EC2: The Virtual Server You Never See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kafka-the-log-that-runs-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kafka: The Log That Runs Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differential Diagnosis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Differential Diagnosis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connection-refused/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connection Refused
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permission-denied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permission Denied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../out-of-memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Out of Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-vs-ansible-vs-helm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform vs Ansible vs Helm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-nginx-config-that-broke-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Nginx Config That Broke Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-playbook-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible Playbook Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-iam-the-permissions-puzzle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS IAM: The Permissions Puzzle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-debugging-when-pods-wont-behave/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Debugging: When Pods Won't Behave
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dns-ops-when-nslookup-isnt-enough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DNS Operations: When nslookup Isn't Enough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-gateways-the-front-door-to-your-microservices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateways: The Front Door to Your Microservices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Archaeological
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Archaeological
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-init-scripts-to-systemd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    From Init Scripts to systemd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-dns-is-always-the-problem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why DNS Is Always the Problem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-everything-uses-json-now/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why Everything Uses JSON Now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-yaml-keeps-breaking-your-deploys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why YAML Keeps Breaking Your Deploys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-and-the-art-of-not-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus and the Art of Not Alerting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../understanding-distributed-systems-without-a-phd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Understanding Distributed Systems Without a PhD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-service-mesh-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Service Mesh Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-ntp-matters-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why NTP Matters More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../raid-why-your-disks-will-fail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAID: Why Your Disks Will Fail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../make-and-makefiles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Make and Makefiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-kubernetes-migration-that-took-a-year/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Kubernetes Migration That Took a Year
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gitops-the-repo-is-the-truth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitOps: The Repo Is the Truth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../s3-the-object-store-that-runs-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    S3: The Object Store That Runs the Internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bgp-how-the-internet-routes-your-packets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BGP: How the Internet Routes Your Packets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slos-when-good-enough-is-a-number/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SLOs: When Good Enough Is a Number
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-internals-the-content-addressable-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Git Internals: The Content-Addressable Filesystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-under-the-hood/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus: Under the Hood
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adversarial
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Adversarial
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-container-escape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Container Escape
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-git-disaster-recovery-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Git Disaster Recovery Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-engineering-breaking-things-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Engineering: Breaking Things on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../supply-chain-security-trusting-your-dependencies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply Chain Security: Trusting Your Dependencies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cgroups-and-namespaces-containers-are-a-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cgroups and Namespaces: Containers Are a Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-hardening-closing-the-doors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Hardening: Closing the Doors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bash-the-patterns-that-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bash: The Patterns That Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build-Up
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Build-Up
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deploy-a-web-app-from-nothing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy a Web App From Nothing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../secrets-management-without-tears/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets Management Without Tears
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-incident-response-actually-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Incident Response Actually Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-postmortem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Postmortem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-runbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-vpc-the-network-you-cant-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS VPC: The Network You Can't See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../load-testing-finding-the-breaking-point/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load Testing: Finding the Breaking Point
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packer-building-machine-images-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packer: Building Machine Images That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-networking-bridges-bonds-and-vlans/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Networking: Bridges, Bonds, and VLANs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kustomize-kubernetes-config-without-templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kustomize: Kubernetes Config Without Templates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vault-secrets-that-expire-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vault: Secrets That Expire on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../github-actions-ci-cd-that-lives-in-your-repo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Actions: CI/CD That Lives in Your Repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grafana-dashboards-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grafana: Dashboards That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compliance-as-code-automating-the-auditor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compliance as Code: Automating the Auditor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-modules-building-infrastructure-legos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform Modules: Building Infrastructure LEGOs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-compose-the-local-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Compose: The Local Cluster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../systemd-the-init-system-you-cant-avoid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    systemd: The Init System You Can't Avoid
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nginx-the-swiss-army-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nginx: The Swiss Army Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-from-playbook-to-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible: From Playbook to Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capacity-planning-math-before-midnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capacity Planning: Math Before Midnight
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-storage-lvm-filesystems-and-beyond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Storage: LVM, Filesystems, and Beyond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parallel
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Parallel
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../text-processing-jq-awk-sed-in-the-trenches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing: jq, awk, and sed in the Trenches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_9" id="__nav_5_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Learning Path
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python Learning Path
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-zero-to-script-for-the-terminal-native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Zero to Script for the Terminal Native
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-data-wrangling-for-ops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Data Wrangling for Ops
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-automating-everything-apis-and-infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Automating Everything — APIs and Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_10" id="__nav_5_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    More Lessons
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    More Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-ansible/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Ansible
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-system-automation-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python System Automation Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-a-container-registry-really" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is a Container Registry, Really?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-happens-when-you-docker-pull" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happens When You docker pull
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What Happens When You docker pull">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-resolve-the-tag-to-a-manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Resolve the tag to a manifest
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-download-the-config-blob" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Download the config blob
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-download-each-layer-in-parallel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Download each layer (in parallel)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-verify-and-unpack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4: Verify and unpack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#see-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See it yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-tags-lie-and-digests-dont" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Tags Lie and Digests Don't
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why Tags Lie and Digests Don&#39;t">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tags-are-mutable-pointers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tags are mutable pointers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#digests-are-immutable-identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Digests are immutable identifiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-practical-difference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The practical difference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-get-the-digest-of-an-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to get the digest of an image
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registry-authentication-who-gets-to-pull" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry Authentication: Who Gets to Pull?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Registry Authentication: Who Gets to Pull?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-authentication-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The authentication flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#registry-specific-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry-specific authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-architecture-images-one-tag-many-platforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Architecture Images: One Tag, Many Platforms
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Multi-Architecture Images: One Tag, Many Platforms">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-docker-hub-rate-limiting-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Docker Hub Rate Limiting Problem
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Docker Hub Rate Limiting Problem">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#solutions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solutions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registry-mirroring-and-pull-through-caches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry Mirroring and Pull-Through Caches
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Registry Mirroring and Pull-Through Caches">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-mirroring-matters-for-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why mirroring matters for production
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registry-garbage-collection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry Garbage Collection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Registry Garbage Collection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-garbage-collection-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What garbage collection does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-gc-on-popular-registries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running GC on popular registries
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vulnerability-scanning-at-the-registry-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vulnerability Scanning at the Registry Level
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#image-promotion-pipelines-dev-to-staging-to-prod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image Promotion Pipelines: Dev to Staging to Prod
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Image Promotion Pipelines: Dev to Staging to Prod">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#promotion-by-re-tagging-not-rebuilding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Promotion by re-tagging (not rebuilding)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cost-management-storage-and-egress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cost Management: Storage and Egress
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cost Management: Storage and Egress">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-to-control-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to control costs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-war-room-a-tag-overwrite-postmortem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The War Room: A Tag Overwrite Postmortem
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The War Room: A Tag Overwrite Postmortem">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-changed-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What changed after
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-inspect-a-real-manifest-2-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Inspect a real manifest (2 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-compare-tag-vs-digest-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Compare tag vs digest (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-build-a-promotion-pipeline-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Build a promotion pipeline (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-4-investigate-rate-limit-headers-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Investigate rate limit headers (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cheat Sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-registry-endpoints-oci-distribution-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key registry endpoints (OCI Distribution Spec)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Lessons
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../what-happens-when-you-click-a-link/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    End-to-End Traces
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:content-addressable-storage" class="md-tag">content-addressable-storage</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:garbage-collection" class="md-tag">garbage-collection</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:image-promotion" class="md-tag">image-promotion</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:lesson" class="md-tag">lesson</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:mirroring" class="md-tag">mirroring</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:multi-arch-manifests" class="md-tag">multi-arch-manifests</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:oci-distribution-spec" class="md-tag">oci-distribution-spec</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:rate-limiting" class="md-tag">rate-limiting</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:registry-authentication" class="md-tag">registry-authentication</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:registry-http-api" class="md-tag">registry-http-api</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:tags-vs-digests" class="md-tag">tags-vs-digests</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:vulnerability-scanning" class="md-tag">vulnerability-scanning</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="container-registries-where-your-images-actually-live">Container Registries — Where Your Images Actually Live<a class="headerlink" href="#container-registries-where-your-images-actually-live" title="Permanent link">&para;</a></h1>
+<p><strong>Topics:</strong> OCI distribution spec, registry HTTP API, content-addressable storage, tags vs digests, registry authentication, multi-arch manifests, garbage collection, mirroring, rate limiting, vulnerability scanning, image promotion
+<strong>Level:</strong> L1–L2 (Foundations to Operations)
+<strong>Time:</strong> 60–90 minutes
+<strong>Prerequisites:</strong> None (everything is explained from scratch)</p>
+<hr />
+<h2 id="the-mission">The Mission<a class="headerlink" href="#the-mission" title="Permanent link">&para;</a></h2>
+<p>It's 2:17 AM. PagerDuty fires. The payments service is returning 500s. You check the
+deployment — it rolled out 40 minutes ago, but nobody triggered a deploy. The Kubernetes
+Deployment spec hasn't changed. The Git repo hasn't changed. Yet the pods are running
+different code than they were two hours ago.</p>
+<p>You dig in. The deployment references <code>payments-api:latest</code>. Someone on the platform team
+pushed a new image to that tag at 1:35 AM as part of a "routine base image update." When
+a node recycled at 1:42 AM, the kubelet pulled the new <code>latest</code> — and got the broken build.
+The other nodes still have the old image cached. Half your fleet is running the old code,
+half is running the new code. Your customers are getting different behavior depending on
+which pod handles their request.</p>
+<p>This is not a Docker problem or a Kubernetes problem. This is a <strong>registry</strong> problem — and
+you cannot fix what you do not understand. This lesson traces the path an image takes from
+<code>docker push</code> to <code>docker pull</code>, through every HTTP request, manifest, and SHA256 digest.
+By the end, you'll know exactly why tags lie, how registries actually store your images,
+and how to build a promotion pipeline that prevents 2 AM surprises.</p>
+<hr />
+<h2 id="what-is-a-container-registry-really">What Is a Container Registry, Really?<a class="headerlink" href="#what-is-a-container-registry-really" title="Permanent link">&para;</a></h2>
+<p>A container registry is an HTTP API that stores and serves OCI (Open Container Initiative)
+images. That's it. It is not magic. It is not a database. It is a content-addressable blob
+store with a metadata index on top.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>You (docker push) → HTTPS → Registry API → Blob Storage (layers, configs, manifests)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>You (docker pull) → HTTPS → Registry API → Blob Storage → Your Local Daemon
+</code></pre></div>
+<p>Every registry — Docker Hub, Amazon ECR, Google Artifact Registry, Harbor, GitHub Container
+Registry — implements the same OCI Distribution Specification. The spec defines the HTTP
+endpoints, the manifest format, and how content addressing works.</p>
+<blockquote>
+<p><strong>Name Origin:</strong> The OCI (Open Container Initiative) was founded in June 2015 by Docker
+and CoreOS under the Linux Foundation. Docker donated its image format and runtime specs
+as the starting point. The word "initiative" was chosen carefully — it was a diplomatic
+ceasefire in the Docker-vs-rkt container wars. The OCI Distribution Spec (the registry
+protocol) was formalized later, based on the Docker Registry V2 API.</p>
+<p><strong>Trivia:</strong> Docker Hub serves over 13 billion image pulls per month as of 2023, making it
+one of the highest-traffic package registries in the world. When Docker imposed rate
+limits in November 2020, it broke CI pipelines globally and accelerated adoption of
+GitHub Container Registry and ECR Public.</p>
+</blockquote>
+<hr />
+<h2 id="what-happens-when-you-docker-pull">What Happens When You <code>docker pull</code><a class="headerlink" href="#what-happens-when-you-docker-pull" title="Permanent link">&para;</a></h2>
+<p>Let's trace a real pull, HTTP request by HTTP request. You type:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>docker<span class="w"> </span>pull<span class="w"> </span>registry.example.com/payments/api:v2.4.1
+</code></pre></div>
+<p>Here is every step the Docker daemon takes.</p>
+<h3 id="step-1-resolve-the-tag-to-a-manifest">Step 1: Resolve the tag to a manifest<a class="headerlink" href="#step-1-resolve-the-tag-to-a-manifest" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="err">GET /v2/payments/api/manifests/v2.4.1</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="err">Host: registry.example.com</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="err">Accept: application/vnd.oci.image.manifest.v1+json,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="err">        application/vnd.docker.distribution.manifest.v2+json,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="err">        application/vnd.oci.image.index.v1+json</span>
+</code></pre></div>
+<p>The registry returns a <strong>manifest</strong> — a JSON document that describes the image:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"schemaVersion"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">"mediaType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"application/vnd.oci.image.manifest.v1+json"</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nt">"mediaType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"application/vnd.oci.image.config.v1+json"</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nt">"digest"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sha256:a1b2c3d4..."</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nt">"size"</span><span class="p">:</span><span class="w"> </span><span class="mi">7023</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">"layers"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">      </span><span class="nt">"mediaType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"application/vnd.oci.image.layer.v1.tar+gzip"</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">      </span><span class="nt">"digest"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sha256:e4f5a6b7..."</span><span class="p">,</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">      </span><span class="nt">"size"</span><span class="p">:</span><span class="w"> </span><span class="mi">32654947</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">      </span><span class="nt">"mediaType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"application/vnd.oci.image.layer.v1.tar+gzip"</span><span class="p">,</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">      </span><span class="nt">"digest"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sha256:c8d9e0f1..."</span><span class="p">,</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">      </span><span class="nt">"size"</span><span class="p">:</span><span class="w"> </span><span class="mi">16724</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="w">      </span><span class="nt">"mediaType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"application/vnd.oci.image.layer.v1.tar+gzip"</span><span class="p">,</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">      </span><span class="nt">"digest"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sha256:2a3b4c5d..."</span><span class="p">,</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="w">      </span><span class="nt">"size"</span><span class="p">:</span><span class="w"> </span><span class="mi">73109</span>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="p">}</span>
+</code></pre></div>
+<p>That manifest is the image's <strong>bill of materials</strong>. It says: "this image is made of a config
+blob at this digest, and three layers at these digests." Every digest is a SHA256 hash of
+the content it points to.</p>
+<h3 id="step-2-download-the-config-blob">Step 2: Download the config blob<a class="headerlink" href="#step-2-download-the-config-blob" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="err">GET /v2/payments/api/blobs/sha256:a1b2c3d4...</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="err">Host: registry.example.com</span>
+</code></pre></div>
+<p>The config contains metadata: environment variables, entrypoint, working directory,
+architecture, OS, and the ordered list of layer diff IDs. This is where Docker learns
+<em>how to run</em> the image.</p>
+<h3 id="step-3-download-each-layer-in-parallel">Step 3: Download each layer (in parallel)<a class="headerlink" href="#step-3-download-each-layer-in-parallel" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="err">GET /v2/payments/api/blobs/sha256:e4f5a6b7...</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="err">GET /v2/payments/api/blobs/sha256:c8d9e0f1...</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="err">GET /v2/payments/api/blobs/sha256:2a3b4c5d...</span>
+</code></pre></div>
+<p>Layers are downloaded in parallel. If a layer already exists locally (because another
+image shares the same base layer), it is skipped entirely. This is why pulling a new
+version of <code>python:3.12-slim</code> is fast — most of the base layers are already on disk.</p>
+<h3 id="step-4-verify-and-unpack">Step 4: Verify and unpack<a class="headerlink" href="#step-4-verify-and-unpack" title="Permanent link">&para;</a></h3>
+<p>For each downloaded blob, Docker verifies the SHA256 hash against the digest in the
+manifest. If even one byte is different, the pull fails. Then the layers are unpacked
+into the local storage driver (typically overlay2) and stacked in order.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Layer 1 (base OS)         ← sha256:e4f5a6b7...
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>Layer 2 (pip install)     ← sha256:c8d9e0f1...
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>Layer 3 (COPY app code)   ← sha256:2a3b4c5d...
+</code></pre></div>
+<blockquote>
+<p><strong>Under the Hood:</strong> Content-addressable storage means the blob's name IS its content
+hash. You cannot tamper with a blob without changing its digest, which would break the
+manifest reference. This is the same principle behind Git objects — both use SHA256 to
+make content immutable and verifiable. If the registry serves a corrupted layer, the
+client rejects it.</p>
+</blockquote>
+<h3 id="see-it-yourself">See it yourself<a class="headerlink" href="#see-it-yourself" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Inspect a manifest without pulling the full image</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>docker<span class="w"> </span>manifest<span class="w"> </span>inspect<span class="w"> </span>python:3.12-slim
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># Using crane (lightweight registry tool from Google)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>crane<span class="w"> </span>manifest<span class="w"> </span>python:3.12-slim<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.layers[] | {digest, size}'</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># Using skopeo (Red Hat's registry tool — no daemon required)</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>skopeo<span class="w"> </span>inspect<span class="w"> </span>docker://docker.io/library/python:3.12-slim
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Needs Docker daemon?</th>
+<th>Can copy between registries?</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docker manifest</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>Quick inspection</td>
+</tr>
+<tr>
+<td><code>crane</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>CI pipelines, scripting</td>
+</tr>
+<tr>
+<td><code>skopeo</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>Air-gapped copies, multi-registry</td>
+</tr>
+<tr>
+<td><code>curl</code> + <code>jq</code></td>
+<td>No</td>
+<td>No</td>
+<td>Learning the raw API</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="flashcard-check-1">Flashcard Check #1<a class="headerlink" href="#flashcard-check-1" title="Permanent link">&para;</a></h2>
+<p>Cover the answers with your hand. Test yourself.</p>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What are the three components an OCI manifest references?</td>
+<td>Config blob, ordered layer blobs, and their SHA256 digests</td>
+</tr>
+<tr>
+<td>Why can layers be skipped during <code>docker pull</code>?</td>
+<td>If the layer's SHA256 digest already exists in local storage, it's identical content — no need to re-download</td>
+</tr>
+<tr>
+<td>What HTTP endpoint resolves a tag to a manifest?</td>
+<td><code>GET /v2/&lt;name&gt;/manifests/&lt;reference&gt;</code></td>
+</tr>
+<tr>
+<td>What happens if a downloaded blob's hash doesn't match the manifest?</td>
+<td>The pull fails — content-addressable storage guarantees integrity</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="why-tags-lie-and-digests-dont">Why Tags Lie and Digests Don't<a class="headerlink" href="#why-tags-lie-and-digests-dont" title="Permanent link">&para;</a></h2>
+<p>This is the single most important concept in this lesson. Get this wrong and you will have
+a 2 AM incident like the one in the mission.</p>
+<h3 id="tags-are-mutable-pointers">Tags are mutable pointers<a class="headerlink" href="#tags-are-mutable-pointers" title="Permanent link">&para;</a></h3>
+<p>A tag is a human-readable name like <code>v2.4.1</code> or <code>latest</code> that points to a manifest digest.
+The registry stores this as a simple mapping:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>v2.4.1  →  sha256:abcdef123456...
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>latest  →  sha256:abcdef123456...
+</code></pre></div>
+<p>Anyone with push access can overwrite that mapping at any time:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Monday: push v1 code as "latest"</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>docker<span class="w"> </span>push<span class="w"> </span>myregistry.com/app:latest<span class="w">    </span><span class="c1"># now points to sha256:aaa...</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Tuesday: push v2 code as "latest"</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>docker<span class="w"> </span>push<span class="w"> </span>myregistry.com/app:latest<span class="w">    </span><span class="c1"># now points to sha256:bbb...</span>
+</code></pre></div>
+<p>After Tuesday's push, <code>latest</code> points to completely different bytes. Any system that pulls
+<code>app:latest</code> will get v2 — whether it expected it or not.</p>
+<h3 id="digests-are-immutable-identifiers">Digests are immutable identifiers<a class="headerlink" href="#digests-are-immutable-identifiers" title="Permanent link">&para;</a></h3>
+<p>A digest is the SHA256 hash of the manifest itself. It cannot be changed without changing
+the content. To reference an image immutably:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># This will always pull the exact same bytes, forever</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>docker<span class="w"> </span>pull<span class="w"> </span>myregistry.com/app@sha256:a1b2c3d4e5f6...
+</code></pre></div>
+<p>No one can overwrite a digest. If the content changes, the digest changes. Period.</p>
+<h3 id="the-practical-difference">The practical difference<a class="headerlink" href="#the-practical-difference" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Mutable: who knows what you'll get?</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>image:<span class="w"> </span>payments-api:latest
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Slightly better but still mutable:</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>image:<span class="w"> </span>payments-api:v2.4.1
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Immutable: guaranteed to be the exact bytes you tested</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>image:<span class="w"> </span>payments-api@sha256:a1b2c3d4e5f678901234567890abcdef...
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> Even "version" tags like <code>v2.4.1</code> are mutable. There is nothing in the
+registry protocol that prevents someone from pushing different content to the same tag.
+The only truly immutable reference is a digest. Treat version tags as conventions
+enforced by process, not by technology.</p>
+<p><strong>War Story:</strong> In the mission scenario, the <code>latest</code> tag was overwritten by an automated
+base image update. But this pattern has caused larger incidents. In one widely reported
+case, a team's CI pipeline pushed to a <code>:release</code> tag that production deployments
+referenced. A developer accidentally triggered the pipeline from a feature branch. The
+tag now pointed to untested code. Half the fleet pulled the new image on pod restarts
+over the next hour. The rollback required manually re-tagging the old digest and forcing
+a rolling restart across all nodes. Total time to resolution: 3 hours. Root cause:
+mutable tags in production.</p>
+</blockquote>
+<h3 id="how-to-get-the-digest-of-an-image">How to get the digest of an image<a class="headerlink" href="#how-to-get-the-digest-of-an-image" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># From a local image</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>docker<span class="w"> </span>inspect<span class="w"> </span>--format<span class="o">=</span><span class="s1">'{{index .RepoDigests 0}}'</span><span class="w"> </span>payments-api:v2.4.1
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># From a remote registry (without pulling)</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>crane<span class="w"> </span>digest<span class="w"> </span>myregistry.com/payments-api:v2.4.1
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># From skopeo</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>skopeo<span class="w"> </span>inspect<span class="w"> </span>docker://myregistry.com/payments-api:v2.4.1<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.Digest'</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="c1"># From the Docker CLI</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>docker<span class="w"> </span>manifest<span class="w"> </span>inspect<span class="w"> </span>myregistry.com/payments-api:v2.4.1<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.digest // .config.digest'</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Mental Model:</strong> Think of tags like DNS names and digests like IP addresses. <code>google.com</code>
+might point to different servers at different times — the name is a mutable convenience.
+But <code>142.250.80.46</code> is always the same host. When reliability matters, you use the address.
+When convenience matters, you use the name. In production, you need the address.</p>
+</blockquote>
+<hr />
+<h2 id="registry-authentication-who-gets-to-pull">Registry Authentication: Who Gets to Pull?<a class="headerlink" href="#registry-authentication-who-gets-to-pull" title="Permanent link">&para;</a></h2>
+<p>Every registry has its own authentication dance, but the protocol follows a common pattern
+defined in the Docker Registry Token Authentication spec.</p>
+<h3 id="the-authentication-flow">The authentication flow<a class="headerlink" href="#the-authentication-flow" title="Permanent link">&para;</a></h3>
+<p>The client sends a request, gets a 401 with a <code>WWW-Authenticate: Bearer</code> header pointing
+to a token endpoint, fetches a short-lived token with credentials, then retries with
+<code>Authorization: Bearer &lt;token&gt;</code>. This handshake is why the first pull to a new registry
+feels slow.</p>
+<h3 id="registry-specific-authentication">Registry-specific authentication<a class="headerlink" href="#registry-specific-authentication" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Registry</th>
+<th>Auth method</th>
+<th>Credential source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docker Hub</td>
+<td>Username/password or token</td>
+<td><code>docker login</code>, <code>~/.docker/config.json</code></td>
+</tr>
+<tr>
+<td>Amazon ECR</td>
+<td>AWS IAM + short-lived token</td>
+<td><code>aws ecr get-login-password</code> (valid 12h)</td>
+</tr>
+<tr>
+<td>Google GAR</td>
+<td>OAuth2 or service account</td>
+<td><code>gcloud auth configure-docker</code></td>
+</tr>
+<tr>
+<td>GitHub GHCR</td>
+<td>Personal access token</td>
+<td><code>echo $GITHUB_TOKEN \| docker login ghcr.io -u USERNAME --password-stdin</code></td>
+</tr>
+<tr>
+<td>Harbor</td>
+<td>LDAP/OIDC/local users</td>
+<td><code>docker login harbor.company.com</code></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># ECR login (AWS) — token expires in 12 hours</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>aws<span class="w"> </span>ecr<span class="w"> </span>get-login-password<span class="w"> </span>--region<span class="w"> </span>us-east-1<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span>docker<span class="w"> </span>login<span class="w"> </span>--username<span class="w"> </span>AWS<span class="w"> </span>--password-stdin<span class="w"> </span><span class="m">123456789012</span>.dkr.ecr.us-east-1.amazonaws.com
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="c1"># Google Artifact Registry</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>gcloud<span class="w"> </span>auth<span class="w"> </span>configure-docker<span class="w"> </span>us-docker.pkg.dev
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="c1"># GitHub Container Registry</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="nb">echo</span><span class="w"> </span><span class="nv">$GITHUB_TOKEN</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>login<span class="w"> </span>ghcr.io<span class="w"> </span>-u<span class="w"> </span>myuser<span class="w"> </span>--password-stdin
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> ECR tokens expire after 12 hours. If your CI pipeline caches the Docker
+credential config, builds start failing at 3 AM when the cached token expires. Use
+<code>amazon-ecr-credential-helper</code> for automatic refresh, or re-authenticate at the start
+of every CI job.</p>
+</blockquote>
+<p>In Kubernetes, registry credentials are stored as <code>imagePullSecrets</code> — a Secret of type
+<code>kubernetes.io/dockerconfigjson</code> containing the base64-encoded <code>~/.docker/config.json</code>,
+referenced in the Pod spec's <code>imagePullSecrets</code> field.</p>
+<hr />
+<h2 id="multi-architecture-images-one-tag-many-platforms">Multi-Architecture Images: One Tag, Many Platforms<a class="headerlink" href="#multi-architecture-images-one-tag-many-platforms" title="Permanent link">&para;</a></h2>
+<p>Your team runs <code>amd64</code> servers in AWS and <code>arm64</code> Mac laptops for development. You want
+<code>docker pull myapp:v2.4.1</code> to get the right binary on both. This is what <strong>manifest lists</strong>
+(also called <strong>image indexes</strong>) solve.</p>
+<h3 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h3>
+<p>Instead of a manifest pointing directly to layers, the tag points to a <strong>manifest list</strong>
+that contains pointers to platform-specific manifests:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">"schemaVersion"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">"mediaType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"application/vnd.oci.image.index.v1+json"</span><span class="p">,</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="nt">"manifests"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">      </span><span class="nt">"mediaType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"application/vnd.oci.image.manifest.v1+json"</span><span class="p">,</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">      </span><span class="nt">"digest"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sha256:aaa111..."</span><span class="p">,</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="w">      </span><span class="nt">"size"</span><span class="p">:</span><span class="w"> </span><span class="mi">7143</span><span class="p">,</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">      </span><span class="nt">"platform"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"architecture"</span><span class="p">:</span><span class="w"> </span><span class="s2">"amd64"</span><span class="p">,</span><span class="w"> </span><span class="nt">"os"</span><span class="p">:</span><span class="w"> </span><span class="s2">"linux"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="w">      </span><span class="nt">"mediaType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"application/vnd.oci.image.manifest.v1+json"</span><span class="p">,</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="w">      </span><span class="nt">"digest"</span><span class="p">:</span><span class="w"> </span><span class="s2">"sha256:bbb222..."</span><span class="p">,</span>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="w">      </span><span class="nt">"size"</span><span class="p">:</span><span class="w"> </span><span class="mi">7143</span><span class="p">,</span>
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="w">      </span><span class="nt">"platform"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"architecture"</span><span class="p">:</span><span class="w"> </span><span class="s2">"arm64"</span><span class="p">,</span><span class="w"> </span><span class="nt">"os"</span><span class="p">:</span><span class="w"> </span><span class="s2">"linux"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a><span class="p">}</span>
+</code></pre></div>
+<p>When Docker resolves the tag, it checks the manifest list, finds the entry matching the
+local platform, then follows that digest to the actual manifest and layers.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Inspect a multi-arch image</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>docker<span class="w"> </span>manifest<span class="w"> </span>inspect<span class="w"> </span>python:3.12-slim
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1"># Shows entries for amd64, arm64, arm/v7, etc.</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="c1"># Build and push multi-arch</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>docker<span class="w"> </span>buildx<span class="w"> </span>create<span class="w"> </span>--use
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>docker<span class="w"> </span>buildx<span class="w"> </span>build<span class="w"> </span>--platform<span class="w"> </span>linux/amd64,linux/arm64<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">  </span>-t<span class="w"> </span>myregistry.com/myapp:v2.4.1<span class="w"> </span>--push<span class="w"> </span>.
+</code></pre></div>
+<blockquote>
+<p><strong>Under the Hood:</strong> Multi-arch images work because the tag → manifest indirection has an
+extra level. Single-arch: tag → manifest → layers. Multi-arch: tag → manifest list →
+(per-platform manifest) → layers. The Docker client picks the right manifest
+automatically. Tools like <code>crane</code> and <code>skopeo</code> can inspect all platforms without pulling.</p>
+</blockquote>
+<hr />
+<h2 id="flashcard-check-2">Flashcard Check #2<a class="headerlink" href="#flashcard-check-2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What is the relationship between a tag and a digest?</td>
+<td>A tag is a mutable pointer to a digest. A digest is the SHA256 hash of the manifest content — immutable by definition.</td>
+</tr>
+<tr>
+<td>Why is <code>image: myapp:v2.4.1</code> still technically mutable?</td>
+<td>Nothing in the registry protocol prevents overwriting a tag. Any push to the same tag replaces the pointer.</td>
+</tr>
+<tr>
+<td>How does multi-arch resolution work?</td>
+<td>Tag resolves to a manifest list (image index). The client selects the manifest matching its platform (arch + OS), then pulls those layers.</td>
+</tr>
+<tr>
+<td>What happens when an ECR token expires mid-pipeline?</td>
+<td>Pulls and pushes fail with 401 Unauthorized. Use the credential helper for auto-refresh.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="the-docker-hub-rate-limiting-problem">The Docker Hub Rate Limiting Problem<a class="headerlink" href="#the-docker-hub-rate-limiting-problem" title="Permanent link">&para;</a></h2>
+<p>In November 2020, Docker Hub began enforcing pull rate limits:</p>
+<table>
+<thead>
+<tr>
+<th>Account type</th>
+<th>Rate limit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anonymous (no login)</td>
+<td>100 pulls / 6 hours per IP</td>
+</tr>
+<tr>
+<td>Authenticated free</td>
+<td>200 pulls / 6 hours per user</td>
+</tr>
+<tr>
+<td>Docker Pro / Team</td>
+<td>5,000 pulls / day</td>
+</tr>
+<tr>
+<td>Docker Business</td>
+<td>Unlimited</td>
+</tr>
+</tbody>
+</table>
+<p>For a single developer, this is fine. For a CI system running 50 builds an hour on shared
+infrastructure where many projects pull from Docker Hub — anonymous limits are exhausted
+in under two hours.</p>
+<p>Your builds start failing intermittently with <code>toomanyrequests</code> errors. Some succeed
+(rate limit window reset), some don't. The failures are non-deterministic.</p>
+<h3 id="solutions">Solutions<a class="headerlink" href="#solutions" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># 1. Authenticate to Docker Hub (doubles your limit)</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nb">echo</span><span class="w"> </span><span class="nv">$DOCKERHUB_TOKEN</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>docker<span class="w"> </span>login<span class="w"> </span>-u<span class="w"> </span>myuser<span class="w"> </span>--password-stdin
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># 2. Mirror images into your own registry</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>skopeo<span class="w"> </span>copy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">  </span>docker://docker.io/library/python:3.12-slim<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">  </span>docker://myregistry.com/mirrors/python:3.12-slim
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="c1"># 3. Use a pull-through cache (Harbor, Nexus, or registry mirror)</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># Configure Docker daemon to use a mirror:</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="c1"># /etc/docker/daemon.json</span>
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="o">{</span>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="w">  </span><span class="s2">"registry-mirrors"</span>:<span class="w"> </span><span class="o">[</span><span class="s2">"https://mirror.mycompany.com"</span><span class="o">]</span>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="o">}</span>
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>
+<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="c1"># 4. Use alternative registries that don't rate-limit</span>
+<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a><span class="c1"># GitHub Container Registry (ghcr.io)</span>
+<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a><span class="c1"># Amazon ECR Public (public.ecr.aws)</span>
+<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a><span class="c1"># Google's mirror (mirror.gcr.io)</span>
+<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a><span class="c1"># Quay.io</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Trivia:</strong> Docker Hub's rate limiting announcement in November 2020 broke CI pipelines
+worldwide overnight. GitHub Container Registry (ghcr.io) launched its general availability
+just weeks later, and Amazon ECR Public followed shortly after. The rate limit event
+single-handedly accelerated the multi-registry ecosystem.</p>
+</blockquote>
+<hr />
+<h2 id="registry-mirroring-and-pull-through-caches">Registry Mirroring and Pull-Through Caches<a class="headerlink" href="#registry-mirroring-and-pull-through-caches" title="Permanent link">&para;</a></h2>
+<p>A <strong>pull-through cache</strong> sits between your infrastructure and the upstream registry.
+The first pull fetches from upstream and caches locally. Subsequent pulls are served from
+the cache, which is faster and immune to upstream rate limits or outages.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>Pod → kubelet → pull-through cache → (cache miss?) → upstream registry
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>                     ↓ (cache hit)
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>                  local blob store
+</code></pre></div>
+<p>Harbor, Nexus, and the built-in Docker registry all support pull-through caching. Configure
+once, then pull through the cache: <code>docker pull harbor.company.com/dockerhub-cache/library/nginx:1.25</code>.
+The cache stores layers locally. Every subsequent pull is local-speed.</p>
+<h3 id="why-mirroring-matters-for-production">Why mirroring matters for production<a class="headerlink" href="#why-mirroring-matters-for-production" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Availability:</strong> If Docker Hub is down (it has happened), your deploys still work</li>
+<li><strong>Speed:</strong> Local cache is 10-100x faster than cross-internet pulls</li>
+<li><strong>Rate limits:</strong> Only the cache talks to upstream, not every node</li>
+<li><strong>Air-gapped environments:</strong> The mirror is the only option</li>
+</ul>
+<blockquote>
+<p><strong>Mental Model:</strong> A pull-through cache is to container images what a CDN is to web
+content. You would never serve your website's static assets directly from a single
+origin server. The same logic applies to container images — cache close to the consumer.</p>
+</blockquote>
+<hr />
+<h2 id="registry-garbage-collection">Registry Garbage Collection<a class="headerlink" href="#registry-garbage-collection" title="Permanent link">&para;</a></h2>
+<p>Registries accumulate dead weight. Every time you push a new image with the same tag, the
+old manifest becomes unreferenced — but the blobs remain. This is because registries use
+content-addressable storage: blobs are stored by digest, and multiple manifests can
+reference the same blob.</p>
+<h3 id="what-garbage-collection-does">What garbage collection does<a class="headerlink" href="#what-garbage-collection-does" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>Before GC:
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>  manifest A (tagged) → blob 1, blob 2, blob 3
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>  manifest B (untagged) → blob 2, blob 4, blob 5
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>  Blobs stored: 1, 2, 3, 4, 5
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>After GC (mark and sweep):
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>  manifest A (tagged) → blob 1, blob 2, blob 3  ← kept
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>  manifest B (untagged) → deleted
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>  Blobs stored: 1, 2, 3  (blob 4, 5 swept because no manifest references them)
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>  Blob 2 is kept because manifest A still references it
+</code></pre></div>
+<h3 id="running-gc-on-popular-registries">Running GC on popular registries<a class="headerlink" href="#running-gc-on-popular-registries" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Docker Registry (self-hosted) — requires read-only mode</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>registry<span class="w"> </span>bin/registry<span class="w"> </span>garbage-collect<span class="w"> </span>/etc/docker/registry/config.yml
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="c1"># Harbor — automatic GC scheduling in admin UI</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="c1"># Or trigger via API:</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="s2">"https://harbor.company.com/api/v2.0/system/gc/schedule"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"schedule": {"type": "Manual"}}'</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="c1"># ECR — lifecycle policies handle this automatically</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>aws<span class="w"> </span>ecr<span class="w"> </span>put-lifecycle-policy<span class="w"> </span>--repository-name<span class="w"> </span>payments-api<span class="w"> </span>--lifecycle-policy-text<span class="w"> </span><span class="s1">'{</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="s1">  "rules": [</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="s1">    {</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="s1">      "rulePriority": 1,</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="s1">      "description": "Keep last 10 images",</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a><span class="s1">      "selection": {</span>
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="s1">        "tagStatus": "any",</span>
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a><span class="s1">        "countType": "imageCountMoreThan",</span>
+<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a><span class="s1">        "countNumber": 10</span>
+<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a><span class="s1">      },</span>
+<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a><span class="s1">      "action": { "type": "expire" }</span>
+<a id="__codelineno-19-22" name="__codelineno-19-22" href="#__codelineno-19-22"></a><span class="s1">    }</span>
+<a id="__codelineno-19-23" name="__codelineno-19-23" href="#__codelineno-19-23"></a><span class="s1">  ]</span>
+<a id="__codelineno-19-24" name="__codelineno-19-24" href="#__codelineno-19-24"></a><span class="s1">}'</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> The self-hosted Docker Registry (the <code>registry:2</code> image) requires the
+registry to be in <strong>read-only mode</strong> during garbage collection, or you risk deleting
+blobs that a concurrent push is referencing. Harbor handles this automatically. ECR
+and GAR handle it behind the scenes. But if you run the open-source registry, you
+must coordinate GC with pushes.</p>
+</blockquote>
+<hr />
+<h2 id="vulnerability-scanning-at-the-registry-level">Vulnerability Scanning at the Registry Level<a class="headerlink" href="#vulnerability-scanning-at-the-registry-level" title="Permanent link">&para;</a></h2>
+<p>Build-time scanning catches vulnerabilities when you build. But CVEs are discovered daily.
+An image that was clean last week might have three new CRITICALs today — and it is already
+running in production.</p>
+<p>Registry-level scanning solves this by continuously rescanning stored images:</p>
+<table>
+<thead>
+<tr>
+<th>Registry</th>
+<th>Scanning</th>
+<th>Rescanning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docker Hub</td>
+<td>Docker Scout (included)</td>
+<td>On push + continuous</td>
+</tr>
+<tr>
+<td>ECR</td>
+<td>Enhanced Scanning (Inspector)</td>
+<td>On push + continuous</td>
+</tr>
+<tr>
+<td>GAR / GCR</td>
+<td>Artifact Analysis (on-demand)</td>
+<td>On push + on-demand</td>
+</tr>
+<tr>
+<td>Harbor</td>
+<td>Trivy (built-in)</td>
+<td>On push + scheduled</td>
+</tr>
+<tr>
+<td>GHCR</td>
+<td>Dependabot alerts</td>
+<td>On push</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># ECR: enable enhanced scanning</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>aws<span class="w"> </span>ecr<span class="w"> </span>put-registry-scanning-configuration<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span>--scan-type<span class="w"> </span>ENHANCED<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span>--rules<span class="w"> </span><span class="s1">'[{"repositoryFilters": [{"filter": "*", "filterType": "WILDCARD"}], "scanFrequency": "CONTINUOUS_SCAN"}]'</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="c1"># Harbor: scan an image on demand</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="s2">"https://harbor.company.com/api/v2.0/projects/myproject/repositories/myapp/artifacts/sha256:abc123/scan"</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="c1"># Trivy: scan a remote image without pulling</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>trivy<span class="w"> </span>image<span class="w"> </span>--severity<span class="w"> </span>CRITICAL,HIGH<span class="w"> </span>myregistry.com/payments-api:v2.4.1
+</code></pre></div>
+<blockquote>
+<p><strong>Under the Hood:</strong> Registry scanners extract the SBOM (Software Bill of Materials)
+from each image's layers — listing every OS package, language dependency, and binary.
+Then they match that SBOM against CVE databases (NVD, vendor advisories). When a new
+CVE is published, they re-match against all stored SBOMs without re-downloading layers.
+This is why continuous scanning is cheap once the initial SBOM is built.</p>
+</blockquote>
+<hr />
+<h2 id="image-promotion-pipelines-dev-to-staging-to-prod">Image Promotion Pipelines: Dev to Staging to Prod<a class="headerlink" href="#image-promotion-pipelines-dev-to-staging-to-prod" title="Permanent link">&para;</a></h2>
+<p>In a mature setup, images don't just get pushed to one place. They flow through a pipeline:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>Build → Dev Registry → (tests pass) → Staging Registry → (approval) → Prod Registry
+</code></pre></div>
+<p>Separate registries (or repositories) give you access control (only CI promotes to prod),
+blast radius containment, audit trails, and different scanning policies per environment.</p>
+<h3 id="promotion-by-re-tagging-not-rebuilding">Promotion by re-tagging (not rebuilding)<a class="headerlink" href="#promotion-by-re-tagging-not-rebuilding" title="Permanent link">&para;</a></h3>
+<p>The key insight: you never rebuild between environments. You <strong>copy the exact same digest</strong>
+from one registry (or repository) to another. This guarantees that what you tested is what
+you deploy.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># Promote from dev to staging using crane</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>crane<span class="w"> </span>copy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span>dev-registry.company.com/payments-api@sha256:abc123...<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">  </span>staging-registry.company.com/payments-api:v2.4.1
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="c1"># Promote using skopeo</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>skopeo<span class="w"> </span>copy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">  </span>docker://dev-registry.company.com/payments-api@sha256:abc123...<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w">  </span>docker://prod-registry.company.com/payments-api:v2.4.1
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="c1"># Verify the digest is identical after promotion</span>
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>crane<span class="w"> </span>digest<span class="w"> </span>dev-registry.company.com/payments-api@sha256:abc123...
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>crane<span class="w"> </span>digest<span class="w"> </span>prod-registry.company.com/payments-api:v2.4.1
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a><span class="c1"># Both should output: sha256:abc123...</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Remember:</strong> "Promote by digest, never by rebuild." If you rebuild for production, you
+get a different image — different timestamps, potentially different base layer versions,
+different dependency resolutions. The image you tested is not the image you deployed. Copy
+the bytes. Verify the digest.</p>
+</blockquote>
+<hr />
+<h2 id="flashcard-check-3">Flashcard Check #3<a class="headerlink" href="#flashcard-check-3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Why does registry garbage collection exist?</td>
+<td>Untagged manifests and unreferenced blobs accumulate when tags are overwritten. GC reclaims storage by deleting orphaned content.</td>
+</tr>
+<tr>
+<td>What is a pull-through cache?</td>
+<td>A local proxy that fetches from upstream on first request, then serves from cache. Reduces latency, avoids rate limits, provides availability.</td>
+</tr>
+<tr>
+<td>Why should you promote images by copying digests rather than rebuilding?</td>
+<td>Rebuilding produces a different image (different timestamps, possibly different deps). Copying the digest guarantees byte-for-byte identity between tested and deployed.</td>
+</tr>
+<tr>
+<td>What do Docker Hub anonymous rate limits look like in 2024?</td>
+<td>100 pulls per 6 hours per IP address. Authenticated free accounts get 200 per 6 hours.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="cost-management-storage-and-egress">Cost Management: Storage and Egress<a class="headerlink" href="#cost-management-storage-and-egress" title="Permanent link">&para;</a></h2>
+<p>Registries are not free. The costs come from two sources:</p>
+<p><strong>Storage</strong> — every image version occupies space. A single Python app image at 150MB,
+pushed 20 times a day across 5 services, is 15GB of new storage per day. After a month
+without cleanup: 450GB.</p>
+<p><strong>Egress</strong> — pulling images costs money in cloud registries. ECR charges $0.09/GB for
+cross-region pulls. Pulling a 500MB image across 100 nodes in a different region: $4.50
+per deployment. Do that 10 times a day: $45/day, $1,350/month.</p>
+<h3 id="how-to-control-costs">How to control costs<a class="headerlink" href="#how-to-control-costs" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>What it does</th>
+<th>Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lifecycle policies</td>
+<td>Auto-delete images older than N days or keep only last N</td>
+<td>Reduces storage 50-80%</td>
+</tr>
+<tr>
+<td>Same-region pulls</td>
+<td>Keep registry in the same region as your compute</td>
+<td>Eliminates egress fees</td>
+</tr>
+<tr>
+<td>Smaller images</td>
+<td>Alpine/distroless instead of Ubuntu</td>
+<td>5-10x less storage and egress</td>
+</tr>
+<tr>
+<td>Layer sharing</td>
+<td>Common base images shared across services</td>
+<td>Reduces effective storage</td>
+</tr>
+<tr>
+<td>Pull-through cache</td>
+<td>Cache in each region</td>
+<td>Eliminates cross-region egress</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># ECR: check repository size</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>aws<span class="w"> </span>ecr<span class="w"> </span>describe-repositories<span class="w"> </span>--query<span class="w"> </span><span class="s1">'repositories[*].[repositoryName]'</span><span class="w"> </span>--output<span class="w"> </span>text<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="nb">read</span><span class="w"> </span>repo<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">    </span><span class="nv">size</span><span class="o">=</span><span class="k">$(</span>aws<span class="w"> </span>ecr<span class="w"> </span>describe-images<span class="w"> </span>--repository-name<span class="w"> </span><span class="s2">"</span><span class="nv">$repo</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">      </span>--query<span class="w"> </span><span class="s1">'imageDetails[*].imageSizeInBytes'</span><span class="w"> </span>--output<span class="w"> </span>text<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="w">      </span>awk<span class="w"> </span><span class="s1">'{s+=$1} END {printf "%.1f MB\n", s/1024/1024}'</span><span class="k">)</span>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="nv">$repo</span><span class="s2">: </span><span class="nv">$size</span><span class="s2">"</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a><span class="w">  </span><span class="k">done</span>
+</code></pre></div>
+<hr />
+<h2 id="the-war-room-a-tag-overwrite-postmortem">The War Room: A Tag Overwrite Postmortem<a class="headerlink" href="#the-war-room-a-tag-overwrite-postmortem" title="Permanent link">&para;</a></h2>
+<p>Let's close the loop on the mission. Here is what the investigation revealed and what the
+team changed.</p>
+<h3 id="timeline">Timeline<a class="headerlink" href="#timeline" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>1:35 AM</strong> — Platform team's automated pipeline pushes a base image rebuild to
+  <code>payments-api:latest</code>. A misconfigured variable defaulted the tag to <code>latest</code>.</li>
+<li><strong>1:42 AM</strong> — Node recycled by cluster autoscaler. Kubelet pulls <code>payments-api:latest</code> —
+  gets the broken build. Other nodes still cache the old image.</li>
+<li><strong>1:43 AM</strong> — Payments service on the new node returns 500s (missing env var the new
+  base image expects).</li>
+<li><strong>2:17 AM</strong> — PagerDuty fires. On-call starts investigation.</li>
+<li><strong>2:45 AM</strong> — <code>kubectl get pods -o jsonpath='{range .items[*]}{.status.containerStatuses[0].imageID}{"\n"}{end}'</code>
+  shows two distinct digests across the fleet.</li>
+<li><strong>3:10 AM</strong> — Rollback: re-tag known-good digest to <code>latest</code>, force rolling restart.</li>
+</ul>
+<h3 id="what-changed-after">What changed after<a class="headerlink" href="#what-changed-after" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image: payments-api:latest</code></td>
+<td><code>image: payments-api@sha256:...</code> (pinned by digest in Helm values)</td>
+</tr>
+<tr>
+<td>No image promotion pipeline</td>
+<td>Dev → Staging → Prod promotion using <code>crane copy</code> by digest</td>
+</tr>
+<tr>
+<td>No tag immutability</td>
+<td>ECR tag immutability enabled on production repositories</td>
+</tr>
+<tr>
+<td><code>imagePullPolicy: Always</code></td>
+<td><code>imagePullPolicy: IfNotPresent</code> with digest pinning</td>
+</tr>
+<tr>
+<td>No registry monitoring</td>
+<td>Alerts on unexpected tag overwrites via registry webhooks</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Enable tag immutability on ECR (prevents overwrites)</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>aws<span class="w"> </span>ecr<span class="w"> </span>put-image-tag-mutability<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">  </span>--repository-name<span class="w"> </span>payments-api<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">  </span>--image-tag-mutability<span class="w"> </span>IMMUTABLE
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> Enabling tag immutability means you cannot push the same tag twice. This
+breaks workflows that rely on overwriting <code>latest</code> or <code>stable</code>. You need to adopt
+unique tags (Git SHA, build number, semver) before enabling immutability.</p>
+</blockquote>
+<hr />
+<h2 id="exercises">Exercises<a class="headerlink" href="#exercises" title="Permanent link">&para;</a></h2>
+<h3 id="exercise-1-inspect-a-real-manifest-2-minutes">Exercise 1: Inspect a real manifest (2 minutes)<a class="headerlink" href="#exercise-1-inspect-a-real-manifest-2-minutes" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Inspect without pulling the full image</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>crane<span class="w"> </span>manifest<span class="w"> </span>nginx:1.25<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>.
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="c1"># Or: docker manifest inspect nginx:1.25</span>
+</code></pre></div>
+<p>Count the layers and total their sizes. How many layers does <code>nginx:1.25</code> have?</p>
+<h3 id="exercise-2-compare-tag-vs-digest-5-minutes">Exercise 2: Compare tag vs digest (5 minutes)<a class="headerlink" href="#exercise-2-compare-tag-vs-digest-5-minutes" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nv">DIGEST</span><span class="o">=</span><span class="k">$(</span>crane<span class="w"> </span>digest<span class="w"> </span>python:3.12-slim<span class="k">)</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>docker<span class="w"> </span>pull<span class="w"> </span>python:3.12-slim
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>docker<span class="w"> </span>pull<span class="w"> </span>python@<span class="nv">$DIGEST</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>docker<span class="w"> </span>images<span class="w"> </span>--digests<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>python
+</code></pre></div>
+<p>Are the local image IDs identical? What would it mean if they were not?</p>
+<details>
+<summary>Answer</summary>
+They should be identical — the tag resolved to the same digest. If the tag was overwritten
+between the two pulls, they would differ. This demonstrates why digests are reliable.
+</details>
+
+<h3 id="exercise-3-build-a-promotion-pipeline-15-minutes">Exercise 3: Build a promotion pipeline (15 minutes)<a class="headerlink" href="#exercise-3-build-a-promotion-pipeline-15-minutes" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Two local registries simulating dev and prod</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-p<span class="w"> </span><span class="m">5000</span>:5000<span class="w"> </span>--name<span class="w"> </span>dev-registry<span class="w"> </span>registry:2
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-p<span class="w"> </span><span class="m">5001</span>:5000<span class="w"> </span>--name<span class="w"> </span>prod-registry<span class="w"> </span>registry:2
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="c1"># Build, push to dev, then promote by digest</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>localhost:5000/myapp:v1<span class="w"> </span>.
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>docker<span class="w"> </span>push<span class="w"> </span>localhost:5000/myapp:v1
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="nv">DIGEST</span><span class="o">=</span><span class="k">$(</span>crane<span class="w"> </span>digest<span class="w"> </span>localhost:5000/myapp:v1<span class="k">)</span>
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>crane<span class="w"> </span>copy<span class="w"> </span>localhost:5000/myapp@<span class="nv">$DIGEST</span><span class="w"> </span>localhost:5001/myapp:v1
+<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a>
+<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="c1"># Verify digests match</span>
+<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a>crane<span class="w"> </span>digest<span class="w"> </span>localhost:5000/myapp:v1
+<a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a>crane<span class="w"> </span>digest<span class="w"> </span>localhost:5001/myapp:v1
+</code></pre></div>
+<p>The digests should be identical. You promoted the exact bytes, not a rebuild.</p>
+<h3 id="exercise-4-investigate-rate-limit-headers-5-minutes">Exercise 4: Investigate rate limit headers (5 minutes)<a class="headerlink" href="#exercise-4-investigate-rate-limit-headers-5-minutes" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Check your Docker Hub rate limit status</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="nv">TOKEN</span><span class="o">=</span><span class="k">$(</span>curl<span class="w"> </span>-s<span class="w"> </span><span class="s2">"https://auth.docker.io/token?service=registry.docker.io&amp;scope=repository:library/nginx:pull"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.token<span class="k">)</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>curl<span class="w"> </span>-s<span class="w"> </span>-I<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span><span class="s2">"https://registry-1.docker.io/v2/library/nginx/manifests/latest"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">  </span>grep<span class="w"> </span>-i<span class="w"> </span>ratelimit
+</code></pre></div>
+<p>Look for <code>RateLimit-Limit</code> and <code>RateLimit-Remaining</code> headers. How many pulls do you have
+left?</p>
+<hr />
+<h2 id="cheat-sheet">Cheat Sheet<a class="headerlink" href="#cheat-sheet" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Inspect manifest (no pull)</td>
+<td><code>crane manifest &lt;image&gt;</code> or <code>docker manifest inspect &lt;image&gt;</code></td>
+</tr>
+<tr>
+<td>Get image digest</td>
+<td><code>crane digest &lt;image&gt;</code></td>
+</tr>
+<tr>
+<td>Copy between registries</td>
+<td><code>crane copy &lt;src&gt; &lt;dst&gt;</code> or <code>skopeo copy docker://&lt;src&gt; docker://&lt;dst&gt;</code></td>
+</tr>
+<tr>
+<td>Inspect remote image metadata</td>
+<td><code>skopeo inspect docker://&lt;image&gt;</code></td>
+</tr>
+<tr>
+<td>List tags in a repo</td>
+<td><code>crane ls &lt;repo&gt;</code> or <code>curl -s https://&lt;registry&gt;/v2/&lt;repo&gt;/tags/list</code></td>
+</tr>
+<tr>
+<td>Check Docker Hub rate limit</td>
+<td><code>curl</code> with Bearer token, read <code>RateLimit-Remaining</code> header</td>
+</tr>
+<tr>
+<td>ECR login</td>
+<td><code>aws ecr get-login-password \| docker login --username AWS --password-stdin &lt;account&gt;.dkr.ecr.&lt;region&gt;.amazonaws.com</code></td>
+</tr>
+<tr>
+<td>ECR enable tag immutability</td>
+<td><code>aws ecr put-image-tag-mutability --image-tag-mutability IMMUTABLE</code></td>
+</tr>
+<tr>
+<td>ECR lifecycle policy</td>
+<td><code>aws ecr put-lifecycle-policy --lifecycle-policy-text file://policy.json</code></td>
+</tr>
+<tr>
+<td>Scan remote image</td>
+<td><code>trivy image &lt;image&gt;</code></td>
+</tr>
+<tr>
+<td>Generate SBOM</td>
+<td><code>trivy image --format cyclonedx -o sbom.json &lt;image&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-registry-endpoints-oci-distribution-spec">Key registry endpoints (OCI Distribution Spec)<a class="headerlink" href="#key-registry-endpoints-oci-distribution-spec" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /v2/</code></td>
+<td>API version check (also used as health check)</td>
+</tr>
+<tr>
+<td><code>GET /v2/&lt;name&gt;/manifests/&lt;ref&gt;</code></td>
+<td>Get manifest by tag or digest</td>
+</tr>
+<tr>
+<td><code>PUT /v2/&lt;name&gt;/manifests/&lt;ref&gt;</code></td>
+<td>Push a manifest</td>
+</tr>
+<tr>
+<td><code>GET /v2/&lt;name&gt;/blobs/&lt;digest&gt;</code></td>
+<td>Download a layer or config blob</td>
+</tr>
+<tr>
+<td><code>POST /v2/&lt;name&gt;/blobs/uploads/</code></td>
+<td>Start a blob upload</td>
+</tr>
+<tr>
+<td><code>GET /v2/&lt;name&gt;/tags/list</code></td>
+<td>List tags for a repository</td>
+</tr>
+<tr>
+<td><code>DELETE /v2/&lt;name&gt;/manifests/&lt;ref&gt;</code></td>
+<td>Delete a manifest (by digest only)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="takeaways">Takeaways<a class="headerlink" href="#takeaways" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>Tags are mutable pointers. Digests are immutable hashes.</strong> In production, pin by digest or enforce tag immutability at the registry level. Mutable tags in production are ticking time bombs.</p>
+</li>
+<li>
+<p><strong><code>docker pull</code> is four HTTP requests:</strong> resolve tag to manifest, download config, download layers in parallel, verify SHA256 hashes. Knowing this helps you debug slow pulls, auth failures, and network issues.</p>
+</li>
+<li>
+<p><strong>Rate limits are real infrastructure constraints.</strong> Docker Hub's 100-pulls-per-6-hours limit for anonymous users breaks CI at scale. Mirror images into your own registry or use a pull-through cache.</p>
+</li>
+<li>
+<p><strong>Promote by digest, never by rebuild.</strong> Copying the exact bytes from dev to prod guarantees that what you tested is what you deploy. Rebuilding introduces drift.</p>
+</li>
+<li>
+<p><strong>Garbage collection is not automatic.</strong> Untagged manifests and orphaned blobs accumulate. Configure lifecycle policies (ECR) or schedule GC (Harbor, self-hosted registry) to control storage costs.</p>
+</li>
+<li>
+<p><strong>Registry scanning catches CVEs discovered after build time.</strong> Enable continuous scanning in your registry — build-time scanning alone misses vulnerabilities published between deploys.</p>
+</li>
+</ol>
+<hr />
+<h2 id="related-lessons">Related Lessons<a class="headerlink" href="#related-lessons" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../what-happens-when-you-docker-build/">What Happens When You <code>docker build</code></a> — follows the build side of the image lifecycle</li>
+<li><a href="../the-container-escape/">The Container Escape</a> — security at the container runtime level</li>
+<li><a href="../gitops-the-repo-is-the-truth/">GitOps: The Repo Is the Truth</a> — where image references live in a GitOps workflow</li>
+<li><a href="../what-happens-when-you-kubectl-apply/">What Happens When You <code>kubectl apply</code></a> — what happens after the image reference reaches Kubernetes</li>
+<li><a href="../kubernetes-services-how-traffic-finds-your-pod/">Kubernetes Services: How Traffic Finds Your Pod</a> — the next layer after the image is pulled</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="August 19, 2026 13:40:59 UTC">August 19, 2026 13:40:59</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 23, 2026 02:04:33 UTC">March 23, 2026 02:04:33</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../log-pipelines-from-printf-to-dashboard/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Log Pipelines: From printf to Dashboard">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Log Pipelines: From printf to Dashboard
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../envoy-the-proxy-thats-everywhere/" class="md-footer__link md-footer__link--next" aria-label="Next: Envoy: The Proxy That&#39;s Everywhere">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Envoy: The Proxy That's Everywhere
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../portal/js/random-content.js"></script>
+      
+        <script src="../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../portal/js/graph.js"></script>
+      
+        <script src="../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

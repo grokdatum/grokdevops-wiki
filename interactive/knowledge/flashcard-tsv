@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""flashcard-tsv - canonical TSV utilities for knowledge Option C migration."""
+
+import argparse
+import csv
+import hashlib
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+KNOWLEDGE_ROOT = REPO_ROOT / "training" / "interactive" / "knowledge"
+sys.path.insert(0, str(REPO_ROOT / "tools" / "gd-learn" / "lib" / "python"))
+from error_handler import gd_main  # noqa: E402 -- path bootstrap precedes local import
+
+FIELDS = ["id", "category", "difficulty", "tags", "question", "answer", "source_path"]
+
+
+def visible_category_dirs(root: Path):
+    if not root.exists():
+        return []
+    return [
+        d
+        for d in sorted(root.iterdir())
+        if d.is_dir() and not d.name.startswith(".") and not d.name.startswith("_")
+    ]
+
+
+def parse_txt_card(path: Path):
+    text = path.read_text(errors="ignore")
+    q = re.search(r"(?ims)^Q:\s*(.+?)(?:\n\s*\n|\nA:)", text)
+    a = re.search(r"(?ims)^A:\s*(.+?)(?:\n\s*\n(?:Tags:|Difficulty:)|\Z)", text)
+    tags = re.search(r"(?im)^Tags:\s*(.+)$", text)
+    diff = re.search(r"(?im)^Difficulty:\s*(.+)$", text)
+    if not q:
+        return None
+    question = q.group(1).strip()
+    answer = a.group(1).strip() if a else ""
+    category = path.parent.name
+    digest = hashlib.sha256(f"{category}\n{question}\n{answer}".encode()).hexdigest()[:12]
+    return {
+        "id": f"{category}/{digest}",
+        "category": category,
+        "difficulty": (diff.group(1).strip().lower() if diff else "medium"),
+        "tags": tags.group(1).strip() if tags else category,
+        "question": question,
+        "answer": answer,
+        "source_path": str(path),
+    }
+
+
+def load_rows_from_split_dir(cards_dir: Path):
+    rows = []
+    if not cards_dir.exists():
+        return rows
+    for tsv in sorted(cards_dir.glob("*.tsv")):
+        with tsv.open(newline="") as fh:
+            rows.extend(list(csv.DictReader(fh, delimiter="\t")))
+    return rows
+
+
+def write_rows(path: Path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=FIELDS, delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def cmd_export(args):
+    root = Path(args.input_dir)
+    out_dir = Path(args.output_dir)
+    grouped = defaultdict(list)
+
+    for cat in visible_category_dirs(root):
+        for txt in sorted(cat.glob("*.txt")):
+            row = parse_txt_card(txt)
+            if row:
+                grouped[row["category"]].append(row)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    total = 0
+    for category, rows in sorted(grouped.items()):
+        sorted_rows = sorted(rows, key=lambda r: r["id"])
+        write_rows(out_dir / f"{category}.tsv", sorted_rows)
+        total += len(sorted_rows)
+
+    print(f"Exported {total} cards into {len(grouped)} category TSV files under {out_dir}")
+
+    if args.combined_output:
+        all_rows = []
+        for category in sorted(grouped):
+            all_rows.extend(sorted(grouped[category], key=lambda r: r["id"]))
+        write_rows(Path(args.combined_output), all_rows)
+        print(f"Also wrote combined TSV: {args.combined_output}")
+
+    return 0
+
+
+def cmd_stats(args):
+    rows = load_rows_from_split_dir(Path(args.cards_dir))
+    if not rows:
+        print(f"No category TSV files found in: {args.cards_dir}")
+        return 1
+
+    cats = defaultdict(int)
+    for r in rows:
+        cats[(r.get("category") or "uncategorized")] += 1
+
+    print(f"TSV rows: {len(rows)}")
+    print(f"Categories: {len(cats)}")
+    for c, n in sorted(cats.items(), key=lambda x: x[1], reverse=True)[:15]:
+        print(f"  {c}: {n}")
+    return 0
+
+
+def cmd_import(args):
+    rows = load_rows_from_split_dir(Path(args.cards_dir))
+    if not rows:
+        print(f"No category TSV files found in: {args.cards_dir}")
+        return 1
+
+    out_root = Path(args.output_dir)
+    written = 0
+    for row in rows:
+        category = (row.get("category") or "uncategorized").strip() or "uncategorized"
+        qid = (row.get("id") or "").strip() or "missing-id"
+        stem = qid.split("/", 1)[1] if "/" in qid else qid
+        cat_dir = out_root / category
+        cat_dir.mkdir(parents=True, exist_ok=True)
+        path = cat_dir / f"{stem}.txt"
+        if path.exists() and not args.force:
+            base = stem
+            n = 2
+            while path.exists():
+                path = cat_dir / f"{base}-{n}.txt"
+                n += 1
+
+        content = [
+            f"Q: {row.get('question', '').strip()}",
+            "",
+            f"A: {row.get('answer', '').strip()}",
+            "",
+        ]
+        if (row.get("tags") or "").strip():
+            content.append(f"Tags: {row['tags'].strip()}")
+        content.append(f"Difficulty: {(row.get('difficulty') or 'medium').strip() or 'medium'}")
+        path.write_text("\n".join(content) + "\n")
+        written += 1
+
+    print(f"Materialized {written} txt cards under {out_root}")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Canonical TSV migration utilities for knowledge cards"
+    )
+    sub = parser.add_subparsers(dest="cmd")
+
+    ex = sub.add_parser(
+        "export", help="Export interview txt cards to split canonical TSVs by category"
+    )
+    ex.add_argument("--input-dir", default=str(KNOWLEDGE_ROOT / "interview"))
+    ex.add_argument("--output-dir", default=str(KNOWLEDGE_ROOT / "data" / "cards"))
+    ex.add_argument("--combined-output", help="Optional path for a generated combined TSV file")
+    ex.set_defaults(func=cmd_export)
+
+    st = sub.add_parser("stats", help="Show stats for split canonical TSV directory")
+    st.add_argument("--cards-dir", default=str(KNOWLEDGE_ROOT / "data" / "cards"))
+    st.set_defaults(func=cmd_stats)
+
+    imp = sub.add_parser("import", help="Materialize txt files from split canonical TSV directory")
+    imp.add_argument("--cards-dir", default=str(KNOWLEDGE_ROOT / "data" / "cards"))
+    imp.add_argument("--output-dir", default=str(KNOWLEDGE_ROOT / "interview-materialized"))
+    imp.add_argument("--force", action="store_true")
+    imp.set_defaults(func=cmd_import)
+
+    args = parser.parse_args()
+    if not hasattr(args, "func"):
+        parser.print_help()
+        return 1
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    gd_main(main)

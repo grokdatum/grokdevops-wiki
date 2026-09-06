@@ -1,0 +1,7198 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Systematic guide to debugging Kubernetes pod failures including CrashLoopBackOff, ImagePullBackOff, pending pods, OOMKilled, and networking issues.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/lessons/kubernetes-debugging-when-pods-wont-behave/">
+      
+      
+        <link rel="prev" href="../aws-iam-the-permissions-puzzle/">
+      
+      
+        <link rel="next" href="../dns-ops-when-nslookup-isnt-enough/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Kubernetes Debugging: When Pods Won't Behave - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Kubernetes Debugging: When Pods Won't Behave - GrokDevOps Wiki" />
+<meta property="og:description" content="Systematic guide to debugging Kubernetes pod failures including CrashLoopBackOff, ImagePullBackOff, pending pods, OOMKilled, and networking issues." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/kubernetes-debugging-when-pods-wont-behave.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/lessons/kubernetes-debugging-when-pods-wont-behave/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Kubernetes Debugging: When Pods Won't Behave - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Systematic guide to debugging Kubernetes pod failures including CrashLoopBackOff, ImagePullBackOff, pending pods, OOMKilled, and networking issues." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/kubernetes-debugging-when-pods-wont-behave.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#kubernetes-debugging-when-pods-wont-behave" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Kubernetes Debugging: When Pods Won't Behave
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-End Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    End-to-End Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-click-a-link/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Click a Link
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-press-power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Press Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-docker-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `docker build`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-kubectl-apply/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `kubectl apply`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-helm-install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `helm install`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-git-push-to-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `git push` to CI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pxe-boot-from-network-to-running-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE Boot: From Network to Running Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh-is-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SSH Is More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strace-reading-the-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    strace: Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-type-a-regex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Type a Regex
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ebpf-the-linux-superpower/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    eBPF: The Linux Superpower
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-inside-a-linux-pipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens Inside a Linux Pipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-proc-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The /proc Filesystem: Linux's Hidden API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-to-read-a-flame-graph/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to Read a Flame Graph
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../iptables-following-a-packet-through-the-chains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    iptables: Following a Packet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-subnet-calculator-in-your-head/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Subnet Calculator in Your Head
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-kubernetes-evicts-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Kubernetes Evicts Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tmux-and-the-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tmux and the Terminal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../opentelemetry-following-a-request-across-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenTelemetry: Following a Request Across Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-services-how-traffic-finds-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Services: How Traffic Finds Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../log-pipelines-from-printf-to-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Pipelines: From printf to Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../container-registries-where-your-images-actually-live/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container Registries: Where Your Images Actually Live
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../envoy-the-proxy-thats-everywhere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Envoy: The Proxy That's Everywhere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-node-lifecycle-from-provision-to-decommission/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Node Lifecycle: From Provision to Decommission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-from-scratch-to-production-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes: From Scratch to Production Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Incident-Driven
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Incident-Driven
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-hanging-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Hanging Deploy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-disk-that-filled-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Disk That Filled Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-database-that-wouldnt-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Database That Wouldn't Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-mysterious-latency-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Mysterious Latency Spike
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-terraform-state-disaster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Terraform State Disaster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cascading-timeout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cascading Timeout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-rollback-that-wasnt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Rollback That Wasn't
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../when-the-queue-backs-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When the Queue Backs Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-split-brain-nightmare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Split-Brain Nightmare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cloud-bill-surprise/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cloud Bill Surprise
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-backup-nobody-tested/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Backup Nobody Tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-your-certificate-expires/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Your Certificate Expires
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-load-balancer-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Load Balancer Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-monitoring-that-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Monitoring That Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../redis-in-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis in Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elasticsearch-for-people-who-didnt-choose-it/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Elasticsearch Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mysql-operations-the-database-you-inherited/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MySQL Operations: The Database You Inherited
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mongodb-the-document-database-that-surprised-everyone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MongoDB: The Document Database That Surprised Everyone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server-hardware-when-the-blinky-lights-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Hardware: When the Blinky Lights Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../etcd-the-database-that-runs-kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    etcd: The Database That Runs Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-lambda-the-function-that-runs-itself/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS Lambda: The Function That Runs Itself
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-rds-the-managed-database-tradeoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS RDS: The Managed Database Tradeoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-ec2-the-virtual-server-you-never-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS EC2: The Virtual Server You Never See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kafka-the-log-that-runs-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kafka: The Log That Runs Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differential Diagnosis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Differential Diagnosis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connection-refused/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connection Refused
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permission-denied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permission Denied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../out-of-memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Out of Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-vs-ansible-vs-helm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform vs Ansible vs Helm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-nginx-config-that-broke-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Nginx Config That Broke Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-playbook-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible Playbook Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-iam-the-permissions-puzzle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS IAM: The Permissions Puzzle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Debugging: When Pods Won't Behave
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Debugging: When Pods Won't Behave
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-the-debugging-ladder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1: The Debugging Ladder
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-the-pending-pod-inventory-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2: The Pending Pod — inventory-api
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2: The Pending Pod — inventory-api">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-about-that-taint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What about that taint?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fix-reduce-cpu-request-or-add-capacity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fix: reduce CPU request or add capacity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flashcard-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard check
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-the-crashloopbackoff-order-processor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3: The CrashLoopBackOff — order-processor
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3: The CrashLoopBackOff — order-processor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-exponential-backoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The exponential backoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes-your-first-clue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes: your first clue
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flashcard-check_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard check
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-the-imagepullbackoff-payment-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 4: The ImagePullBackOff — payment-gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-the-silent-killer-oomkilled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 5: The Silent Killer — OOMKilled
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5: The Silent Killer — OOMKilled">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-jvm-trap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The JVM trap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-the-probe-problem-shipping-tracker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 6: The Probe Problem — shipping-tracker
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6: The Probe Problem — shipping-tracker">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-three-probes-and-when-each-goes-wrong" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three probes and when each goes wrong
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flashcard-check_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard check
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-7-the-hidden-problems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 7: The Hidden Problems
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 7: The Hidden Problems">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#init-container-failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init container failure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pvc-mount-failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PVC mount failure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-8-dns-the-problem-that-doesnt-look-like-dns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 8: DNS — The Problem That Doesn't Look Like DNS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-9-ephemeral-debug-containers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 9: Ephemeral Debug Containers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-10-rbac-errors-from-inside-pods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 10: RBAC Errors From Inside Pods
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-decision-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Decision Tree
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-read-the-room-2-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Read the room (2 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-debug-the-probe-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Debug the probe (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-the-resource-puzzle-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: The resource puzzle (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Related Lessons">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pages-that-link-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pages that link here
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dns-ops-when-nslookup-isnt-enough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DNS Operations: When nslookup Isn't Enough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-gateways-the-front-door-to-your-microservices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateways: The Front Door to Your Microservices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Archaeological
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Archaeological
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-init-scripts-to-systemd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    From Init Scripts to systemd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-dns-is-always-the-problem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why DNS Is Always the Problem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-everything-uses-json-now/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why Everything Uses JSON Now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-yaml-keeps-breaking-your-deploys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why YAML Keeps Breaking Your Deploys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-and-the-art-of-not-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus and the Art of Not Alerting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../understanding-distributed-systems-without-a-phd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Understanding Distributed Systems Without a PhD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-service-mesh-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Service Mesh Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-ntp-matters-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why NTP Matters More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../raid-why-your-disks-will-fail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAID: Why Your Disks Will Fail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../make-and-makefiles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Make and Makefiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-kubernetes-migration-that-took-a-year/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Kubernetes Migration That Took a Year
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gitops-the-repo-is-the-truth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitOps: The Repo Is the Truth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../s3-the-object-store-that-runs-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    S3: The Object Store That Runs the Internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bgp-how-the-internet-routes-your-packets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BGP: How the Internet Routes Your Packets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slos-when-good-enough-is-a-number/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SLOs: When Good Enough Is a Number
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-internals-the-content-addressable-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Git Internals: The Content-Addressable Filesystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-under-the-hood/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus: Under the Hood
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adversarial
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Adversarial
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-container-escape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Container Escape
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-git-disaster-recovery-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Git Disaster Recovery Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-engineering-breaking-things-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Engineering: Breaking Things on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../supply-chain-security-trusting-your-dependencies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply Chain Security: Trusting Your Dependencies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cgroups-and-namespaces-containers-are-a-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cgroups and Namespaces: Containers Are a Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-hardening-closing-the-doors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Hardening: Closing the Doors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bash-the-patterns-that-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bash: The Patterns That Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build-Up
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Build-Up
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deploy-a-web-app-from-nothing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy a Web App From Nothing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../secrets-management-without-tears/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets Management Without Tears
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-incident-response-actually-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Incident Response Actually Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-postmortem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Postmortem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-runbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-vpc-the-network-you-cant-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS VPC: The Network You Can't See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../load-testing-finding-the-breaking-point/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load Testing: Finding the Breaking Point
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packer-building-machine-images-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packer: Building Machine Images That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-networking-bridges-bonds-and-vlans/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Networking: Bridges, Bonds, and VLANs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kustomize-kubernetes-config-without-templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kustomize: Kubernetes Config Without Templates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vault-secrets-that-expire-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vault: Secrets That Expire on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../github-actions-ci-cd-that-lives-in-your-repo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Actions: CI/CD That Lives in Your Repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grafana-dashboards-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grafana: Dashboards That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compliance-as-code-automating-the-auditor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compliance as Code: Automating the Auditor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-modules-building-infrastructure-legos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform Modules: Building Infrastructure LEGOs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-compose-the-local-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Compose: The Local Cluster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../systemd-the-init-system-you-cant-avoid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    systemd: The Init System You Can't Avoid
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nginx-the-swiss-army-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nginx: The Swiss Army Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-from-playbook-to-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible: From Playbook to Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capacity-planning-math-before-midnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capacity Planning: Math Before Midnight
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-storage-lvm-filesystems-and-beyond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Storage: LVM, Filesystems, and Beyond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parallel
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Parallel
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../text-processing-jq-awk-sed-in-the-trenches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing: jq, awk, and sed in the Trenches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_9" id="__nav_5_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Learning Path
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python Learning Path
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-zero-to-script-for-the-terminal-native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Zero to Script for the Terminal Native
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-data-wrangling-for-ops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Data Wrangling for Ops
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-automating-everything-apis-and-infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Automating Everything — APIs and Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_10" id="__nav_5_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    More Lessons
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    More Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-ansible/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Ansible
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-system-automation-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python System Automation Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-the-debugging-ladder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1: The Debugging Ladder
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-the-pending-pod-inventory-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2: The Pending Pod — inventory-api
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2: The Pending Pod — inventory-api">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-about-that-taint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What about that taint?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fix-reduce-cpu-request-or-add-capacity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fix: reduce CPU request or add capacity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flashcard-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard check
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-the-crashloopbackoff-order-processor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3: The CrashLoopBackOff — order-processor
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3: The CrashLoopBackOff — order-processor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-exponential-backoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The exponential backoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes-your-first-clue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes: your first clue
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flashcard-check_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard check
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-the-imagepullbackoff-payment-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 4: The ImagePullBackOff — payment-gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-the-silent-killer-oomkilled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 5: The Silent Killer — OOMKilled
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5: The Silent Killer — OOMKilled">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-jvm-trap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The JVM trap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-the-probe-problem-shipping-tracker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 6: The Probe Problem — shipping-tracker
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6: The Probe Problem — shipping-tracker">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-three-probes-and-when-each-goes-wrong" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three probes and when each goes wrong
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flashcard-check_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard check
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-7-the-hidden-problems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 7: The Hidden Problems
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 7: The Hidden Problems">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#init-container-failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init container failure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pvc-mount-failure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PVC mount failure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-8-dns-the-problem-that-doesnt-look-like-dns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 8: DNS — The Problem That Doesn't Look Like DNS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-9-ephemeral-debug-containers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 9: Ephemeral Debug Containers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-10-rbac-errors-from-inside-pods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 10: RBAC Errors From Inside Pods
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-decision-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Decision Tree
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-read-the-room-2-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Read the room (2 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-debug-the-probe-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Debug the probe (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-the-resource-puzzle-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: The resource puzzle (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Related Lessons">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pages-that-link-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pages that link here
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Lessons
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../connection-refused/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Differential Diagnosis
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:container-debugging" class="md-tag">container-debugging</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:dns" class="md-tag">dns</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:kubernetes-pod-lifecycle" class="md-tag">kubernetes-pod-lifecycle</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:lesson" class="md-tag">lesson</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:network-policies" class="md-tag">network-policies</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:probes" class="md-tag">probes</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:rbac" class="md-tag">rbac</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:resource-management" class="md-tag">resource-management</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:scheduling" class="md-tag">scheduling</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:storage" class="md-tag">storage</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="kubernetes-debugging-when-pods-wont-behave">Kubernetes Debugging: When Pods Won't Behave<a class="headerlink" href="#kubernetes-debugging-when-pods-wont-behave" title="Permanent link">&para;</a></h1>
+<p><strong>Topics:</strong> Kubernetes pod lifecycle, container debugging, probes, scheduling, resource management, DNS, storage, RBAC, network policies
+<strong>Level:</strong> L1-L2 (Foundations to Operations)
+<strong>Time:</strong> 75-90 minutes
+<strong>Prerequisites:</strong> None (everything is explained inline)</p>
+<hr />
+<h2 id="the-mission">The Mission<a class="headerlink" href="#the-mission" title="Permanent link">&para;</a></h2>
+<p>You just joined the on-call rotation for a Kubernetes cluster running five microservices. It's
+Monday morning. You open your terminal and run <code>kubectl get pods -n production</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>NAME                              READY   STATUS             RESTARTS      AGE
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>cart-service-7f8b9c4d5-x2k9m     1/1     Running            0             3d
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>inventory-api-5d6e7f8a9-q4r7p    0/1     Pending            0             47m
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>order-processor-8a9b0c1d2-m3n4   0/1     CrashLoopBackOff   7 (3m ago)    22m
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>payment-gateway-3e4f5a6b7-h8j9   0/1     ImagePullBackOff   0             15m
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>shipping-tracker-9c0d1e2f3-k5l6  1/1     Running            0             6h
+</code></pre></div>
+<p>Five pods. Three of them are in trouble. One is stuck and never scheduled. One keeps crashing.
+One can't even pull its image. And somewhere in this cluster, two more problems are hiding
+that <code>kubectl get pods</code> won't tell you about.</p>
+<p>Your job: triage all five failures. Systematically.</p>
+<p>By the end of this lesson, you'll have a mental framework for looking at <em>any</em> sick pod and
+knowing exactly what to check, in what order, and why.</p>
+<hr />
+<h2 id="part-1-the-debugging-ladder">Part 1: The Debugging Ladder<a class="headerlink" href="#part-1-the-debugging-ladder" title="Permanent link">&para;</a></h2>
+<p>Before we touch a single pod, let's talk about sequence. Kubernetes debugging has a natural
+order, and fighting the order wastes time.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Step 1: kubectl get pods -o wide          → What's broken, where is it?
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Step 2: kubectl describe pod &lt;name&gt;       → Why is it broken? (Events section)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Step 3: kubectl logs &lt;pod&gt; --previous     → What did the app say before it died?
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>Step 4: kubectl exec / kubectl debug      → Get inside and look around
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>Step 5: kubectl get events --sort-by=...  → What else happened in this namespace?
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>Step 6: kubectl describe node &lt;name&gt;      → Is the node sick?
+</code></pre></div>
+<blockquote>
+<p><strong>Remember:</strong> The debugging ladder mnemonic is <strong>GDLEEN</strong>: <strong>G</strong>et, <strong>D</strong>escribe,
+<strong>L</strong>ogs, <strong>E</strong>xec, <strong>E</strong>vents, <strong>N</strong>ode. Start at the top. Most problems resolve by
+step 2 or 3. If you're at step 6, something unusual is happening.</p>
+</blockquote>
+<p>The instinct is to jump straight to logs. Resist it. <code>kubectl describe pod</code> gives you the
+<em>infrastructure</em> story: scheduling decisions, image pulls, probe failures, mount errors.
+Logs give you the <em>application</em> story. You need the infrastructure story first because if the
+container never started, there are no logs.</p>
+<p>Let's climb the ladder for each broken pod.</p>
+<hr />
+<h2 id="part-2-the-pending-pod-inventory-api">Part 2: The Pending Pod — inventory-api<a class="headerlink" href="#part-2-the-pending-pod-inventory-api" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>kubectl<span class="w"> </span>describe<span class="w"> </span>pod<span class="w"> </span>inventory-api-5d6e7f8a9-q4r7p<span class="w"> </span>-n<span class="w"> </span>production
+</code></pre></div>
+<p>Go straight to the <strong>Events</strong> section at the bottom:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Warning  FailedScheduling  47m  default-scheduler  0/4 nodes are available:
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>         1 node(s) had untolerated taint {gpu=true: NoSchedule},
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>         2 node(s) had insufficient cpu, 1 node(s) had insufficient memory.
+</code></pre></div>
+<p>There it is. The scheduler tried every node and none worked. Let's decode that message:</p>
+<table>
+<thead>
+<tr>
+<th>Count</th>
+<th>Reason</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 node</td>
+<td>untolerated taint <code>gpu=true:NoSchedule</code></td>
+<td>This node is reserved for GPU workloads; your pod doesn't have a matching toleration</td>
+</tr>
+<tr>
+<td>2 nodes</td>
+<td>insufficient cpu</td>
+<td>Your pod's CPU <em>request</em> exceeds what's available on these nodes</td>
+</tr>
+<tr>
+<td>1 node</td>
+<td>insufficient memory</td>
+<td>Your pod's memory <em>request</em> exceeds what's available</td>
+</tr>
+</tbody>
+</table>
+<p>Notice it says "insufficient cpu" — not "the node is out of CPU." These are <em>requests</em>, not
+actual usage. The nodes might be at 15% real CPU but 100% <em>allocated</em>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># See the gap between requested and actual</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>kubectl<span class="w"> </span>top<span class="w"> </span>nodes
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>kubectl<span class="w"> </span>describe<span class="w"> </span>node<span class="w"> </span>worker-1<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-A<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="s2">"Allocated resources"</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Allocated resources:
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  Resource           Requests     Limits
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  --------           --------     ------
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  cpu                3800m (95%)  8000m (200%)
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  memory             6Gi (78%)   12Gi (150%)
+</code></pre></div>
+<p>95% of CPU <em>requested</em> but <code>kubectl top</code> shows the node at 22% actual CPU. This is the
+classic over-provisioning trap: teams set CPU requests too high, the scheduler thinks the
+cluster is full, but the actual workload is light.</p>
+<blockquote>
+<p><strong>Gotcha:</strong> Requests affect scheduling. Limits affect runtime enforcement. A pod can be
+<code>Pending</code> (requests don't fit) even when the cluster has plenty of actual capacity. The fix
+is either to right-size requests (use VPA recommendations) or add node capacity.</p>
+</blockquote>
+<h3 id="what-about-that-taint">What about that taint?<a class="headerlink" href="#what-about-that-taint" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>kubectl<span class="w"> </span>get<span class="w"> </span>nodes<span class="w"> </span>-o<span class="w"> </span>custom-columns<span class="o">=</span>NAME:.metadata.name,TAINTS:.spec.taints
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>NAME        TAINTS
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>worker-1    &lt;none&gt;
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>worker-2    &lt;none&gt;
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>worker-3    [map[effect:NoSchedule key:gpu value:true]]
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>worker-4    &lt;none&gt;
+</code></pre></div>
+<p>The GPU node is tainted. Your pod doesn't have a toleration for it, so the scheduler skips
+it. If that node <em>should</em> run general workloads too, either remove the taint or add a
+toleration to the pod spec.</p>
+<h3 id="fix-reduce-cpu-request-or-add-capacity">Fix: reduce CPU request or add capacity<a class="headerlink" href="#fix-reduce-cpu-request-or-add-capacity" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Before: over-provisioned          # After: right-sized</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nt">resources:                           resources</span><span class="p">:</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">requests:                            requests</span><span class="p">:</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000m</span><span class="w">  </span><span class="c1"># 2 full cores           cpu: 500m   # matches actual usage</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="nt">memory: 4Gi                          memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1Gi</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">                                       </span><span class="l l-Scalar l-Scalar-Plain">limits</span><span class="p p-Indicator">:</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">                                         </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000m</span><span class="w">  </span><span class="c1"># can burst</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">                                         </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4Gi</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Under the Hood:</strong> The scheduler runs two phases: <em>filtering</em> (eliminate nodes that can't
+fit the pod) and <em>scoring</em> (rank the remaining ones). Taints, affinity, and resource
+requests are all filters. If every node gets filtered out, the pod stays Pending forever.
+The scheduler retries but never relaxes constraints.</p>
+</blockquote>
+<h3 id="flashcard-check">Flashcard check<a class="headerlink" href="#flashcard-check" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A pod is Pending. What do you check first?</td>
+<td><code>kubectl describe pod</code> — look for <code>FailedScheduling</code> in Events.</td>
+</tr>
+<tr>
+<td>What causes "0/N nodes are available: N insufficient cpu"?</td>
+<td>The pod's CPU <em>request</em> exceeds available (unrequested) CPU on every node.</td>
+</tr>
+<tr>
+<td>A tainted node shows in the FailedScheduling message. What's missing?</td>
+<td>The pod spec needs a matching <code>toleration</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-3-the-crashloopbackoff-order-processor">Part 3: The CrashLoopBackOff — order-processor<a class="headerlink" href="#part-3-the-crashloopbackoff-order-processor" title="Permanent link">&para;</a></h2>
+<p>This is the one everyone dreads. The container starts, dies, and Kubernetes retries — slower
+each time. Seven restarts in 22 minutes. Let's understand the timing.</p>
+<h3 id="the-exponential-backoff">The exponential backoff<a class="headerlink" href="#the-exponential-backoff" title="Permanent link">&para;</a></h3>
+<p>When a container crashes, the kubelet waits before restarting it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Crash 1 → wait 10s  → restart
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>Crash 2 → wait 20s  → restart
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>Crash 3 → wait 40s  → restart
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>Crash 4 → wait 80s  → restart
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>Crash 5 → wait 160s → restart
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>Crash 6 → wait 300s → restart (capped at 5 minutes)
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>Crash 7 → wait 300s → restart (stays at 5 minutes)
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>...
+</code></pre></div>
+<p>The backoff doubles each time: 10s, 20s, 40s, 80s, 160s, then caps at 300s (5 minutes). After
+10 minutes of running successfully, the counter resets. This is why you see <code>(3m ago)</code> in the
+RESTARTS column — the pod is currently in the 5-minute waiting period before its next attempt.</p>
+<blockquote>
+<p><strong>Trivia:</strong> The exponential backoff with a 5-minute cap has been in Kubernetes since the
+very early versions. The choice of 5 minutes (not 10, not 2) is a pragmatic balance: long
+enough to avoid hammering a failing dependency, short enough that a transient issue resolves
+within a reasonable time once the fix is in place. The backoff timer lives in the kubelet's
+in-memory state — restarting the kubelet resets it.</p>
+</blockquote>
+<p>Now let's find out <em>why</em> it's crashing. Step 3 on the ladder — logs:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>kubectl<span class="w"> </span>logs<span class="w"> </span>order-processor-8a9b0c1d2-m3n4<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span>--previous
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>2026-03-23T08:14:22Z INFO  Starting order-processor v3.2.1
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>2026-03-23T08:14:22Z INFO  Connecting to RabbitMQ at amqp://rabbitmq.production.svc:5672
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>2026-03-23T08:14:23Z FATAL Cannot connect to RabbitMQ: connection refused
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>2026-03-23T08:14:23Z FATAL Exiting with code 1
+</code></pre></div>
+<p>The application can't reach RabbitMQ and exits. But is RabbitMQ actually down?</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>kubectl<span class="w"> </span>get<span class="w"> </span>endpoints<span class="w"> </span>rabbitmq<span class="w"> </span>-n<span class="w"> </span>production<span class="w">   </span><span class="c1"># → 10.244.2.15:5672 — RabbitMQ is healthy</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>kubectl<span class="w"> </span>run<span class="w"> </span>debug-net<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--image<span class="o">=</span>busybox<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span>--<span class="w"> </span>nc<span class="w"> </span>-zv<span class="w"> </span><span class="m">10</span>.244.2.15<span class="w"> </span><span class="m">5672</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="c1"># → open — other pods can connect fine</span>
+</code></pre></div>
+<p>Something specific to order-processor is blocked. Time to check NetworkPolicy:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>kubectl<span class="w"> </span>get<span class="w"> </span>networkpolicy<span class="w"> </span>-n<span class="w"> </span>production
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="c1"># → restrict-egress   app=order-processor   2h</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>kubectl<span class="w"> </span>describe<span class="w"> </span>networkpolicy<span class="w"> </span>restrict-egress<span class="w"> </span>-n<span class="w"> </span>production
+</code></pre></div>
+<p>The policy allows egress only on port 443/TCP. RabbitMQ is on port 5672. Someone created
+this policy two hours ago — right when the crashes started. The pod can't reach its broker.</p>
+<blockquote>
+<p><strong>Mental Model:</strong> NetworkPolicy works like a firewall — but with an important twist. If
+<em>any</em> NetworkPolicy selects a pod, all traffic not explicitly allowed is denied by default.
+This is the "default deny" behavior. A pod with zero NetworkPolicies is wide open. A pod
+with <em>one</em> NetworkPolicy that only allows port 443 is blocked on every other port.</p>
+</blockquote>
+<h3 id="exit-codes-your-first-clue">Exit codes: your first clue<a class="headerlink" href="#exit-codes-your-first-clue" title="Permanent link">&para;</a></h3>
+<p>Before you even look at logs, the exit code narrows the search:</p>
+<table>
+<thead>
+<tr>
+<th>Exit code</th>
+<th>Signal</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>—</td>
+<td>Clean exit. If restartPolicy is <code>Always</code>, this <em>still</em> CrashLoops.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>—</td>
+<td>Generic application error. Read the logs.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>—</td>
+<td>Shell misuse (bad command in entrypoint).</td>
+</tr>
+<tr>
+<td>126</td>
+<td>—</td>
+<td>Command exists but is not executable (permission issue).</td>
+</tr>
+<tr>
+<td>127</td>
+<td>—</td>
+<td>Command not found (wrong entrypoint/CMD in Dockerfile).</td>
+</tr>
+<tr>
+<td>137</td>
+<td>SIGKILL (9)</td>
+<td>OOMKilled or external kill. Check <code>describe</code> for reason.</td>
+</tr>
+<tr>
+<td>139</td>
+<td>SIGSEGV (11)</td>
+<td>Segfault. Native code bug.</td>
+</tr>
+<tr>
+<td>143</td>
+<td>SIGTERM (15)</td>
+<td>Graceful shutdown. Usually normal during rollouts.</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Remember:</strong> Any exit code above 128 = killed by a signal. Subtract 128 to get the signal
+number. 137 = 128 + 9 (SIGKILL). 143 = 128 + 15 (SIGTERM). This convention comes from
+the original Unix shell, not from Kubernetes.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># Get the exit code without parsing describe output</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>order-processor-8a9b0c1d2-m3n4<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{.status.containerStatuses[0].lastState.terminated.exitCode}'</span>
+</code></pre></div>
+<h3 id="flashcard-check_1">Flashcard check<a class="headerlink" href="#flashcard-check_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What are the CrashLoopBackOff backoff intervals?</td>
+<td>10s, 20s, 40s, 80s, 160s, 300s (capped at 5 minutes). Resets after 10 minutes of running.</td>
+</tr>
+<tr>
+<td>Exit code 137 means what?</td>
+<td>SIGKILL (128 + 9). Usually OOMKilled.</td>
+</tr>
+<tr>
+<td>A pod CrashLoops with exit code 0. Why?</td>
+<td><code>restartPolicy: Always</code> (the default) restarts even on clean exit. Use <code>OnFailure</code> or <code>Never</code> for batch work.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-4-the-imagepullbackoff-payment-gateway">Part 4: The ImagePullBackOff — payment-gateway<a class="headerlink" href="#part-4-the-imagepullbackoff-payment-gateway" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>kubectl<span class="w"> </span>describe<span class="w"> </span>pod<span class="w"> </span>payment-gateway-3e4f5a6b7-h8j9<span class="w"> </span>-n<span class="w"> </span>production
+</code></pre></div>
+<p>Events show:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>Warning  Failed  15m  kubelet  Failed to pull image "registry.internal.corp/payments/gateway:v4.1.0":
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>         rpc error: code = Unknown desc = failed to pull and unpack image: 401 Unauthorized
+</code></pre></div></p>
+<p>The key phrase: <strong>401 Unauthorized</strong>. The image exists, but the node can't authenticate.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># What imagePullSecrets does the pod reference?</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>payment-gateway-3e4f5a6b7-h8j9<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{.spec.imagePullSecrets}'</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># → [{"name":"registry-creds"}]</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="c1"># Does that secret exist?</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>registry-creds<span class="w"> </span>-n<span class="w"> </span>production
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="c1"># → Error from server (NotFound): secrets "registry-creds" not found</span>
+</code></pre></div>
+<p>The secret is referenced but doesn't exist in this namespace. Someone created it in <code>default</code>
+and forgot to copy it to <code>production</code>.</p>
+<blockquote>
+<p><strong>Gotcha:</strong> ImagePullSecrets are namespace-scoped. A secret in <code>default</code> is invisible to
+pods in <code>production</code>. This bites teams hard after namespace migrations. The pod references
+the secret by name, and if the name exists but contains stale or wrong credentials, the
+error is the same 401 — making it look like the secret doesn't exist when it's actually
+pointing at the wrong registry.</p>
+</blockquote>
+<p>ImagePullBackOff also uses exponential backoff (10s to 5 minutes). The status alternates
+between <code>ErrImagePull</code> (active failure) and <code>ImagePullBackOff</code> (waiting). Once you fix the
+issue, recovery is automatic on the next retry.</p>
+<blockquote>
+<p><strong>Under the Hood:</strong> When no <code>imagePullSecrets</code> are specified, the kubelet uses the node's
+container runtime credentials (<code>~/.docker/config.json</code>). This silently breaks when the
+autoscaler provisions new nodes — fresh nodes have no cached credentials. Always use
+explicit <code>imagePullSecrets</code> or a mutating webhook to inject them.</p>
+</blockquote>
+<hr />
+<h2 id="part-5-the-silent-killer-oomkilled">Part 5: The Silent Killer — OOMKilled<a class="headerlink" href="#part-5-the-silent-killer-oomkilled" title="Permanent link">&para;</a></h2>
+<p>Cart-service looks healthy — Running, zero restarts. But users are reporting intermittent
+502 errors. Let's look closer:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>kubectl<span class="w"> </span>describe<span class="w"> </span>pod<span class="w"> </span>cart-service-7f8b9c4d5-x2k9m<span class="w"> </span>-n<span class="w"> </span>production
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>    Last State:     Terminated
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>      Reason:       OOMKilled
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>      Exit Code:    137
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>      Started:      Mon, 23 Mar 2026 02:14:00 +0000
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>      Finished:     Mon, 23 Mar 2026 08:01:12 +0000
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    Ready:          True
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>    Restart Count:  0
+</code></pre></div>
+<p>Restart count 0 but OOMKilled? The pod was <em>replaced</em> by the Deployment controller after
+the OOM — this is a new pod that inherited the deployment's replica count but not the old
+pod's restart counter.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># What are the resource limits?</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>cart-service-7f8b9c4d5-x2k9m<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{.spec.containers[0].resources}'</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="p">{</span><span class="nt">"limits"</span><span class="p">:{</span><span class="nt">"memory"</span><span class="p">:</span><span class="s2">"256Mi"</span><span class="p">},</span><span class="nt">"requests"</span><span class="p">:{</span><span class="nt">"memory"</span><span class="p">:</span><span class="s2">"128Mi"</span><span class="p">}}</span>
+</code></pre></div>
+<p>256Mi memory limit. Let's check actual usage:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>kubectl<span class="w"> </span>top<span class="w"> </span>pod<span class="w"> </span>cart-service-7f8b9c4d5-x2k9m<span class="w"> </span>-n<span class="w"> </span>production
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>NAME                              CPU(cores)   MEMORY(bytes)
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>cart-service-7f8b9c4d5-x2k9m     45m          231Mi
+</code></pre></div>
+<p>231Mi out of a 256Mi limit. That's 90% utilization. Any traffic spike or garbage collection
+pause will push it over.</p>
+<blockquote>
+<p><strong>Under the Hood:</strong> When a container exceeds its memory limit, it's not Kubernetes that
+kills it — it's the Linux kernel's OOM killer. The container's memory limit is enforced by
+a cgroup. The kernel monitors the cgroup's RSS (Resident Set Size), and when it exceeds the
+cgroup ceiling, the kernel sends SIGKILL (signal 9). That's why the exit code is 137 (128 +
+9). There's no warning, no SIGTERM, no graceful shutdown. The process is dead.</p>
+<p><strong>Gotcha:</strong> <code>kubectl top pod</code> shows <code>MEMORY(bytes)</code> which corresponds to
+<code>container_memory_working_set_bytes</code> in Prometheus — this is what the OOM killer actually
+evaluates. Do not use <code>container_memory_usage_bytes</code> for capacity planning — it includes
+reclaimable page cache and overstates true pressure.</p>
+</blockquote>
+<h3 id="the-jvm-trap">The JVM trap<a class="headerlink" href="#the-jvm-trap" title="Permanent link">&para;</a></h3>
+<p>A JVM with <code>-Xmx512m</code> in a container limited to 256Mi tries to allocate more heap than the
+cgroup allows and gets killed before it finishes starting. Fix: <code>java -XX:MaxRAMPercentage=75.0 -jar app.jar</code> — this sizes the heap relative to the container's cgroup limit, leaving 25% for non-heap memory (class metadata, thread stacks, NIO buffers).</p>
+<hr />
+<h2 id="part-6-the-probe-problem-shipping-tracker">Part 6: The Probe Problem — shipping-tracker<a class="headerlink" href="#part-6-the-probe-problem-shipping-tracker" title="Permanent link">&para;</a></h2>
+<p>Shipping-tracker is Running, zero restarts. But the monitoring dashboard shows it dropped
+off for 45 seconds this morning and came back. What happened?</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>kubectl<span class="w"> </span>get<span class="w"> </span>events<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span>--field-selector<span class="w"> </span>involvedObject.name<span class="o">=</span>shipping-tracker-9c0d1e2f3-k5l6
+</code></pre></div>
+<p>Events show <code>Liveness probe failed: HTTP probe failed with statuscode: 503</code>, followed by
+<code>Container shipping-tracker failed liveness probe, will be restarted</code>. The probe config:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="nt">livenessProbe</span><span class="p">:</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="nt">httpGet</span><span class="p">:</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/healthz</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">  </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">  </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">  </span><span class="nt">timeoutSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">  </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="nt">startupProbe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="nt">readinessProbe</span><span class="p">:</span>
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="w">  </span><span class="nt">httpGet</span><span class="p">:</span>
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/ready</span>
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span>
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="w">  </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a><span class="w">  </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+</code></pre></div>
+<h3 id="the-three-probes-and-when-each-goes-wrong">The three probes and when each goes wrong<a class="headerlink" href="#the-three-probes-and-when-each-goes-wrong" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Probe</th>
+<th>Question it answers</th>
+<th>Failure consequence</th>
+<th>Common misconfiguration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Startup</strong></td>
+<td>"Has the app finished initializing?"</td>
+<td>Blocks liveness/readiness until success</td>
+<td>Not using one for slow-starting apps</td>
+</tr>
+<tr>
+<td><strong>Liveness</strong></td>
+<td>"Is the process alive and functional?"</td>
+<td>Container is killed and restarted</td>
+<td>Timeout too short, checking dependencies</td>
+</tr>
+<tr>
+<td><strong>Readiness</strong></td>
+<td>"Can this instance serve traffic right now?"</td>
+<td>Removed from Service endpoints (no traffic)</td>
+<td>Not distinguishing from liveness</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>War Story:</strong> A team deployed a Java service that loaded ML models at startup (90 seconds).
+Liveness probe: <code>initialDelaySeconds: 10</code>, <code>failureThreshold: 3</code>, <code>periodSeconds: 10</code>.
+First check at 10s, fails. Second at 20s, fails. Third at 30s — killed. New container
+starts, takes 90s, killed at 30s. Infinite loop. Fix: a startup probe with
+<code>failureThreshold: 30</code> and <code>periodSeconds: 10</code> (300 seconds to start). Three lines of YAML.</p>
+</blockquote>
+<p>Back to shipping-tracker. The liveness probe checks <code>/healthz</code> with a 1-second timeout.
+A GC pause or heavy query during the check window times out the probe. Three timeouts
+(<code>failureThreshold: 3</code> at <code>periodSeconds: 10</code>) = 30 seconds, and the kubelet kills it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Better: startup probe for initialization, generous liveness timeout</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="nt">startupProbe</span><span class="p">:</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">  </span><span class="nt">httpGet</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> path</span><span class="p">:</span><span class="w"> </span><span class="nv">/healthz</span><span class="p p-Indicator">,</span><span class="nt"> port</span><span class="p">:</span><span class="w"> </span><span class="nv">8080</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">  </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span><span class="w">          </span><span class="c1"># Up to 300 seconds to start</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="w">  </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="nt">livenessProbe</span><span class="p">:</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">  </span><span class="nt">httpGet</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> path</span><span class="p">:</span><span class="w"> </span><span class="nv">/healthz</span><span class="p p-Indicator">,</span><span class="nt"> port</span><span class="p">:</span><span class="w"> </span><span class="nv">8080</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="w">  </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">  </span><span class="nt">timeoutSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">             </span><span class="c1"># 5 seconds, not 1</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="w">  </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6</span><span class="w">           </span><span class="c1"># 60 seconds before killing</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a><span class="nt">readinessProbe</span><span class="p">:</span>
+<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a><span class="w">  </span><span class="nt">httpGet</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> path</span><span class="p">:</span><span class="w"> </span><span class="nv">/ready</span><span class="p p-Indicator">,</span><span class="nt"> port</span><span class="p">:</span><span class="w"> </span><span class="nv">8080</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a><span class="w">  </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a><span class="w">  </span><span class="nt">timeoutSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a><span class="w">  </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> Never make a liveness probe check external dependencies (database, message
+queue, downstream API). If the database is down, your liveness probe fails, Kubernetes
+restarts your pod, the new pod also can't reach the database, it gets restarted too — now
+you have a fleet of CrashLooping pods and the database recovers to find zero healthy
+backends. Liveness should check "is <em>this</em> process healthy?" — not "is the world healthy?"
+Put dependency checks in readiness probes instead.</p>
+</blockquote>
+<h3 id="flashcard-check_2">Flashcard check<a class="headerlink" href="#flashcard-check_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Liveness probe fails. What happens?</td>
+<td>Container is killed and restarted.</td>
+</tr>
+<tr>
+<td>Readiness probe fails. What happens?</td>
+<td>Pod is removed from Service endpoints — no traffic routed to it, but it keeps running.</td>
+</tr>
+<tr>
+<td>What is a startup probe for?</td>
+<td>Slow-starting apps. It blocks liveness and readiness probes until the app is initialized.</td>
+</tr>
+<tr>
+<td>Should a liveness probe check database connectivity?</td>
+<td>No. Liveness should only check the process itself. Put dependency checks in readiness probes.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-7-the-hidden-problems">Part 7: The Hidden Problems<a class="headerlink" href="#part-7-the-hidden-problems" title="Permanent link">&para;</a></h2>
+<p>We've fixed three obvious failures. Now let's find the two hidden ones.</p>
+<h3 id="init-container-failure">Init container failure<a class="headerlink" href="#init-container-failure" title="Permanent link">&para;</a></h3>
+<p>There's a pod we missed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>notification-svc-4b5c6d7e8-f9a0  0/1     Init:Error    0   35m
+</code></pre></div>
+<p>The STATUS says <code>Init:Error</code>. The main container never started because an init container
+failed. Init containers run sequentially — if any fails, the pod never reaches Running.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>kubectl<span class="w"> </span>describe<span class="w"> </span>pod<span class="w"> </span>notification-svc-4b5c6d7e8-f9a0<span class="w"> </span>-n<span class="w"> </span>production
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>Init Containers:
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>  wait-for-db:    State: Terminated  Reason: Completed  Exit Code: 0
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>  run-migrations: State: Terminated  Reason: Error      Exit Code: 1
+</code></pre></div>
+<p><code>wait-for-db</code> passed, but <code>run-migrations</code> failed.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Get the migration logs</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>kubectl<span class="w"> </span>logs<span class="w"> </span>notification-svc-4b5c6d7e8-f9a0<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span>-c<span class="w"> </span>run-migrations
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>Running database migrations...
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>ERROR: permission denied for table notifications
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>DETAIL: User "app_user" does not have INSERT privilege on "schema_migrations"
+</code></pre></div>
+<p>An RBAC issue — not Kubernetes RBAC, but database-level permissions. The migration user
+needs INSERT privileges on the schema_migrations table.</p>
+<blockquote>
+<p><strong>Gotcha:</strong> Init container failures are invisible if you only watch the main containers.
+<code>kubectl get pods</code> shows <code>Init:Error</code> or <code>Init:CrashLoopBackOff</code> in the STATUS column,
+but it's easy to miss. Always check init containers when a pod won't start and the main
+container has no logs.</p>
+</blockquote>
+<h3 id="pvc-mount-failure">PVC mount failure<a class="headerlink" href="#pvc-mount-failure" title="Permanent link">&para;</a></h3>
+<p>One more hiding in the events:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>kubectl<span class="w"> </span>get<span class="w"> </span>events<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span>--sort-by<span class="o">=</span><span class="s1">'.lastTimestamp'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span><span class="s2">"fail"</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>5m  Warning  FailedAttachVolume  pod/analytics-worker-1a2b3c4d5-e6f7  Multi-Attach error
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>    for volume "pvc-a1b2c3d4" Volume is already exclusively attached to one node
+</code></pre></div>
+<p><strong>Multi-Attach error</strong>: the PV is <code>ReadWriteOnce</code> (RWO), mountable on only one node. During
+a rolling update, the new pod landed on a different node and both pods tried to claim the
+volume.</p>
+<p>Fixes: use <code>strategy: Recreate</code> instead of <code>RollingUpdate</code> for RWO workloads, switch to
+<code>ReadWriteMany</code> (RWX) if storage supports it, or use a StatefulSet.</p>
+<hr />
+<h2 id="part-8-dns-the-problem-that-doesnt-look-like-dns">Part 8: DNS — The Problem That Doesn't Look Like DNS<a class="headerlink" href="#part-8-dns-the-problem-that-doesnt-look-like-dns" title="Permanent link">&para;</a></h2>
+<p>Cart-service is Running and Ready, but logging DNS failures:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>2026-03-23T09:22:01Z ERROR Failed to reach api.stripe.com: dial tcp: lookup api.stripe.com: i/o timeout
+</code></pre></div>
+<p>The debugging ladder for DNS problems:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="c1"># 1. Confirm DNS is broken from inside the pod</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>cart-service-7f8b9c4d5-x2k9m<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span>--<span class="w"> </span>nslookup<span class="w"> </span>api.stripe.com
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="c1"># → "connection timed out; no servers could be reached"</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="c1"># 2. Is CoreDNS running?</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>-l<span class="w"> </span>k8s-app<span class="o">=</span>kube-dns
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="c1"># → Running, healthy</span>
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="c1"># 3. Does internal DNS work?</span>
+<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>cart-service-7f8b9c4d5-x2k9m<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span>--<span class="w"> </span>nslookup<span class="w"> </span>rabbitmq.production.svc.cluster.local
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a><span class="c1"># → Resolves to 10.96.45.12</span>
+</code></pre></div>
+<p>Internal DNS works, external doesn't. This narrows it to CoreDNS upstream config or a
+NetworkPolicy blocking DNS egress. Check <code>kubectl get configmap coredns -n kube-system -o yaml</code>
+for the <code>forward</code> directive, and check NetworkPolicies — the egress policy from Part 3 that
+allows only port 443 would also block DNS (UDP 53) if applied broadly.</p>
+<blockquote>
+<p><strong>Remember:</strong> DNS in Kubernetes uses UDP port 53 (and TCP 53 for large responses). Any
+egress NetworkPolicy that doesn't explicitly allow port 53 to the kube-dns service will
+break <em>all</em> DNS resolution for affected pods. This is the most common NetworkPolicy
+footgun.</p>
+<p><strong>Trivia:</strong> The default <code>ndots</code> setting in Kubernetes pod resolv.conf is 5. This means
+any hostname with fewer than 5 dots gets search domains appended first. A lookup for
+<code>api.stripe.com</code> (2 dots) actually tries <code>api.stripe.com.production.svc.cluster.local</code>,
+then <code>api.stripe.com.svc.cluster.local</code>, then <code>api.stripe.com.cluster.local</code>, then finally
+<code>api.stripe.com.</code> — that's 4 DNS queries for one lookup. For external-heavy workloads,
+setting <code>dnsConfig.options: [{name: ndots, value: "2"}]</code> in the pod spec dramatically
+reduces DNS query volume.</p>
+</blockquote>
+<hr />
+<h2 id="part-9-ephemeral-debug-containers">Part 9: Ephemeral Debug Containers<a class="headerlink" href="#part-9-ephemeral-debug-containers" title="Permanent link">&para;</a></h2>
+<p>When a container is built from a distroless or scratch image, there's no shell to exec into.
+No <code>sh</code>, no <code>bash</code>, no <code>curl</code>, no <code>nslookup</code>. This is where ephemeral debug containers
+shine.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="c1"># Attach a debug container to a running pod</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>kubectl<span class="w"> </span>debug<span class="w"> </span>-it<span class="w"> </span>cart-service-7f8b9c4d5-x2k9m<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="w">  </span>--image<span class="o">=</span>nicolaka/netshoot<span class="w"> </span>--target<span class="o">=</span>cart-service
+</code></pre></div>
+<p>The <code>--target</code> flag shares the process namespace with the specified container. You can see
+its processes, its environment, and its filesystem at <code>/proc/1/root/</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="c1"># Inside the debug container:</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>ps<span class="w"> </span>aux<span class="w">                           </span><span class="c1"># See all processes in the target container</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>cat<span class="w"> </span>/proc/1/root/etc/resolv.conf<span class="w"> </span><span class="c1"># Read the target's DNS config</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>nslookup<span class="w"> </span>api.stripe.com<span class="w">          </span><span class="c1"># Test DNS from the pod's network namespace</span>
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>curl<span class="w"> </span>-v<span class="w"> </span>http://localhost:8080/healthz<span class="w">  </span><span class="c1"># Hit the app's health endpoint</span>
+</code></pre></div>
+<p>For crashing pods (too fast to exec into), copy the pod with the entrypoint replaced:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>kubectl<span class="w"> </span>debug<span class="w"> </span>order-processor-8a9b0c1d2-m3n4<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a><span class="w">  </span>-it<span class="w"> </span>--copy-to<span class="o">=</span>debug-order<span class="w"> </span>--container<span class="o">=</span>order-processor<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a><span class="w">  </span>--image<span class="o">=</span>order-processor:v3.2.1<span class="w"> </span>--<span class="w"> </span>/bin/sh
+</code></pre></div>
+<p>For node-level debugging without SSH:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>kubectl<span class="w"> </span>debug<span class="w"> </span>node/worker-2<span class="w"> </span>-it<span class="w"> </span>--image<span class="o">=</span>ubuntu
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>chroot<span class="w"> </span>/host<span class="w">    </span><span class="c1"># Host filesystem is at /host</span>
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>journalctl<span class="w"> </span>-u<span class="w"> </span>kubelet<span class="w"> </span>--since<span class="w"> </span><span class="s2">"10 minutes ago"</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Trivia:</strong> Ephemeral debug containers were a long time coming. The feature was
+introduced as alpha in Kubernetes v1.16 (2019), reached beta in v1.23 (2021), and finally
+went GA in v1.25 (2022). Before that, debugging distroless containers meant rebuilding the
+image with debugging tools baked in — which defeats the entire purpose of minimal images.</p>
+</blockquote>
+<hr />
+<h2 id="part-10-rbac-errors-from-inside-pods">Part 10: RBAC Errors From Inside Pods<a class="headerlink" href="#part-10-rbac-errors-from-inside-pods" title="Permanent link">&para;</a></h2>
+<p>One more class of failure you'll hit: the pod runs fine, but fails when it tries to talk to
+the Kubernetes API.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>kubectl<span class="w"> </span>logs<span class="w"> </span>notification-svc-4b5c6d7e8-f9a0<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span>-c<span class="w"> </span>main
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>ERROR: forbidden: User "system:serviceaccount:production:default" cannot list
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>resource "configmaps" in API group "" in the namespace "production"
+</code></pre></div>
+<p>The pod is using the <code>default</code> service account, which has no permissions. The application
+needs to read ConfigMaps but no one created a Role and RoleBinding.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="c1"># Check what service account the pod uses</span>
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>notification-svc-4b5c6d7e8-f9a0<span class="w"> </span>-n<span class="w"> </span>production<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a><span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{.spec.serviceAccountName}'</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>default
+</code></pre></div>
+<p>Fix: create a ServiceAccount, a Role granting only the needed permissions, and a
+RoleBinding connecting them. Then set <code>serviceAccountName: notification-svc</code> in the pod spec.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a><span class="c1"># ServiceAccount + Role + RoleBinding (all in namespace: production)</span>
+<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ServiceAccount</span>
+<a id="__codelineno-44-4" name="__codelineno-44-4" href="#__codelineno-44-4"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-44-5" name="__codelineno-44-5" href="#__codelineno-44-5"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">notification-svc</span>
+<a id="__codelineno-44-6" name="__codelineno-44-6" href="#__codelineno-44-6"></a><span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">production</span>
+<a id="__codelineno-44-7" name="__codelineno-44-7" href="#__codelineno-44-7"></a><span class="nn">---</span>
+<a id="__codelineno-44-8" name="__codelineno-44-8" href="#__codelineno-44-8"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io/v1</span>
+<a id="__codelineno-44-9" name="__codelineno-44-9" href="#__codelineno-44-9"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Role</span>
+<a id="__codelineno-44-10" name="__codelineno-44-10" href="#__codelineno-44-10"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-44-11" name="__codelineno-44-11" href="#__codelineno-44-11"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">notification-svc-role</span>
+<a id="__codelineno-44-12" name="__codelineno-44-12" href="#__codelineno-44-12"></a><span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">production</span>
+<a id="__codelineno-44-13" name="__codelineno-44-13" href="#__codelineno-44-13"></a><span class="nt">rules</span><span class="p">:</span>
+<a id="__codelineno-44-14" name="__codelineno-44-14" href="#__codelineno-44-14"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">apiGroups</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">""</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-44-15" name="__codelineno-44-15" href="#__codelineno-44-15"></a><span class="w">    </span><span class="nt">resources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"configmaps"</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-44-16" name="__codelineno-44-16" href="#__codelineno-44-16"></a><span class="w">    </span><span class="nt">verbs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"get"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"list"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"watch"</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-44-17" name="__codelineno-44-17" href="#__codelineno-44-17"></a><span class="nn">---</span>
+<a id="__codelineno-44-18" name="__codelineno-44-18" href="#__codelineno-44-18"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io/v1</span>
+<a id="__codelineno-44-19" name="__codelineno-44-19" href="#__codelineno-44-19"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RoleBinding</span>
+<a id="__codelineno-44-20" name="__codelineno-44-20" href="#__codelineno-44-20"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-44-21" name="__codelineno-44-21" href="#__codelineno-44-21"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">notification-svc-binding</span>
+<a id="__codelineno-44-22" name="__codelineno-44-22" href="#__codelineno-44-22"></a><span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">production</span>
+<a id="__codelineno-44-23" name="__codelineno-44-23" href="#__codelineno-44-23"></a><span class="nt">subjects</span><span class="p">:</span>
+<a id="__codelineno-44-24" name="__codelineno-44-24" href="#__codelineno-44-24"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ServiceAccount</span>
+<a id="__codelineno-44-25" name="__codelineno-44-25" href="#__codelineno-44-25"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">notification-svc</span>
+<a id="__codelineno-44-26" name="__codelineno-44-26" href="#__codelineno-44-26"></a><span class="nt">roleRef</span><span class="p">:</span>
+<a id="__codelineno-44-27" name="__codelineno-44-27" href="#__codelineno-44-27"></a><span class="w">  </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Role</span>
+<a id="__codelineno-44-28" name="__codelineno-44-28" href="#__codelineno-44-28"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">notification-svc-role</span>
+<a id="__codelineno-44-29" name="__codelineno-44-29" href="#__codelineno-44-29"></a><span class="w">  </span><span class="nt">apiGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> If a pod doesn't need to talk to the Kubernetes API at all, set
+<code>automountServiceAccountToken: false</code> in the pod spec. This prevents the service account
+token from being mounted, which is both a security best practice and eliminates a whole
+class of RBAC debugging.</p>
+</blockquote>
+<hr />
+<h2 id="the-decision-tree">The Decision Tree<a class="headerlink" href="#the-decision-tree" title="Permanent link">&para;</a></h2>
+<p>When you encounter a broken pod, start here:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>kubectl get pods -o wide
+<a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>        |
+<a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a>        v
+<a id="__codelineno-45-4" name="__codelineno-45-4" href="#__codelineno-45-4"></a>What is the STATUS?
+<a id="__codelineno-45-5" name="__codelineno-45-5" href="#__codelineno-45-5"></a>        |
+<a id="__codelineno-45-6" name="__codelineno-45-6" href="#__codelineno-45-6"></a>        +-- Pending
+<a id="__codelineno-45-7" name="__codelineno-45-7" href="#__codelineno-45-7"></a>        |     → kubectl describe pod → Events → FailedScheduling
+<a id="__codelineno-45-8" name="__codelineno-45-8" href="#__codelineno-45-8"></a>        |     → Check: resource requests, taints, node affinity, PVC binding
+<a id="__codelineno-45-9" name="__codelineno-45-9" href="#__codelineno-45-9"></a>        |
+<a id="__codelineno-45-10" name="__codelineno-45-10" href="#__codelineno-45-10"></a>        +-- Init:Error / Init:CrashLoopBackOff
+<a id="__codelineno-45-11" name="__codelineno-45-11" href="#__codelineno-45-11"></a>        |     → kubectl logs &lt;pod&gt; -c &lt;init-container-name&gt;
+<a id="__codelineno-45-12" name="__codelineno-45-12" href="#__codelineno-45-12"></a>        |     → Init containers run sequentially; find which one failed
+<a id="__codelineno-45-13" name="__codelineno-45-13" href="#__codelineno-45-13"></a>        |
+<a id="__codelineno-45-14" name="__codelineno-45-14" href="#__codelineno-45-14"></a>        +-- ImagePullBackOff
+<a id="__codelineno-45-15" name="__codelineno-45-15" href="#__codelineno-45-15"></a>        |     → kubectl describe pod → Events → look for 401, 404, or network error
+<a id="__codelineno-45-16" name="__codelineno-45-16" href="#__codelineno-45-16"></a>        |     → Check: image name/tag, imagePullSecrets, registry access
+<a id="__codelineno-45-17" name="__codelineno-45-17" href="#__codelineno-45-17"></a>        |
+<a id="__codelineno-45-18" name="__codelineno-45-18" href="#__codelineno-45-18"></a>        +-- CrashLoopBackOff
+<a id="__codelineno-45-19" name="__codelineno-45-19" href="#__codelineno-45-19"></a>        |     → kubectl logs &lt;pod&gt; --previous
+<a id="__codelineno-45-20" name="__codelineno-45-20" href="#__codelineno-45-20"></a>        |     → Check exit code: 137=OOM, 1=app error, 127=cmd not found
+<a id="__codelineno-45-21" name="__codelineno-45-21" href="#__codelineno-45-21"></a>        |     → If no logs: kubectl debug or override entrypoint
+<a id="__codelineno-45-22" name="__codelineno-45-22" href="#__codelineno-45-22"></a>        |
+<a id="__codelineno-45-23" name="__codelineno-45-23" href="#__codelineno-45-23"></a>        +-- Running but not Ready
+<a id="__codelineno-45-24" name="__codelineno-45-24" href="#__codelineno-45-24"></a>        |     → Readiness probe failing
+<a id="__codelineno-45-25" name="__codelineno-45-25" href="#__codelineno-45-25"></a>        |     → kubectl describe pod → look for "Readiness probe failed" in Events
+<a id="__codelineno-45-26" name="__codelineno-45-26" href="#__codelineno-45-26"></a>        |
+<a id="__codelineno-45-27" name="__codelineno-45-27" href="#__codelineno-45-27"></a>        +-- Running and Ready but not working
+<a id="__codelineno-45-28" name="__codelineno-45-28" href="#__codelineno-45-28"></a>        |     → Test from inside: kubectl exec &lt;pod&gt; -- curl localhost:&lt;port&gt;
+<a id="__codelineno-45-29" name="__codelineno-45-29" href="#__codelineno-45-29"></a>        |     → Check Service endpoints: kubectl get endpoints &lt;svc&gt;
+<a id="__codelineno-45-30" name="__codelineno-45-30" href="#__codelineno-45-30"></a>        |     → Check NetworkPolicy, DNS, upstream dependencies
+<a id="__codelineno-45-31" name="__codelineno-45-31" href="#__codelineno-45-31"></a>        |
+<a id="__codelineno-45-32" name="__codelineno-45-32" href="#__codelineno-45-32"></a>        +-- Terminating (stuck)
+<a id="__codelineno-45-33" name="__codelineno-45-33" href="#__codelineno-45-33"></a>              → Finalizer blocking deletion
+<a id="__codelineno-45-34" name="__codelineno-45-34" href="#__codelineno-45-34"></a>              → kubectl get pod &lt;name&gt; -o jsonpath='{.metadata.finalizers}'
+<a id="__codelineno-45-35" name="__codelineno-45-35" href="#__codelineno-45-35"></a>              → Or container ignoring SIGTERM (PID 1 problem)
+</code></pre></div>
+<hr />
+<h2 id="cheat-sheet">Cheat Sheet<a class="headerlink" href="#cheat-sheet" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>First command</th>
+<th>What to look for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pod Pending</td>
+<td><code>kubectl describe pod &lt;name&gt;</code></td>
+<td><code>FailedScheduling</code> in Events: resources, taints, PVC</td>
+</tr>
+<tr>
+<td>CrashLoopBackOff</td>
+<td><code>kubectl logs &lt;pod&gt; --previous</code></td>
+<td>Exit code + error message</td>
+</tr>
+<tr>
+<td>ImagePullBackOff</td>
+<td><code>kubectl describe pod &lt;name&gt;</code></td>
+<td>401 (auth), 404 (not found), timeout (network)</td>
+</tr>
+<tr>
+<td>OOMKilled</td>
+<td><code>kubectl describe pod &lt;name&gt;</code></td>
+<td><code>Reason: OOMKilled</code> in Last State, then check limits</td>
+</tr>
+<tr>
+<td>Probe failures</td>
+<td><code>kubectl describe pod &lt;name&gt;</code></td>
+<td><code>Unhealthy</code> events, check probe config</td>
+</tr>
+<tr>
+<td>No endpoints</td>
+<td><code>kubectl get endpoints &lt;svc&gt;</code></td>
+<td>Empty = label selector mismatch</td>
+</tr>
+<tr>
+<td>DNS failure</td>
+<td><code>kubectl exec &lt;pod&gt; -- nslookup kubernetes.default</code></td>
+<td>If fails: check CoreDNS pods and NetworkPolicy</td>
+</tr>
+<tr>
+<td>PVC mount fail</td>
+<td><code>kubectl describe pod &lt;name&gt;</code></td>
+<td><code>FailedMount</code> or <code>Multi-Attach error</code></td>
+</tr>
+<tr>
+<td>RBAC error</td>
+<td><code>kubectl logs &lt;pod&gt;</code></td>
+<td><code>forbidden: User "system:serviceaccount:..."</code></td>
+</tr>
+<tr>
+<td>Init failure</td>
+<td><code>kubectl logs &lt;pod&gt; -c &lt;init-container&gt;</code></td>
+<td>Init containers run in order; find the failed one</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The flags you'll type most often:</strong> <code>--previous</code> (crash logs), <code>-c &lt;name&gt;</code> (multi-container),
+<code>-o wide</code> (node placement), <code>-A</code> (all namespaces), <code>--sort-by=.lastTimestamp</code> (events).</p>
+<hr />
+<h2 id="exercises">Exercises<a class="headerlink" href="#exercises" title="Permanent link">&para;</a></h2>
+<h3 id="exercise-1-read-the-room-2-minutes">Exercise 1: Read the room (2 minutes)<a class="headerlink" href="#exercise-1-read-the-room-2-minutes" title="Permanent link">&para;</a></h3>
+<p>Given this <code>kubectl get pods</code> output, rank the pods by urgency and explain your reasoning:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>NAME           READY   STATUS             RESTARTS      AGE
+<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a>api-v2-abc     0/1     CrashLoopBackOff   12 (4m ago)   1h
+<a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a>worker-def     0/1     Pending            0             3h
+<a id="__codelineno-46-4" name="__codelineno-46-4" href="#__codelineno-46-4"></a>cache-ghi      1/1     Running            0             5d
+<a id="__codelineno-46-5" name="__codelineno-46-5" href="#__codelineno-46-5"></a>frontend-jkl   0/1     ImagePullBackOff   0             10m
+</code></pre></div>
+<details>
+<summary>Answer</summary>
+
+1. **api-v2**: CrashLoopBackOff, 12 restarts — actively hurting users. `kubectl logs --previous` now.
+2. **frontend-jkl**: ImagePullBackOff for 10 minutes — likely a bad deploy. Quick fix (secret/typo).
+3. **worker-def**: Pending 3 hours — nobody noticed, probably a background worker. Check scheduling.
+4. **cache-ghi**: Running, 5 days, no restarts — fine, but "Running" != "working correctly."
+
+</details>
+
+<h3 id="exercise-2-debug-the-probe-5-minutes">Exercise 2: Debug the probe (5 minutes)<a class="headerlink" href="#exercise-2-debug-the-probe-5-minutes" title="Permanent link">&para;</a></h3>
+<p>A pod keeps getting killed every 5 minutes. <code>kubectl describe pod</code> shows repeated <code>Liveness
+probe failed</code> events. The probe config is:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a><span class="nt">livenessProbe</span><span class="p">:</span>
+<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a><span class="w">  </span><span class="nt">httpGet</span><span class="p">:</span>
+<a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a><span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/healthz</span>
+<a id="__codelineno-47-4" name="__codelineno-47-4" href="#__codelineno-47-4"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span>
+<a id="__codelineno-47-5" name="__codelineno-47-5" href="#__codelineno-47-5"></a><span class="w">  </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-47-6" name="__codelineno-47-6" href="#__codelineno-47-6"></a><span class="w">  </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-47-7" name="__codelineno-47-7" href="#__codelineno-47-7"></a><span class="w">  </span><span class="nt">timeoutSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-47-8" name="__codelineno-47-8" href="#__codelineno-47-8"></a><span class="w">  </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+</code></pre></div>
+<p>The app takes 2-3 seconds to respond to <code>/healthz</code> under load. Write a better probe
+configuration.</p>
+<details>
+<summary>Answer</summary>
+
+The 1-second timeout is too aggressive. Increase `timeoutSeconds` to 5, add a `startupProbe`
+with `failureThreshold: 30` for slow starts, and bump `failureThreshold` on liveness to 6.
+Also: is `/healthz` doing too much work? Liveness endpoints should be lightweight — move
+dependency checks to a readiness probe.
+
+</details>
+
+<h3 id="exercise-3-the-resource-puzzle-5-minutes">Exercise 3: The resource puzzle (5 minutes)<a class="headerlink" href="#exercise-3-the-resource-puzzle-5-minutes" title="Permanent link">&para;</a></h3>
+<p>A namespace has a ResourceQuota capping <code>requests.cpu</code> at 8 cores. Current usage: 7 CPUs
+requested. You deploy a pod requesting 2 CPUs. The Deployment looks fine, the ReplicaSet
+exists, but no pod appears. Where do you look?</p>
+<details>
+<summary>Answer</summary>
+
+`kubectl describe replicaset <name> -n production` — the Events section shows `exceeded quota`.
+7 + 2 = 9 > 8 CPU limit. The Deployment itself shows no error — you must drill down to the
+ReplicaSet. This multi-level indirection (Deployment -> ReplicaSet -> Pod creation failure)
+is a classic trap. Fix: reduce the request or increase the quota.
+
+</details>
+
+<hr />
+<h2 id="takeaways">Takeaways<a class="headerlink" href="#takeaways" title="Permanent link">&para;</a></h2>
+<ul>
+<li>
+<p><strong>The debugging ladder is a sequence, not a menu.</strong> Get, Describe, Logs, Exec, Events, Node. Start at the top.</p>
+</li>
+<li>
+<p><strong>Describe pod, not logs, is your first stop.</strong> The Events section tells the infrastructure story — scheduling, image pulls, probes, mounts. Logs tell the application story. Infrastructure first.</p>
+</li>
+<li>
+<p><strong>CrashLoopBackOff exponential backoff caps at 5 minutes.</strong> The sequence: 10s, 20s, 40s, 80s, 160s, 300s. Once you fix the issue, the pod recovers on the next cycle.</p>
+</li>
+<li>
+<p><strong>Exit codes above 128 mean "killed by signal."</strong> Subtract 128 to get the signal number. 137 = SIGKILL (OOMKilled). 143 = SIGTERM.</p>
+</li>
+<li>
+<p><strong>NetworkPolicy is default-deny once any policy selects a pod.</strong> If you add a policy that allows port 443, you've just blocked every other port — including DNS (53).</p>
+</li>
+<li>
+<p><strong>Requests affect scheduling. Limits affect runtime.</strong> A pod can be Pending (requests too high) even with an empty cluster, or OOMKilled (limits too low) even with plenty of node memory.</p>
+</li>
+</ul>
+<hr />
+<h2 id="related-lessons">Related Lessons<a class="headerlink" href="#related-lessons" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../what-happens-when-you-kubectl-apply/">What Happens When You kubectl apply</a> — the full lifecycle from YAML to running pod</li>
+<li><a href="../what-happens-when-kubernetes-evicts-your-pod/">What Happens When Kubernetes Evicts Your Pod</a> — node pressure, QoS classes, eviction thresholds</li>
+<li><a href="../kubernetes-services-how-traffic-finds-your-pod/">Kubernetes Services: How Traffic Finds Your Pod</a> — endpoints, kube-proxy, and the network path</li>
+<li><a href="../why-dns-is-always-the-problem/">Why DNS Is Always the Problem</a> — CoreDNS, ndots, search domains</li>
+<li><a href="../connection-refused/">Connection Refused</a> — differential diagnosis across the stack</li>
+<li><a href="../out-of-memory/">Out of Memory</a> — OOM killer, cgroups, and memory management</li>
+</ul>
+<!-- wiki:backlinks:start -->
+
+<h3 id="pages-that-link-here">Pages that link here<a class="headerlink" href="#pages-that-link-here" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../">Cross-Domain Lessons</a></li>
+<li><a href="../kubernetes-from-scratch-to-production-upgrade/">Kubernetes From Scratch To Production Upgrade</a></li>
+<li><a href="../linux-storage-lvm-filesystems-and-beyond/">Linux Storage Lvm Filesystems And Beyond</a></li>
+<li><a href="../python-automating-everything-apis-and-infrastructure/">Python Automating Everything Apis And Infrastructure</a></li>
+</ul>
+<!-- wiki:backlinks:end -->
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="August 19, 2026 13:40:59 UTC">August 19, 2026 13:40:59</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 23, 2026 02:38:11 UTC">March 23, 2026 02:38:11</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../aws-iam-the-permissions-puzzle/" class="md-footer__link md-footer__link--prev" aria-label="Previous: AWS IAM: The Permissions Puzzle">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                AWS IAM: The Permissions Puzzle
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../dns-ops-when-nslookup-isnt-enough/" class="md-footer__link md-footer__link--next" aria-label="Next: DNS Operations: When nslookup Isn&#39;t Enough">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                DNS Operations: When nslookup Isn't Enough
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../portal/js/random-content.js"></script>
+      
+        <script src="../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../portal/js/graph.js"></script>
+      
+        <script src="../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

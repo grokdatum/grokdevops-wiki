@@ -1,0 +1,1743 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="On Friday 2025-07-11 at 18:00 UTC, the on-call rotation handed off from Alice Marchetti (outgoing) to Bob Nguyen (incoming).">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/sev-3/oncall-handoff-gap/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Postmortem: On-Call Handoff Gap Leaves Alerts Unacknowledged for 3 Hours - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Postmortem: On-Call Handoff Gap Leaves Alerts Unacknowledged for 3 Hours - GrokDevOps Wiki" />
+<meta property="og:description" content="On Friday 2025-07-11 at 18:00 UTC, the on-call rotation handed off from Alice Marchetti (outgoing) to Bob Nguyen (incoming)." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/sev-3/oncall-handoff-gap.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/sev-3/oncall-handoff-gap/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Postmortem: On-Call Handoff Gap Leaves Alerts Unacknowledged for 3 Hours - GrokDevOps Wiki" />
+<meta property="twitter:description" content="On Friday 2025-07-11 at 18:00 UTC, the on-call rotation handed off from Alice Marchetti (outgoing) to Bob Nguyen (incoming)." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/sev-3/oncall-handoff-gap.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#postmortem-on-call-handoff-gap-leaves-alerts-unacknowledged-for-3-hours" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Postmortem: On-Call Handoff Gap Leaves Alerts Unacknowledged for 3 Hours
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-all-times-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline (All times UTC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Impact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customer-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customer Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root Cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happened-technical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happened (Technical)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contributing Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-we-got-lucky-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What We Got Lucky About
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-we-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How We Detected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-we-didnt-detect-sooner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why We Didn't Detect Sooner
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-went-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Well
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-went-poorly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Poorly
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lessons-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lessons Learned
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../portal/tags/#tag:postmortem" class="md-tag">postmortem</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="postmortem-on-call-handoff-gap-leaves-alerts-unacknowledged-for-3-hours">Postmortem: On-Call Handoff Gap Leaves Alerts Unacknowledged for 3 Hours<a class="headerlink" href="#postmortem-on-call-handoff-gap-leaves-alerts-unacknowledged-for-3-hours" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ID</strong></td>
+<td>PM-023</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2025-07-11</td>
+</tr>
+<tr>
+<td><strong>Severity</strong></td>
+<td>SEV-3</td>
+</tr>
+<tr>
+<td><strong>Duration</strong></td>
+<td>3h 0m (start of gap to discovery)</td>
+</tr>
+<tr>
+<td><strong>Time to Detect</strong></td>
+<td>180m (gap discovered Monday morning, not in real time)</td>
+</tr>
+<tr>
+<td><strong>Time to Mitigate</strong></td>
+<td>0m (all alerts self-resolved; no active incident to mitigate)</td>
+</tr>
+<tr>
+<td><strong>Customer Impact</strong></td>
+<td>None — all 15 alerts during the gap were transient and self-resolved</td>
+</tr>
+<tr>
+<td><strong>Revenue Impact</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Teams Involved</strong></td>
+<td>Infrastructure Operations, Engineering Leadership</td>
+</tr>
+<tr>
+<td><strong>Postmortem Author</strong></td>
+<td>Carol Osei-Mensah</td>
+</tr>
+<tr>
+<td><strong>Postmortem Date</strong></td>
+<td>2025-07-14</td>
+</tr>
+</tbody>
+</table>
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>On Friday 2025-07-11 at 18:00 UTC, the on-call rotation handed off from Alice Marchetti (outgoing) to Bob Nguyen (incoming). Bob had switched personal devices that week and had not reinstalled the PagerDuty mobile app on his new phone. Alice ended her shift verbally ("you're on, Bob"), assuming PagerDuty's escalation would handle any gaps. Between 18:00 and 21:00 UTC, 15 alerts fired — covering disk pressure, a flapping health check, and elevated error rates across three services. None were acknowledged or investigated. The gap was discovered Monday morning at 08:47 UTC by engineering team lead Carol Osei-Mensah while reviewing the PagerDuty incident list. All 15 alerts had self-resolved. No customer impact occurred, but the team was completely blind for 3 hours on a Friday evening with no one aware of the gap until two business days later.</p>
+<h2 id="timeline-all-times-utc">Timeline (All times UTC)<a class="headerlink" href="#timeline-all-times-utc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2025-07-11 17:45</td>
+<td>Alice Marchetti sends Slack message to Bob Nguyen: "Heading off, you're on call — quiet week so far"</td>
+</tr>
+<tr>
+<td>2025-07-11 18:00</td>
+<td>PagerDuty schedule transitions to Bob Nguyen as primary on-call; no secondary on-call configured for this rotation</td>
+</tr>
+<tr>
+<td>2025-07-11 18:00</td>
+<td>Bob's PagerDuty mobile app is not installed on his new phone; desktop notifications are off (he is not at his desk)</td>
+</tr>
+<tr>
+<td>2025-07-11 18:14</td>
+<td>Alert 1 fires: <code>node_disk_pressure</code> on <code>worker-07</code>; PagerDuty pages Bob; Bob does not acknowledge</td>
+</tr>
+<tr>
+<td>2025-07-11 18:19</td>
+<td>PagerDuty escalation timer expires (5 minutes); escalates to high-urgency; no secondary on-call configured — escalation chain terminates</td>
+</tr>
+<tr>
+<td>2025-07-11 18:21</td>
+<td>Alert 1 self-resolves: log rotation ran, disk pressure clears</td>
+</tr>
+<tr>
+<td>2025-07-11 18:35</td>
+<td>Alert 2 fires: health check flapping on <code>payments-service</code> pod (3 failed probes then recovery)</td>
+</tr>
+<tr>
+<td>2025-07-11 18:36</td>
+<td>Alert 2 self-resolves before PagerDuty escalation timer expires</td>
+</tr>
+<tr>
+<td>2025-07-11 19:02</td>
+<td>Alerts 3–7 fire: elevated 5xx error rate on <code>catalog-service</code> (deployment rollout causing brief traffic imbalance); 5 separate alert conditions trigger in sequence</td>
+</tr>
+<tr>
+<td>2025-07-11 19:14</td>
+<td>Alerts 3–7 self-resolve: rollout completes, traffic balances, error rate drops</td>
+</tr>
+<tr>
+<td>2025-07-11 19:30</td>
+<td>Alerts 8–12 fire: <code>node_memory_pressure</code> warnings on 5 nodes (GC pressure from catalog-service rollout, clears naturally)</td>
+</tr>
+<tr>
+<td>2025-07-11 19:47</td>
+<td>Alerts 8–12 self-resolve: GC completes, memory pressure clears</td>
+</tr>
+<tr>
+<td>2025-07-11 20:15</td>
+<td>Alerts 13–15 fire: elevated latency p99 on <code>search-service</code>; root cause unknown but self-clears</td>
+</tr>
+<tr>
+<td>2025-07-11 20:38</td>
+<td>Alerts 13–15 self-resolve</td>
+</tr>
+<tr>
+<td>2025-07-11 21:00</td>
+<td>Alert activity ceases; all 15 incidents in PagerDuty are in "resolved" state; none were acknowledged</td>
+</tr>
+<tr>
+<td>2025-07-14 08:47</td>
+<td>Carol Osei-Mensah opens PagerDuty Monday morning; sees 15 resolved incidents from Friday evening, all with 0 acknowledgements</td>
+</tr>
+<tr>
+<td>2025-07-14 08:52</td>
+<td>Carol confirms with Bob that he did not receive any pages; confirms handoff gap</td>
+</tr>
+<tr>
+<td>2025-07-14 09:15</td>
+<td>Carol escalates to engineering director; incident declared SEV-3 retrospectively; postmortem initiated</td>
+</tr>
+</tbody>
+</table>
+<h2 id="impact">Impact<a class="headerlink" href="#impact" title="Permanent link">&para;</a></h2>
+<h3 id="customer-impact">Customer Impact<a class="headerlink" href="#customer-impact" title="Permanent link">&para;</a></h3>
+<p>None. All 15 alerts during the coverage gap were for transient conditions that self-resolved. No customer-facing service degradation occurred, and no external monitoring systems reported any availability loss during the window.</p>
+<h3 id="internal-impact">Internal Impact<a class="headerlink" href="#internal-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Operational blind spot for 3 hours:</strong> The team had zero effective on-call coverage from 18:00 to 21:00 UTC on a Friday. Any real incident during that window — a database failure, a security event, a data pipeline crash — would have gone undetected until at least Monday morning, or until a customer reported it.</li>
+<li><strong>Delayed discovery:</strong> The gap was not discovered in real time but retrospectively 2+ business days later. This means the team had no opportunity to identify whether any of the 15 alerts indicated an early warning of a larger issue.</li>
+<li><strong>Process trust erosion:</strong> The incident revealed that the team's on-call process depended entirely on a verbal handoff and an individual's device setup — factors that are invisible to the system and unenforceable at scale.</li>
+<li>Carol Osei-Mensah spent approximately 3 hours on retrospective investigation, incident write-up, and remediation planning.</li>
+</ul>
+<h3 id="data-impact">Data Impact<a class="headerlink" href="#data-impact" title="Permanent link">&para;</a></h3>
+<p>None. No data was written, lost, or corrupted during the gap. All services recovered to normal state on their own.</p>
+<h2 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<h3 id="what-happened-technical">What Happened (Technical)<a class="headerlink" href="#what-happened-technical" title="Permanent link">&para;</a></h3>
+<p>Meridian Systems uses PagerDuty for on-call scheduling and alert routing. The on-call rotation for the Infrastructure Operations team was configured with a primary on-call and no secondary or tertiary escalation target. The escalation policy was set to: page the primary on-call; if unacknowledged for 5 minutes, escalate to high-urgency page on the same contact. There was no fallback to a secondary person.</p>
+<p>Bob Nguyen switched personal devices the week of the incident. His new phone did not have the PagerDuty mobile app installed. He had received PagerDuty pages previously via email (secondary channel) but had not updated his PagerDuty notification rules after the device switch. The email notification was configured with a 10-minute delay (to suppress brief alert flapping), meaning email pages would arrive 10 minutes after the initial page — but Bob was not checking work email on a Friday evening.</p>
+<p>The on-call handoff process was entirely verbal: Alice told Bob in Slack that he was taking over. There was no checklist, no PagerDuty acknowledgement step, no verification that Bob's devices were configured to receive pages, and no test page sent to confirm end-to-end delivery.</p>
+<p>PagerDuty does not have a built-in feature to alert when an on-call engineer has not acknowledged any pages over a rolling window (i.e., "on-call engineer is unreachable"). The system assumes that a configured on-call schedule represents a reachable engineer. When the escalation chain terminates without a secondary contact, unacknowledged pages simply resolve or remain open with no further action.</p>
+<h3 id="contributing-factors">Contributing Factors<a class="headerlink" href="#contributing-factors" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>No on-call handoff checklist:</strong> The handoff process was entirely informal. There was no standardized checklist requiring the incoming engineer to confirm device setup, verify PagerDuty notification delivery, and send a test acknowledgement. The process relied entirely on individual memory and good intentions.</li>
+<li><strong>No secondary or backup on-call configured:</strong> The PagerDuty escalation policy had no secondary contact. When Bob failed to acknowledge, the escalation chain had nowhere to go. A single point of failure in human availability is equivalent to a single point of failure in infrastructure.</li>
+<li><strong>PagerDuty lacks "on-call engineer unreachable" alerting:</strong> PagerDuty does not natively alert managers or team leads when the primary on-call has not acknowledged any incident over a configurable time window. This is a product gap that must be compensated for with process (e.g., a scheduled check-in) or tooling (e.g., a scheduled PagerDuty API query that alerts if no-ack count exceeds a threshold).</li>
+<li><strong>Device change not treated as an on-call readiness event:</strong> Bob's team was aware he had changed devices. There was no policy requiring an engineer to re-verify on-call readiness (app installation, notification test) after a device change. This is a lifecycle gap in on-call operations.</li>
+<li><strong>Post-incident discovery gap (2 days):</strong> Even if real incidents had occurred, the gap would not have been discovered until Monday morning. There was no mechanism to alert a manager or team lead that the on-call engineer had been unreachable for more than N minutes.</li>
+</ol>
+<h3 id="what-we-got-lucky-about">What We Got Lucky About<a class="headerlink" href="#what-we-got-lucky-about" title="Permanent link">&para;</a></h3>
+<ol>
+<li>All 15 alerts during the 3-hour gap were transient — disk pressure resolved by log rotation, health check flapping corrected itself, error rates normalized after a deployment completed. If a real SEV-1 had occurred (database master failure, data corruption, security breach), there would have been zero response for hours with no customer notification until Monday.</li>
+<li>The gap window was a Friday evening with relatively low traffic. The same gap during a Tuesday afternoon deployment window, when change velocity is highest, would have coincided with a much higher probability of a real incident requiring human intervention.</li>
+</ol>
+<h2 id="detection">Detection<a class="headerlink" href="#detection" title="Permanent link">&para;</a></h2>
+<h3 id="how-we-detected">How We Detected<a class="headerlink" href="#how-we-detected" title="Permanent link">&para;</a></h3>
+<p>Carol Osei-Mensah discovered the gap during a routine Monday morning PagerDuty review, a habit she had developed after a previous on-call coverage issue (unrelated). She noticed the unusually high number of resolved incidents with zero acknowledgements and immediately investigated. Detection was entirely dependent on one individual's personal habit, not any systematic monitoring.</p>
+<h3 id="why-we-didnt-detect-sooner">Why We Didn't Detect Sooner<a class="headerlink" href="#why-we-didnt-detect-sooner" title="Permanent link">&para;</a></h3>
+<p>There was no mechanism to detect an on-call coverage gap in real time. PagerDuty does not natively emit an alert when its escalation chain is exhausted without acknowledgement. No manager, team lead, or secondary contact was paged. No scheduled job monitored PagerDuty's on-call status or unacknowledged incident counts. The gap was invisible to the organization until someone manually looked at the incident history.</p>
+<h2 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h2>
+<h3 id="what-went-well">What Went Well<a class="headerlink" href="#what-went-well" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Once Carol discovered the gap, the incident was escalated and documented promptly and without blame. The retrospective was initiated within 30 minutes of discovery.</li>
+<li>Alice and Bob were both transparent about the handoff details, enabling quick root cause identification without finger-pointing.</li>
+<li>The team's immediate interim fix (Carol personally volunteered to serve as backup on-call for the following weekend while longer-term fixes were implemented) prevented a repeat the following week.</li>
+</ol>
+<h3 id="what-went-poorly">What Went Poorly<a class="headerlink" href="#what-went-poorly" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The gap was discovered 60+ hours after it began. A real incident would have gone entirely unaddressed for the entire weekend.</li>
+<li>There was no secondary on-call. This is a fundamental process failure that made any single human failure (device loss, illness, emergencies) a complete coverage gap.</li>
+<li>The verbal handoff process had no verification step. "You're on, Bob" is not equivalent to "Bob has confirmed his devices are configured and he received a test page."</li>
+<li>The team lead had no visibility into on-call readiness. There was no dashboard, no check-in requirement, and no automated health signal for the on-call coverage status.</li>
+</ol>
+<h2 id="action-items">Action Items<a class="headerlink" href="#action-items" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Action</th>
+<th>Priority</th>
+<th>Owner</th>
+<th>Status</th>
+<th>Due Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PM-023-01</td>
+<td>Configure a secondary on-call contact in PagerDuty for all rotations; secondary is paged after 10 minutes if primary does not acknowledge</td>
+<td>P1</td>
+<td>Carol Osei-Mensah</td>
+<td>In Progress</td>
+<td>2025-07-16</td>
+</tr>
+<tr>
+<td>PM-023-02</td>
+<td>Create an on-call handoff checklist (Notion template): incoming engineer must confirm app installed, test page sent and received, and check Slack acknowledgement before outgoing engineer signs off</td>
+<td>P1</td>
+<td>Carol Osei-Mensah</td>
+<td>In Progress</td>
+<td>2025-07-16</td>
+</tr>
+<tr>
+<td>PM-023-03</td>
+<td>Build a PagerDuty API monitor (scheduled Lambda, 15-min intervals during on-call hours) that alerts Carol via SMS if the on-call engineer has 2+ unacknowledged incidents older than 10 minutes</td>
+<td>P1</td>
+<td>Bob Nguyen</td>
+<td>Open</td>
+<td>2025-07-23</td>
+</tr>
+<tr>
+<td>PM-023-04</td>
+<td>Add "on-call readiness re-verification" to device change checklist in IT onboarding and off-boarding procedures</td>
+<td>P2</td>
+<td>IT Operations</td>
+<td>Open</td>
+<td>2025-07-30</td>
+</tr>
+<tr>
+<td>PM-023-05</td>
+<td>Schedule a monthly on-call process review: verify escalation policies, secondary contacts, and notification rules for all on-call engineers are current</td>
+<td>P2</td>
+<td>Carol Osei-Mensah</td>
+<td>Open</td>
+<td>2025-08-01</td>
+</tr>
+<tr>
+<td>PM-023-06</td>
+<td>Investigate PagerDuty stakeholder notification features or third-party integrations that provide real-time on-call coverage health dashboard</td>
+<td>P3</td>
+<td>Infrastructure Ops</td>
+<td>Open</td>
+<td>2025-08-15</td>
+</tr>
+</tbody>
+</table>
+<h2 id="lessons-learned">Lessons Learned<a class="headerlink" href="#lessons-learned" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>A verbal handoff is not a handoff.</strong> An on-call transition is complete only when the incoming engineer has demonstrably received a test page on their actual device configuration. A Slack message or verbal agreement is a social acknowledgement, not an operational one — it cannot verify device state.</li>
+<li><strong>A single-person on-call with no backup is a single point of failure.</strong> Every human failure mode (illness, device failure, family emergency, honest mistake) results in zero coverage. Escalation policies must route to a secondary contact who is independently reachable.</li>
+<li><strong>Unreachable on-call is invisible without explicit monitoring.</strong> PagerDuty does not know the on-call engineer is unreachable — it only knows pages went unacknowledged. Organizations must explicitly instrument this gap: either with a watchdog process that monitors acknowledgement health, or with a mandatory check-in protocol that fails loudly when missed.</li>
+</ol>
+<h2 id="cross-references">Cross-References<a class="headerlink" href="#cross-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Failure Pattern:</strong> Process gap — operational dependency on individual discipline and informal communication with no system-level enforcement or visibility</li>
+<li><strong>Topic Packs:</strong> On-call operations, incident management, PagerDuty configuration, escalation policy design</li>
+<li><strong>Runbook:</strong> <code>runbooks/ops/oncall-handoff-checklist.md</code></li>
+<li><strong>Decision Tree:</strong> Alert fires → primary on-call does not acknowledge within 5m → escalate to secondary → if no secondary: alert team lead via SMS within 10m</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="April 8, 2026 23:43:45 UTC">April 8, 2026 23:43:45</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 23:53:02 UTC">March 19, 2026 23:53:02</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

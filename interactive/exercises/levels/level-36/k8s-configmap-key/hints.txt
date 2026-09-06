@@ -1,0 +1,129 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+🔍 HINT 1: Observing the Problem
+
+Let's find the missing ConfigMap key:
+
+1️⃣ Check pod status:
+   kubectl get pod web-app -n k8squest
+   kubectl describe pod web-app -n k8squest
+
+   Look at Events - what error do you see?
+
+2️⃣ Check the ConfigMap:
+   kubectl get configmap app-config -n k8squest
+   kubectl describe configmap app-config -n k8squest
+
+   What keys exist in the ConfigMap?
+
+3️⃣ Check what the pod is trying to use:
+   kubectl get pod web-app -n k8squest -o yaml | grep -A 5 "configMapKeyRef"
+
+   What keys is the pod requesting?
+
+4️⃣ Compare the two:
+   - What keys exist in ConfigMap?
+   - What keys does the pod need?
+   - Which key is missing?
+
+📝 Key Observation:
+The pod references a ConfigMap key "database_host" that doesn't exist!
+
+🤔 Questions:
+• What keys are currently in the ConfigMap?
+• What key is the pod looking for?
+• How do you add a key to a ConfigMap?
+
+## Hint 2
+🎯 HINT 2: Understanding ConfigMap Keys
+
+The problem is a missing key in the ConfigMap data!
+
+📚 How ConfigMap Keys Work:
+
+**ConfigMap Structure:**
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  key1: "value1"  # ✅ These are the keys
+  key2: "value2"
+```
+
+**Pod References Keys:**
+```yaml
+env:
+- name: MY_VAR
+  valueFrom:
+    configMapKeyRef:
+      name: app-config
+      key: key1  # Must exist in ConfigMap!
+```
+
+🔍 Your Situation:
+
+**Current ConfigMap:**
+```yaml
+data:
+  app_name: "MyApp"
+  app_version: "1.0.0"
+  # ❌ Missing: database_host
+```
+
+**Pod Tries to Use:**
+```yaml
+- name: DATABASE_HOST
+  valueFrom:
+    configMapKeyRef:
+      key: database_host  # ❌ Doesn't exist!
+```
+
+**Result:** Pod can't start - required environment variable undefined
+
+💡 The Solution:
+Add the missing key to ConfigMap:
+```yaml
+data:
+  app_name: "MyApp"
+  app_version: "1.0.0"
+  database_host: "postgres.k8squest.svc.cluster.local"  # ✅ Add this!
+```
+
+## Hint 3
+✅ HINT 3: Complete Solution
+
+Fix: Add database_host key to ConfigMap
+
+📝 In ConfigMap:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: k8squest
+data:
+  app_name: "MyApp"
+  app_version: "1.0.0"
+  database_host: "postgres.k8squest.svc.cluster.local"  # ✅ Added!
+```
+
+🚀 Apply:
+```bash
+kubectl delete pod web-app -n k8squest
+kubectl apply -f solution.yaml
+kubectl logs web-app -n k8squest -f
+# Should show all three variables including DATABASE_HOST
+```
+
+🔍 Verify:
+```bash
+kubectl exec web-app -n k8squest -- env | grep DATABASE_HOST
+# Should output: DATABASE_HOST=postgres.k8squest.svc.cluster.local
+```
+
+💡 Remember: Every configMapKeyRef must point to a key that exists in the ConfigMap data!
+

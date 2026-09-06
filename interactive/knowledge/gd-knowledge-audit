@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""
+gd-knowledge-audit - Stale knowledge detector (read-only).
+
+STATUS: EXPERIMENTAL - may be removed without notice.
+
+Scans knowledge/learning content and flags potentially stale references:
+commands that don't exist in PATH, files that don't exist, old dates.
+
+Invariants considered:
+    #5  (Fail Fast): exit on errors
+    #6  (Error Messages Name Their Source): gd-knowledge-audit: error: ...
+    #7a (Help Flag): --help
+    #8  (Determinism): same input -> same output, sorted by file
+    #9  (No Unbounded Buffering): process files one at a time
+    #12 (Clean Interfaces): TSV stdout, diagnostics stderr
+    #13 (Greppable Output): TSV format
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import shutil
+import sys
+from datetime import date, datetime
+from pathlib import Path
+from typing import Dict, List
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent.parent  # training/interactive/knowledge -> repo root
+sys.path.insert(0, str(_REPO_ROOT / 'tools' / 'gd-learn' / 'lib' / 'python'))
+
+from error_handler import gd_main
+from gd_newtools.cli import add_common_args, die, get_data_home, info
+from gd_newtools.tsv import append_row, utc_now_iso
+
+TOOL_NAME = 'gd-knowledge-audit'
+VERSION = '0.1.0'
+
+OUTPUT_FIELDS = ['severity', 'file', 'line', 'finding', 'hint']
+LOG_FIELDS = ['timestamp', 'files_scanned', 'findings_count', 'summary']
+
+# Common commands to check existence of
+COMMAND_PATTERN = re.compile(r'`(\w[\w\-\.]+)`|^\$\s+(\w[\w\-\.]+)', re.MULTILINE)
+
+# Date patterns
+DATE_PATTERN = re.compile(r'\b(20\d{2}[-/]\d{1,2}[-/]\d{1,2})\b')
+YEAR_PATTERN = re.compile(r'\b(20\d{2})\b')
+
+# File reference patterns
+FILE_REF_PATTERN = re.compile(r'[`\s]((?:/[\w\-\.]+)+|(?:~/[\w\-\.]+(?:/[\w\-\.]+)*))[`\s]')
+
+
+def build_tool_inventory(repo_root: str) -> set:
+    """Build a set of known tool names from the repo."""
+    tools = set()
+    for dirpath in ['projects/grokdatum', 'projects/gd-utils', 'projects/enctl', 'projects/smartindex']:
+        full = os.path.join(repo_root, dirpath)
+        if os.path.isdir(full):
+            for name in os.listdir(full):
+                fpath = os.path.join(full, name)
+                if os.path.isfile(fpath) and os.access(fpath, os.X_OK):
+                    tools.add(name)
+    return tools
+
+
+def check_file(filepath: str, repo_tools: set, stale_days: int) -> List[Dict[str, str]]:
+    """Check a single file for stale references."""
+    findings = []
+    today = date.today()
+
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+            lines = f.readlines()
+    except (OSError, IOError):
+        return findings
+
+    for i, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#!'):
+            continue
+
+        # Check for commands that don't exist
+        for match in COMMAND_PATTERN.finditer(line):
+            cmd = match.group(1) or match.group(2)
+            if cmd and len(cmd) > 2 and not cmd.startswith('.'):
+                # Skip common non-command words
+                if cmd.lower() in ('the', 'this', 'that', 'with', 'from', 'true', 'false', 'none', 'null'):
+                    continue
+                # Check if it looks like a command (has dash or is known)
+                if '-' in cmd or cmd in repo_tools:
+                    if cmd not in repo_tools and not shutil.which(cmd):
+                        findings.append({
+                            'severity': 'warn',
+                            'file': filepath,
+                            'line': str(i),
+                            'finding': f"command not found: {cmd}",
+                            'hint': 'Command may have been renamed or removed',
+                        })
+
+        # Check for old dates
+        for match in DATE_PATTERN.finditer(line):
+            date_str = match.group(1)
+            try:
+                d = datetime.strptime(date_str.replace('/', '-'), '%Y-%m-%d').date()
+                days_old = (today - d).days
+                if days_old > stale_days:
+                    findings.append({
+                        'severity': 'info',
+                        'file': filepath,
+                        'line': str(i),
+                        'finding': f"date {date_str} is {days_old} days old",
+                        'hint': 'Content may need review for accuracy',
+                    })
+            except ValueError:
+                pass
+
+        # Check for file references that don't exist
+        for match in FILE_REF_PATTERN.finditer(line):
+            ref_path = match.group(1)
+            expanded = os.path.expanduser(ref_path)
+            if os.path.isabs(expanded) and not os.path.exists(expanded):
+                # Only flag if it looks like a real path (not a URL path)
+                if not ref_path.startswith('/usr') and not ref_path.startswith('/etc'):
+                    findings.append({
+                        'severity': 'info',
+                        'file': filepath,
+                        'line': str(i),
+                        'finding': f"referenced path does not exist: {ref_path}",
+                        'hint': 'File may have been moved or deleted',
+                    })
+
+    return findings
+
+
+def walk_directory(directory: str) -> List[str]:
+    """Walk directory for scannable files."""
+    files = []
+    for root, _dirs, fnames in os.walk(directory):
+        # Skip hidden dirs
+        if '/.' in root:
+            continue
+        for fname in sorted(fnames):
+            if fname.startswith('.'):
+                continue
+            ext = Path(fname).suffix.lower()
+            if ext in ('.md', '.txt', '.sh', '.py', '.yaml', '.yml', '.toml', '.cfg'):
+                files.append(os.path.join(root, fname))
+    return sorted(files)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog=TOOL_NAME,
+        description='Scan knowledge content for stale references (read-only).',
+    )
+    add_common_args(parser, TOOL_NAME, VERSION)
+
+    parser.add_argument('directory', nargs='?', help='Directory to scan (default: projects/knowledge if exists)')
+    parser.add_argument('--stale-days', type=int, default=365, help='Flag dates older than N days (default: 365)')
+
+    args = parser.parse_args()
+
+    # Determine directory to scan
+    scan_dir = args.directory
+    if not scan_dir:
+        # Try default locations
+        repo_root = str(_SCRIPT_DIR.parent.parent)
+        for candidate in ['projects/knowledge', 'projects/learning', 'docs']:
+            full = os.path.join(repo_root, candidate)
+            if os.path.isdir(full):
+                scan_dir = full
+                break
+        if not scan_dir:
+            die(TOOL_NAME, "no directory specified and no default knowledge directory found")
+
+    if not os.path.isdir(scan_dir):
+        die(TOOL_NAME, f"not a directory: {scan_dir}")
+
+    # Build tool inventory for command checking
+    repo_root = str(_SCRIPT_DIR.parent.parent)
+    repo_tools = build_tool_inventory(repo_root)
+
+    # Scan files
+    files = walk_directory(scan_dir)
+    all_findings: List[Dict[str, str]] = []
+
+    for filepath in files:
+        findings = check_file(filepath, repo_tools, args.stale_days)
+        all_findings.extend(findings)
+
+    # Sort deterministically
+    all_findings.sort(key=lambda f: (f['file'], int(f['line'])))
+
+    # Output TSV
+    print('\t'.join(OUTPUT_FIELDS))
+    for finding in all_findings:
+        print('\t'.join(finding.get(f, '') for f in OUTPUT_FIELDS))
+
+    # Log to data home
+    data_home = get_data_home(args.data_home if hasattr(args, 'data_home') else None)
+    log_path = data_home / 'logs' / 'knowledge_audit.log'
+    append_row(log_path, {
+        'timestamp': utc_now_iso(),
+        'files_scanned': str(len(files)),
+        'findings_count': str(len(all_findings)),
+        'summary': f"scanned {scan_dir}",
+    }, LOG_FIELDS)
+
+    info(TOOL_NAME, f"scanned {len(files)} files, {len(all_findings)} findings")
+    return 0
+
+
+if __name__ == '__main__':
+    gd_main(main)

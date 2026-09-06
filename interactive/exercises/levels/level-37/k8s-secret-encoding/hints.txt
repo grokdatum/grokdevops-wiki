@@ -1,0 +1,139 @@
+## Objective
+Understand why base64 encoding is NOT security
+
+## Hint 1
+🔍 HINT 1: Understanding Secret Encoding
+
+⚠️ **Critical Discovery:** Secrets use base64 encoding, but that's NOT encryption!
+
+Let's investigate why this is a security issue:
+
+1️⃣ Check pod status:
+   kubectl get pod database-client -n k8squest
+
+   The pod should be Running (the Secret is valid!)
+
+2️⃣ Check the Secret:
+   kubectl get secret db-credentials -n k8squest -o yaml
+
+   Look at the "data" section - values appear encoded with base64
+
+3️⃣ Decode the username:
+   kubectl get secret db-credentials -n k8squest -o jsonpath='{.data.username}' | base64 -d
+
+   Output: admin
+
+4️⃣ Decode the password:
+   kubectl get secret db-credentials -n k8squest -o jsonpath='{.data.password}' | base64 -d
+
+   Output: secretpass123
+
+📝 Key Observation:
+Base64 encoding is just ENCODING, not ENCRYPTION!
+Anyone with kubectl access can decode secrets instantly.
+
+🤔 The Problem:
+• base64 looks secure but provides ZERO security
+• It's just encoding (like UTF-8 or ASCII)
+• kubectl get secret ... | base64 -d reveals everything
+• Secrets stored in etcd are also just base64 (not encrypted by default)
+
+💡 What You Need to Learn:
+How is base64 encoding different from encryption, and what should you use instead?
+
+## Hint 2
+🎯 HINT 2: Base64 is NOT Encryption!
+
+⚠️ **Critical Concept:** The Secret in this level IS properly base64-encoded,
+but base64 encoding provides NO security!
+
+📚 Understanding the Difference:
+
+**Encoding (Base64):**
+- Purpose: Convert binary data to text format
+- Reversible: Anyone can decode instantly
+- No key required
+- Example: base64 -d reveals everything
+- ❌ Provides ZERO security
+
+**Encryption (AES, RSA, etc.):**
+- Purpose: Hide data from unauthorized access
+- Requires a secret key to decrypt
+- Cannot be reversed without the key
+- ✅ Actually provides security
+
+🔍 Demonstrating the Problem:
+
+```bash
+# Get the "encoded" username
+kubectl get secret db-credentials -n k8squest -o jsonpath='{.data.username}'
+# Output: YWRtaW4=
+
+# Decode it instantly (no key needed!)
+kubectl get secret db-credentials -n k8squest -o jsonpath='{.data.username}' | base64 -d
+# Output: admin
+
+# Same with password
+kubectl get secret db-credentials -n k8squest -o jsonpath='{.data.password}' | base64 -d
+# Output: secretpass123
+```
+
+🚨 The Security Issue:
+- Anyone with `kubectl get secret` access can read all secrets
+- Base64 looks like encryption but it's just encoding
+- Secrets are stored in etcd (also just base64, not encrypted by default)
+- This is why RBAC and encryption-at-rest are critical!
+
+💡 What's the Solution?
+
+The level validator checks for proper security measures. Think about:
+1. How to prevent unauthorized access to secrets (RBAC)
+2. How to encrypt secrets at rest (etcd encryption)
+3. How to use external secret management (Vault, Sealed Secrets, etc.)
+
+## Hint 3
+✅ HINT 3: Complete Solution
+
+Fix: Base64 encode the Secret data values
+
+📝 In Secret:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+  namespace: k8squest
+type: Opaque
+data:
+  username: YWRtaW4=  # ✅ base64 of "admin"
+  password: c2VjcmV0cGFzczEyMw==  # ✅ base64 of "secretpass123"
+```
+
+🔧 How to encode:
+```bash
+echo -n "admin" | base64
+# YWRtaW4=
+
+echo -n "secretpass123" | base64
+# c2VjcmV0cGFzczEyMw==
+```
+
+🚀 Apply:
+```bash
+kubectl delete -f broken.yaml
+kubectl apply -f solution.yaml
+kubectl logs database-client -n k8squest
+# Should show "Connected successfully!"
+```
+
+💡 Alternative: Use stringData for automatic encoding:
+```yaml
+apiVersion: v1
+kind: Secret
+stringData:  # No manual encoding needed!
+  username: admin
+  password: secretpass123
+```
+
+Remember: Secret "data" requires base64, "stringData" accepts plain text!
+

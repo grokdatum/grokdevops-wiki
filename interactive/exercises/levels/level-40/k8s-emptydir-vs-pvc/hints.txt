@@ -1,0 +1,157 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+🔍 HINT 1: Observing the Problem
+
+Let's understand why data disappears on restart:
+
+1️⃣ Check the pod:
+   kubectl get pod data-app -n k8squest
+   kubectl describe pod data-app -n k8squest
+
+   What type of volume is it using?
+
+2️⃣ Check the pod spec:
+   kubectl get pod data-app -n k8squest -o yaml | grep -A 5 volumes:
+
+   Do you see "emptyDir" or "persistentVolumeClaim"?
+
+3️⃣ Write some data and restart:
+   kubectl exec data-app -n k8squest -- cat /data/persistent.txt
+   kubectl delete pod data-app -n k8squest
+   kubectl apply -f broken.yaml
+   kubectl exec data-app -n k8squest -- cat /data/persistent.txt
+
+   Is the old data still there?
+
+4️⃣ Check for PVCs:
+   kubectl get pvc -n k8squest
+
+   Is there a PVC for this pod?
+
+📝 Key Observation:
+The pod uses emptyDir, which is EPHEMERAL - data is lost when pod restarts!
+
+🤔 Questions:
+• What is emptyDir?
+• When is emptyDir data deleted?
+• What's the difference between emptyDir and PVC?
+• When should you use PVC instead of emptyDir?
+
+## Hint 2
+🎯 HINT 2: Understanding emptyDir vs PVC
+
+The problem is using ephemeral emptyDir for persistent data!
+
+📚 Volume Type Comparison:
+
+**emptyDir (Ephemeral):**
+```yaml
+volumes:
+- name: data
+  emptyDir: {}  # ❌ For persistent data!
+```
+
+Characteristics:
+- Created when pod is assigned to node
+- Initially empty
+- **Deleted when pod is removed/restarted**
+- Data lives only as long as the pod
+- Fast, local storage
+
+Use cases:
+- Scratch space
+- Temporary cache
+- Data sharing between containers in same pod
+- Build artifacts during pod lifetime
+
+**PersistentVolumeClaim (Persistent):**
+```yaml
+volumes:
+- name: data
+  persistentVolumeClaim:
+    claimName: app-data  # ✅ For persistent data!
+```
+
+Characteristics:
+- Backed by PersistentVolume
+- **Survives pod deletion/restart**
+- Data persists independently of pod lifecycle
+- Can be reattached to new pods
+- May have performance overhead (network storage)
+
+Use cases:
+- Databases
+- User uploads
+- Application state
+- Logs that must be retained
+- Any data that must survive pod restarts
+
+🔍 Your Situation:
+
+App writes to `/data/persistent.txt`
+→ Needs data to survive restarts
+→ emptyDir is wrong choice!
+
+💡 The Solution:
+1. Create a PersistentVolumeClaim
+2. Reference it in pod's volumes section
+
+💡 Action: Replace emptyDir with persistentVolumeClaim!
+
+## Hint 3
+✅ HINT 3: Complete Solution
+
+Fix: Replace emptyDir with PersistentVolumeClaim
+
+📝 Step 1: Create PVC
+```yaml
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data
+  namespace: k8squest
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+📝 Step 2: Update Pod to use PVC
+```yaml
+apiVersion: v1
+kind: Pod
+spec:
+  volumes:
+  - name: data
+    persistentVolumeClaim:  # ✅ Changed from emptyDir
+      claimName: app-data
+```
+
+🚀 Apply:
+```bash
+kubectl delete -f broken.yaml
+kubectl apply -f solution.yaml
+
+# Write data
+kubectl exec data-app -n k8squest -- sh -c 'echo "persistent data" > /data/test.txt'
+
+# Restart pod
+kubectl delete pod data-app -n k8squest
+kubectl apply -f solution.yaml
+
+# Check data still exists!
+kubectl exec data-app -n k8squest -- cat /data/test.txt
+# Should show "persistent data" - survived the restart!
+```
+
+💡 Remember:
+- emptyDir = Temporary, tied to pod lifecycle
+- PVC = Persistent, independent of pod lifecycle
+
+Choose PVC when data must survive!
+

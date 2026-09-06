@@ -1,0 +1,36 @@
+---
+- name: Manage AWS EC2 instances
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    instance_type: t3.micro
+    ami_id: ami-0c55b159cbfafe1f0
+    region: us-east-1
+  tasks:
+    - name: Launch EC2 instance
+      amazon.aws.ec2_instances:
+        instance_type: "{{ instance_type }}"
+        image_id: "{{ ami_id }}"
+        region: "{{ region }}"
+        wait: true
+        count: 1
+        tags:
+          Name: web-server
+          Environment: production
+
+    - name: Create S3 bucket
+      amazon.aws.s3_bucket:
+        name: my-app-bucket
+        region: "{{ region }}"
+        state: present
+
+    - name: Create security group
+      amazon.aws.ec2_security_group:
+        name: web-sg
+        description: Security group for web servers
+        region: "{{ region }}"
+        rules:
+          - proto: tcp
+            ports: 80
+            cidr_ip: 0.0.0.0/0

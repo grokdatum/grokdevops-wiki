@@ -1,0 +1,27 @@
+# tcpdump on esxi-node-07 vmnic0 showing tagged frames
+# Captured: 2026-02-25 10:35 UTC
+# Filter: vlan 350
+
+$ tcpdump -i vmnic0 -nn -e -c 20 vlan 350
+
+tcpdump: verbose output suppressed, use -v for full protocol decode
+listening on vmnic0, link-type EN10MB (Ethernet)
+
+10:35:01.112233 0a:5c:de:01:f3:20 > ff:ff:ff:ff:ff:ff, ethertype 802.1Q (0x8100), length 46: vlan 350, p 0, ethertype ARP, Request who-has 10.50.350.1 tell 10.50.350.45, length 28
+10:35:02.114502 0a:5c:de:01:f3:20 > ff:ff:ff:ff:ff:ff, ethertype 802.1Q (0x8100), length 46: vlan 350, p 0, ethertype ARP, Request who-has 10.50.350.1 tell 10.50.350.45, length 28
+10:35:03.116891 0a:5c:de:01:f3:20 > ff:ff:ff:ff:ff:ff, ethertype 802.1Q (0x8100), length 46: vlan 350, p 0, ethertype ARP, Request who-has 10.50.350.1 tell 10.50.350.45, length 28
+10:35:05.119004 0a:5c:de:01:f3:20 > ff:ff:ff:ff:ff:ff, ethertype 802.1Q (0x8100), length 46: vlan 350, p 0, ethertype ARP, Request who-has 10.50.350.1 tell 10.50.350.45, length 28
+10:35:07.121320 0a:5c:de:01:f3:20 > ff:ff:ff:ff:ff:ff, ethertype 802.1Q (0x8100), length 46: vlan 350, p 0, ethertype ARP, Request who-has 10.50.350.1 tell 10.50.350.45, length 28
+
+# VM 10.50.350.45 is sending ARP requests for its gateway 10.50.350.1
+# Frames are correctly tagged with VLAN 350 (802.1Q)
+# No ARP replies are received -- the switch is dropping these frames
+# because VLAN 350 is not in the trunk allowed list
+
+# For comparison, VLAN 100 traffic on the same interface:
+$ tcpdump -i vmnic0 -nn -e -c 5 vlan 100
+
+10:35:12.201440 0a:5c:de:01:f3:18 > 0a:5c:de:99:a1:01, ethertype 802.1Q (0x8100), length 102: vlan 100, p 0, ethertype IPv4, 10.50.100.30 > 10.50.100.1: ICMP echo request, id 4521, seq 1, length 64
+10:35:12.202103 0a:5c:de:99:a1:01 > 0a:5c:de:01:f3:18, ethertype 802.1Q (0x8100), length 102: vlan 100, p 0, ethertype IPv4, 10.50.100.1 > 10.50.100.30: ICMP echo reply, id 4521, seq 1, length 64
+
+# VLAN 100 works fine -- both request and reply visible

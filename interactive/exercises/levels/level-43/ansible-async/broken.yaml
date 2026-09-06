@@ -1,0 +1,25 @@
+---
+- name: Run long-running tasks asynchronously
+  hosts: appservers
+  become: true
+  tasks:
+    - name: Start database backup (fire and forget)
+      ansible.builtin.shell:
+        cmd: /usr/local/bin/backup-database.sh
+      async: 3600
+      poll: 10
+
+    - name: Continue with other tasks while backup runs
+      ansible.builtin.debug:
+        msg: "Backup is running in background"
+
+    - name: Update application code
+      ansible.builtin.git:
+        repo: https://github.com/example/app.git
+        dest: /opt/app
+        version: main
+
+    - name: Restart application
+      ansible.builtin.service:
+        name: myapp
+        state: restarted

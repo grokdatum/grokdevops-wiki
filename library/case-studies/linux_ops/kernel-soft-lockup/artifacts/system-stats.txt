@@ -1,0 +1,28 @@
+$ cat /proc/interrupts | head -12
+           CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       CPU6       CPU7
+  0:         42          0          0          0          0          0          0          0  IR-IO-APIC   2-edge      timer
+  1:          0          0          0          0          9          0          0          0  IR-IO-APIC   1-edge      i8042
+  8:          0          0          0          0          0          0          0          1  IR-IO-APIC   8-edge      rtc0
+  9:          0          0          0          3          0          0          0          0  IR-IO-APIC   9-fasteoi   acpi
+ 14:          0          0          0          0          0          0          0          0  IR-IO-APIC  14-fasteoi   ehci_hcd
+ 16:   1234567    1234890    8745234    1234123    1234456    1234789    1234012    1234345  IR-PCI-MSI  524289-edge  nvme0q1
+LOC:  45123456   44890123   89234567   45012345   44678901   45345678   44567890   45234567  Local timer interrupts
+NMI:      1234       1234       1234       1234       1234       1234       1234       1234  Non-maskable interrupts
+
+# NOTE: CPU2 has significantly more LOC (local timer) interrupts: 89M vs ~45M on other CPUs.
+# CPU2 also has more nvme interrupts, suggesting I/O affinity to that core.
+
+$ sysctl vm.dirty_ratio vm.dirty_background_ratio
+vm.dirty_ratio = 40
+vm.dirty_background_ratio = 20
+
+# NOTE: These are very high defaults. On a 64GB system:
+# dirty_ratio=40% means up to 25.6 GB of dirty pages before synchronous writeback
+# dirty_background_ratio=20% means background writeback starts at 12.8 GB
+
+$ top -bn1 | head -5
+top - 14:30:01 up 45 days,  6:12,  2 users,  load average: 3.87, 2.45, 1.92
+Tasks: 312 total,   2 running, 305 sleeping,   0 stopped,   5 zombie
+%Cpu0  :  12.4 us,   3.2 sy,   0.0 ni,  82.1 id,   2.3 wa,   0.0 hi,   0.0 si,   0.0 st
+%Cpu1  :  15.1 us,   4.5 sy,   0.0 ni,  78.2 id,   2.2 wa,   0.0 hi,   0.0 si,   0.0 st
+%Cpu2  :   8.3 us,  45.7 sy,   0.0 ni,  32.1 id,  13.9 wa,   0.0 hi,   0.0 si,   0.0 st

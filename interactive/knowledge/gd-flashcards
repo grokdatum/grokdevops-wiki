@@ -1,0 +1,616 @@
+#!/usr/bin/env python3
+"""
+gd-flashcards - Extract, import, and lint flashcards.
+
+STATUS: EXPERIMENTAL - may be removed without notice.
+
+Subcommands:
+    extract files    Scan files for Q/A patterns (original behavior)
+    extract invariants  Parse INVARIANTS.md into flashcards
+    extract help     Run --help on tools and generate flashcards
+    import           Append cards from a TSV file (dedupe by card_id)
+    lint             Validate flashcard TSV format
+
+Compatibility Contract:
+    - Original behavior preserved: passing file paths still works
+    - New subcommands are additive
+    - Index impact: none for extract/lint; import appends to cards.tsv
+    - Performance impact: streaming design preserved
+
+Invariants considered:
+    #5  (Fail Fast): exit on errors
+    #6  (Error Messages Name Their Source): gd-flashcards: error: ...
+    #7a (Help Flag): --help
+    #8  (Determinism): same input -> same output, sorted by card_id
+    #9  (No Unbounded Buffering): process files one at a time
+    #12 (Clean Interfaces): TSV stdout, diagnostics stderr
+    #13 (Greppable Output): TSV format
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional, Set
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent.parent  # training/interactive/knowledge -> repo root
+sys.path.insert(0, str(_REPO_ROOT / 'tools' / 'gd-learn' / 'lib' / 'python'))
+
+from error_handler import gd_main
+from gd_newtools.cli import add_common_args, die, get_data_home, info, warn
+from gd_newtools.tsv import append_rows, load_key_set
+
+TOOL_NAME = 'gd-flashcards'
+VERSION = '0.2.0'
+SUBPROCESS_TIMEOUT = int(os.environ.get('GD_TIMEOUT_SUBPROCESS', '60'))
+
+FIELDS = ['card_id', 'front', 'back', 'tags', 'source']
+CARDS_FIELDS = ['card_id', 'front', 'back', 'tags', 'source', 'created']
+
+
+def stable_card_id(source: str, front: str) -> str:
+    """Generate a stable card ID from source path and front text."""
+    return hashlib.sha256(f"{source}:{front}".encode('utf-8')).hexdigest()[:16]
+
+
+def extract_qa_pairs(filepath: str) -> List[Dict[str, str]]:
+    """Extract Q/A pairs from a single file.
+
+    Supports:
+    - Q: ... / A: ... pairs in markdown
+    - FLASHCARD_Q: ... / FLASHCARD_A: ... in code comments
+    """
+    cards: List[Dict[str, str]] = []
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+            lines = f.readlines()
+    except (OSError, IOError) as e:
+        warn(TOOL_NAME, f"cannot read {filepath}: {e}")
+        return cards
+
+    # Pattern 1: Q: ... / A: ... (markdown)
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip('\n\r')
+
+        q_match = re.match(r'^(?:\s*[-*]?\s*)?Q:\s*(.+)', line)
+        if q_match:
+            front = q_match.group(1).strip()
+            j = i + 1
+            while j < len(lines) and lines[j].strip() == '':
+                j += 1
+            if j < len(lines):
+                a_match = re.match(r'^(?:\s*[-*]?\s*)?A:\s*(.+)', lines[j].rstrip('\n\r'))
+                if a_match:
+                    back = a_match.group(1).strip()
+                    card_id = stable_card_id(filepath, front)
+                    cards.append({
+                        'card_id': card_id,
+                        'front': front,
+                        'back': back,
+                        'source': filepath,
+                    })
+                    i = j + 1
+                    continue
+        i += 1
+
+    # Pattern 2: FLASHCARD_Q: ... / FLASHCARD_A: ...
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip('\n\r')
+        fq_match = re.match(r'^.*FLASHCARD_Q:\s*(.+)', line)
+        if fq_match:
+            front = fq_match.group(1).strip()
+            j = i + 1
+            while j < len(lines) and lines[j].strip() == '':
+                j += 1
+            if j < len(lines):
+                fa_match = re.match(r'^.*FLASHCARD_A:\s*(.+)', lines[j].rstrip('\n\r'))
+                if fa_match:
+                    back = fa_match.group(1).strip()
+                    card_id = stable_card_id(filepath, front)
+                    if not any(c['card_id'] == card_id for c in cards):
+                        cards.append({
+                            'card_id': card_id,
+                            'front': front,
+                            'back': back,
+                            'source': filepath,
+                        })
+                    i = j + 1
+                    continue
+        i += 1
+
+    # Pattern 3: Heading + "Answer:" section in markdown
+    if filepath.endswith(('.md', '.markdown')):
+        i = 0
+        while i < len(lines):
+            line = lines[i].rstrip('\n\r')
+            heading_match = re.match(r'^#{1,6}\s+(.+)', line)
+            if heading_match:
+                front = heading_match.group(1).strip().rstrip('?')
+                if '?' in lines[i]:
+                    front = heading_match.group(1).strip()
+                for j in range(i + 1, min(i + 10, len(lines))):
+                    ans_match = re.match(r'^(?:\s*)?Answer:\s*(.+)', lines[j].rstrip('\n\r'))
+                    if ans_match:
+                        back = ans_match.group(1).strip()
+                        card_id = stable_card_id(filepath, front)
+                        if not any(c['card_id'] == card_id for c in cards):
+                            cards.append({
+                                'card_id': card_id,
+                                'front': front,
+                                'back': back,
+                                'source': filepath,
+                            })
+                        break
+            i += 1
+
+    return cards
+
+
+def walk_files(paths: List[str]) -> List[str]:
+    """Walk paths and return list of files to scan."""
+    files: List[str] = []
+    for p in paths:
+        path = Path(p)
+        if path.is_file():
+            files.append(str(path))
+        elif path.is_dir():
+            for root, _dirs, fnames in os.walk(path):
+                for fname in sorted(fnames):
+                    filepath = os.path.join(root, fname)
+                    files.append(filepath)
+        else:
+            warn(TOOL_NAME, f"not a file or directory: {p}")
+    return sorted(files)
+
+
+def format_tsv(cards: List[Dict[str, str]], extra_tags: Optional[str] = None) -> str:
+    """Format cards as TSV."""
+    lines = []
+    for card in cards:
+        tags = card.get('tags', '')
+        if extra_tags:
+            tags = f"{extra_tags},{tags}" if tags else extra_tags
+        line = '\t'.join([
+            card['card_id'],
+            card['front'],
+            card['back'],
+            tags,
+            card['source'],
+        ])
+        lines.append(line)
+    return '\n'.join(lines)
+
+
+def format_md(cards: List[Dict[str, str]], extra_tags: Optional[str] = None) -> str:
+    """Format cards as Markdown."""
+    lines = []
+    for card in cards:
+        tags = card.get('tags', '')
+        if extra_tags:
+            tags = f"{extra_tags},{tags}" if tags else extra_tags
+        lines.append(f"## {card['front']}")
+        lines.append(f"")
+        lines.append(f"**Answer:** {card['back']}")
+        if tags:
+            lines.append(f"**Tags:** {tags}")
+        lines.append(f"**Source:** {card['source']}")
+        lines.append(f"")
+    return '\n'.join(lines)
+
+
+# =============================================================================
+# Subcommand: extract files (original behavior)
+# =============================================================================
+
+def cmd_extract_files(args: argparse.Namespace) -> int:
+    """Extract flashcards from files (original behavior)."""
+    files: List[str] = []
+    if getattr(args, 'stdin', False):
+        for line in sys.stdin:
+            line = line.strip()
+            if line:
+                files.append(line)
+    if args.paths:
+        files.extend(walk_files(args.paths))
+
+    if not files:
+        die(TOOL_NAME, "no input files specified (use positional args or --stdin)")
+
+    all_cards: List[Dict[str, str]] = []
+    for filepath in files:
+        cards = extract_qa_pairs(filepath)
+        all_cards.extend(cards)
+
+    all_cards.sort(key=lambda c: c['card_id'])
+
+    fmt = getattr(args, 'format', 'tsv')
+    tag = getattr(args, 'tag', None)
+    if fmt == 'tsv':
+        print('\t'.join(FIELDS))
+        print(format_tsv(all_cards, extra_tags=tag))
+    else:
+        print(format_md(all_cards, extra_tags=tag))
+
+    info(TOOL_NAME, f"extracted {len(all_cards)} cards from {len(files)} files")
+    return 0
+
+
+# =============================================================================
+# Subcommand: extract invariants
+# =============================================================================
+
+def cmd_extract_invariants(args: argparse.Namespace) -> int:
+    """Parse INVARIANTS.md into flashcards."""
+    inv_file = getattr(args, 'file', None) or 'INVARIANTS.md'
+    if not os.path.exists(inv_file):
+        die(TOOL_NAME, f"file not found: {inv_file}")
+
+    with open(inv_file, 'r', encoding='utf-8', errors='replace') as f:
+        content = f.read()
+
+    cards: List[Dict[str, str]] = []
+
+    # Parse invariant sections: look for ## or ### headings with invariant numbers
+    # Pattern: ## Invariant N: Title or ### §N: Title
+    sections = re.split(r'^(#{2,3}\s+)', content, flags=re.MULTILINE)
+    current_heading = ''
+    current_body = ''
+
+    for i, chunk in enumerate(sections):
+        if re.match(r'^#{2,3}\s+$', chunk):
+            # This is a heading marker, next chunk is the heading + body
+            if i + 1 < len(sections):
+                rest = sections[i + 1]
+                lines = rest.split('\n', 1)
+                heading = lines[0].strip()
+                body = lines[1].strip() if len(lines) > 1 else ''
+
+                # Check if this looks like an invariant
+                inv_match = re.match(r'(?:Invariant\s+#?|§)(\d+\w*)[:\s]+(.+)', heading)
+                if inv_match:
+                    inv_num = inv_match.group(1)
+                    inv_title = inv_match.group(2).strip()
+
+                    # Extract first meaningful paragraph as the answer
+                    answer_lines = []
+                    for line in body.split('\n'):
+                        line = line.strip()
+                        if not line:
+                            if answer_lines:
+                                break
+                            continue
+                        if line.startswith('#') or line.startswith('|') or line.startswith('```'):
+                            break
+                        answer_lines.append(line)
+
+                    answer = ' '.join(answer_lines)[:300] if answer_lines else inv_title
+
+                    front = f"What is Invariant #{inv_num} ({inv_title})?"
+                    card_id = stable_card_id('INVARIANTS.md', front)
+                    cards.append({
+                        'card_id': card_id,
+                        'front': front,
+                        'back': answer,
+                        'tags': f'invariant,inv{inv_num}',
+                        'source': 'INVARIANTS.md',
+                    })
+
+    cards.sort(key=lambda c: c['card_id'])
+
+    print('\t'.join(FIELDS))
+    print(format_tsv(cards))
+
+    info(TOOL_NAME, f"extracted {len(cards)} invariant cards from {inv_file}")
+    return 0
+
+
+# =============================================================================
+# Subcommand: extract help
+# =============================================================================
+
+def cmd_extract_help(args: argparse.Namespace) -> int:
+    """Run --help on selected tools and generate flashcards."""
+    # Default tools to extract help from
+    tools = getattr(args, 'tools', None) or [
+        'gd', 'bal-ctl', 'normalize', 'enctl', 'smartindex',
+    ]
+
+    cards: List[Dict[str, str]] = []
+    for tool in tools:
+        try:
+            result = subprocess.run(
+                [tool, '--help'],
+                capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT,
+            )
+            help_text = result.stdout or result.stderr or ''
+        except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+            warn(TOOL_NAME, f"cannot get help for {tool}: {e}")
+            continue
+
+        if not help_text:
+            continue
+
+        # Extract subcommands from help text
+        # Look for lines like "  command   description"
+        in_commands = False
+        for line in help_text.split('\n'):
+            stripped = line.strip()
+            if re.match(r'^(?:Commands|Subcommands|commands):', stripped, re.IGNORECASE):
+                in_commands = True
+                continue
+            if in_commands:
+                if not stripped:
+                    in_commands = False
+                    continue
+                cmd_match = re.match(r'^\s{2,}(\w[\w-]*)\s{2,}(.+)', line)
+                if cmd_match:
+                    cmd_name = cmd_match.group(1)
+                    cmd_desc = cmd_match.group(2).strip()
+                    front = f"What does '{tool} {cmd_name}' do?"
+                    card_id = stable_card_id(f'help:{tool}', front)
+                    cards.append({
+                        'card_id': card_id,
+                        'front': front,
+                        'back': cmd_desc,
+                        'tags': f'cli,{tool}',
+                        'source': f'help:{tool}',
+                    })
+
+        # Also create a card for the tool itself
+        first_line = help_text.split('\n')[0].strip() if help_text else tool
+        front = f"What is the purpose of '{tool}'?"
+        card_id = stable_card_id(f'help:{tool}', front)
+        cards.append({
+            'card_id': card_id,
+            'front': front,
+            'back': first_line[:200],
+            'tags': f'cli,{tool}',
+            'source': f'help:{tool}',
+        })
+
+    cards.sort(key=lambda c: c['card_id'])
+
+    print('\t'.join(FIELDS))
+    print(format_tsv(cards))
+
+    info(TOOL_NAME, f"extracted {len(cards)} help cards from {len(tools)} tools")
+    return 0
+
+
+# =============================================================================
+# Subcommand: import
+# =============================================================================
+
+def cmd_import(args: argparse.Namespace) -> int:
+    """Append cards from TSV file to the learning deck (dedupe by card_id)."""
+    data_home = get_data_home(getattr(args, 'data_home', None))
+    source_file = args.file
+
+    if not os.path.exists(source_file):
+        die(TOOL_NAME, f"file not found: {source_file}")
+
+    # Read input cards
+    input_cards = []
+    with open(source_file, 'r', newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f, delimiter='\t')
+        for row in reader:
+            input_cards.append(dict(row))
+
+    if not input_cards:
+        info(TOOL_NAME, f"no cards found in {source_file}")
+        return 0
+
+    # Load existing card IDs for dedup
+    cards_file = data_home / 'learning' / 'cards.tsv'
+    existing_ids = load_key_set(cards_file, 'card_id')
+
+    from gd_newtools.tsv import utc_now_iso
+    now = utc_now_iso()
+    imported = 0
+    skipped = 0
+    new_cards = []
+
+    for card in input_cards:
+        card_id = card.get('card_id', '')
+        if not card_id:
+            front = card.get('front', '')
+            source = card.get('source', source_file)
+            card_id = stable_card_id(source, front)
+
+        if card_id in existing_ids:
+            skipped += 1
+            continue
+
+        existing_ids.add(card_id)
+        new_cards.append({
+            'card_id': card_id,
+            'front': card.get('front', ''),
+            'back': card.get('back', ''),
+            'tags': card.get('tags', ''),
+            'source': card.get('source', source_file),
+            'created': now,
+        })
+        imported += 1
+
+    if new_cards:
+        append_rows(cards_file, new_cards, CARDS_FIELDS)
+
+    info(TOOL_NAME, f"imported {imported}, skipped {skipped} (from {source_file})")
+    return 0
+
+
+# =============================================================================
+# Subcommand: lint
+# =============================================================================
+
+def cmd_lint(args: argparse.Namespace) -> int:
+    """Validate flashcard TSV format."""
+    source_file = args.file
+
+    if not os.path.exists(source_file):
+        die(TOOL_NAME, f"file not found: {source_file}")
+
+    errors = 0
+    warnings = 0
+    total = 0
+    seen_ids: Set[str] = set()
+
+    with open(source_file, 'r', encoding='utf-8', errors='replace') as f:
+        first_line = f.readline().strip()
+        # Check header
+        expected_fields = set(FIELDS)
+        actual_fields = set(first_line.split('\t'))
+        if not expected_fields.issubset(actual_fields) and not set(CARDS_FIELDS).issubset(actual_fields):
+            print(f"WARN: unexpected header: {first_line}", file=sys.stderr)
+            warnings += 1
+
+        line_num = 1
+        for line in f:
+            line_num += 1
+            total += 1
+            stripped = line.rstrip('\n\r')
+            if not stripped:
+                continue
+
+            fields = stripped.split('\t')
+
+            # Check minimum field count
+            if len(fields) < 3:
+                print(f"gd-flashcards: error: line {line_num}: too few fields ({len(fields)}, need >=3)",
+                      file=sys.stderr)
+                errors += 1
+                continue
+
+            card_id = fields[0]
+            front = fields[1]
+            back = fields[2]
+
+            # Check card_id
+            if not card_id:
+                print(f"gd-flashcards: error: line {line_num}: empty card_id",
+                      file=sys.stderr)
+                errors += 1
+            elif card_id in seen_ids:
+                print(f"gd-flashcards: warning: line {line_num}: duplicate card_id: {card_id}",
+                      file=sys.stderr)
+                warnings += 1
+            else:
+                seen_ids.add(card_id)
+
+            # Check front/back
+            if not front:
+                print(f"gd-flashcards: error: line {line_num}: empty front (question)",
+                      file=sys.stderr)
+                errors += 1
+            if not back:
+                print(f"gd-flashcards: error: line {line_num}: empty back (answer)",
+                      file=sys.stderr)
+                errors += 1
+
+            # Check for literal tabs in field values (would break TSV)
+            for i, field in enumerate(fields):
+                if '\t' in field:
+                    print(f"gd-flashcards: error: line {line_num}: embedded tab in field {i}",
+                          file=sys.stderr)
+                    errors += 1
+
+    print(f"\ngd-flashcards lint: {total} cards, {errors} errors, {warnings} warnings",
+          file=sys.stderr)
+    return 1 if errors > 0 else 0
+
+
+# =============================================================================
+# Main: subcommand dispatch
+# =============================================================================
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog=TOOL_NAME,
+        description='Extract, import, and lint flashcards.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Subcommands:
+  extract files PATH...       Scan files for Q/A patterns
+  extract invariants           Parse INVARIANTS.md into cards
+  extract help                 Run --help on tools and generate cards
+  import --file X.tsv          Append cards to deck (dedupe by card_id)
+  lint --file X.tsv            Validate TSV format
+
+Examples:
+  gd-flashcards extract files docs/*.md
+  gd-flashcards extract invariants
+  gd-flashcards extract help --tools gd bal-ctl
+  gd-flashcards import --file cards.tsv
+  gd-flashcards lint --file cards.tsv
+""",
+    )
+    add_common_args(parser, TOOL_NAME, VERSION)
+
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+
+    # extract
+    p_extract = subparsers.add_parser('extract', help='Extract flashcards from sources')
+    extract_sub = p_extract.add_subparsers(dest='extract_type', help='Extraction source')
+
+    # extract files
+    p_ef = extract_sub.add_parser('files', help='Scan files for Q/A patterns')
+    p_ef.add_argument('paths', nargs='*', help='Files or directories to scan')
+    p_ef.add_argument('--stdin', action='store_true', help='Read file list from stdin')
+    p_ef.add_argument('--tag', metavar='TAG', help='Force-add tag to all cards')
+    p_ef.add_argument('--format', choices=['tsv', 'md'], default='tsv', help='Output format')
+
+    # extract invariants
+    p_ei = extract_sub.add_parser('invariants', help='Parse INVARIANTS.md into cards')
+    p_ei.add_argument('--file', default='INVARIANTS.md', help='Path to INVARIANTS.md')
+
+    # extract help
+    p_eh = extract_sub.add_parser('help', help='Generate cards from tool --help output')
+    p_eh.add_argument('--tools', nargs='+', help='Tools to extract help from')
+
+    # import
+    p_import = subparsers.add_parser('import', help='Import cards from TSV file')
+    p_import.add_argument('--file', '-f', required=True, help='TSV file to import')
+    add_common_args(p_import, TOOL_NAME, VERSION)
+
+    # lint
+    p_lint = subparsers.add_parser('lint', help='Validate flashcard TSV format')
+    p_lint.add_argument('--file', '-f', required=True, help='TSV file to lint')
+
+    args = parser.parse_args()
+
+    if args.command is None:
+        # Backward compat: if no subcommand, check for positional paths
+        # (Old behavior: gd-flashcards FILE...)
+        parser.print_help()
+        return 0
+
+    if args.command == 'extract':
+        if not args.extract_type:
+            p_extract.print_help()
+            return 0
+        if args.extract_type == 'files':
+            return cmd_extract_files(args)
+        elif args.extract_type == 'invariants':
+            return cmd_extract_invariants(args)
+        elif args.extract_type == 'help':
+            return cmd_extract_help(args)
+    elif args.command == 'import':
+        return cmd_import(args)
+    elif args.command == 'lint':
+        return cmd_lint(args)
+
+    parser.print_help()
+    return 0
+
+
+if __name__ == '__main__':
+    gd_main(main)

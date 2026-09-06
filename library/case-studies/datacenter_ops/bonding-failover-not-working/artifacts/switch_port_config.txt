@@ -1,0 +1,39 @@
+# Switch configuration for both ports (Cisco Nexus 9300)
+# Ports connected to srv-web-04 bond interfaces
+
+show running-config interface Ethernet1/15
+
+interface Ethernet1/15
+  description srv-web-04-eno1
+  switchport mode access
+  switchport access vlan 200
+  spanning-tree port type edge
+  no shutdown
+
+show running-config interface Ethernet1/16
+
+interface Ethernet1/16
+  description srv-web-04-eno2
+  switchport mode access
+  switchport access vlan 200
+  spanning-tree port type edge
+  no shutdown
+
+# Note: No port-channel configured, which is CORRECT for active-backup (mode 1).
+# Both ports are standard access ports on the same VLAN.
+
+# During failover test, Ethernet1/15 was shut:
+show interface Ethernet1/15 brief
+Eth1/15    srv-web-04-eno1    disabled  200    access  auto    --
+
+show interface Ethernet1/16 brief
+Eth1/16    srv-web-04-eno2    connected 200    access  10G     --
+
+# MAC address table during failure:
+show mac address-table interface Ethernet1/15
+* No entries found.
+
+show mac address-table interface Ethernet1/16
+   200    3cfd.fea1.2240   dynamic   0          F    Eth1/16
+# Note: The bond MAC (eno1's MAC) should have migrated to Eth1/16 on failover
+# but it did NOT, because the bond never failed over.

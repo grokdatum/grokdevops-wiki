@@ -1,0 +1,22 @@
+$ kubectl get pods -n kube-system -l k8s-app=kube-dns -o wide
+NAME                       READY   STATUS    RESTARTS   AGE   IP            NODE
+coredns-5d78c9689d-l4k7m   1/1     Running   0          14d   10.244.0.5    node-1.internal
+coredns-5d78c9689d-n8p2q   1/1     Running   0          14d   10.244.1.8    node-2.internal
+
+$ kubectl top pods -n kube-system -l k8s-app=kube-dns
+NAME                       CPU(cores)   MEMORY(bytes)
+coredns-5d78c9689d-l4k7m   187m         98Mi
+coredns-5d78c9689d-n8p2q   194m         102Mi
+
+$ kubectl get deployment coredns -n kube-system -o jsonpath='{.spec.template.spec.containers[0].resources}'
+{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"100m","memory":"70Mi"}}
+
+# NOTE: CPU usage (187m, 194m) is near or at the limit (200m).
+# CoreDNS pods are being CPU-throttled.
+
+$ kubectl logs -n kube-system coredns-5d78c9689d-l4k7m --tail=10
+[WARNING] plugin/forward: retries exhausted for 3 queries
+[ERROR] plugin/errors: 2 api.stripe.com.prod.svc.cluster.local. A: read udp 10.244.0.5:43210->169.254.169.253:53: i/o timeout
+[ERROR] plugin/errors: 2 api.stripe.com.svc.cluster.local. A: read udp 10.244.0.5:43211->169.254.169.253:53: i/o timeout
+[WARNING] plugin/forward: retries exhausted for 2 queries
+[ERROR] plugin/errors: 2 events.pagerduty.com.prod.svc.cluster.local. AAAA: read udp 10.244.0.5:43215->169.254.169.253:53: i/o timeout

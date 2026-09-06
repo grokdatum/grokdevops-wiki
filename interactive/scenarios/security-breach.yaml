@@ -1,0 +1,166 @@
+# Security Breach Scenario Drills
+# Structured scenarios for practicing security incident response and containment.
+# Schema: id, topic, difficulty, scenario, expected_actions, pitfalls, source_path
+
+scenarios:
+
+  - id: sb-scenario-001
+    topic: security
+    difficulty: hard
+    scenario: >
+      The SOC detects outbound connections from a production Kubernetes pod to a
+      known command-and-control IP address. The pod is part of a deployment with
+      12 replicas serving customer API traffic. The connections started 3 hours
+      ago. The container image was last built 2 days ago from a CI pipeline that
+      pulls base images from Docker Hub.
+    expected_actions:
+      - Isolate the affected pod(s) with a NetworkPolicy blocking all egress except to the forensics team
+      - Do NOT delete the pods yet — capture forensic evidence first
+      - Capture pod details (kubectl exec to dump running processes, network connections, file system changes)
+      - Check if all 12 replicas are making C2 connections or only some
+      - Pull the container image and inspect it for malware (compare layers with known-good build)
+      - Check the CI pipeline for supply chain compromise (base image changes, dependency updates)
+      - Scan the base image for known vulnerabilities and backdoors
+      - Rotate all secrets and credentials accessible to the compromised pod
+      - Rebuild the image from a verified base image and redeploy
+      - Audit other workloads using the same base image
+    pitfalls:
+      - Deleting the pods immediately and losing all forensic evidence
+      - Only checking the application code without inspecting the base image and dependencies
+      - Not rotating credentials that the compromised pod had access to
+      - Assuming the compromise is limited to one deployment without checking lateral movement
+      - Pulling a new base image without verifying it is clean
+    source_path: training/interactive/scenarios/security-breach.yaml
+
+  - id: sb-scenario-002
+    topic: security
+    difficulty: hard
+    scenario: >
+      A developer reports that their AWS access keys are showing up in a public
+      GitHub repository. The keys were accidentally committed in a .env file three
+      days ago. The repository has been public the entire time. CloudTrail shows
+      API calls from unfamiliar IP addresses using these credentials, including
+      ec2:RunInstances and iam:CreateUser actions.
+    expected_actions:
+      - Immediately disable the compromised access keys in IAM (do not delete yet — need for audit)
+      - Check CloudTrail for all actions taken with the compromised credentials
+      - Identify and terminate any unauthorized EC2 instances launched by the attacker
+      - Delete any IAM users or roles created by the attacker
+      - Check for persistence mechanisms (new access keys, login profiles, assume-role policies)
+      - Scan all AWS regions — attackers often launch resources in regions you do not monitor
+      - Remove the .env file from the git history (git filter-branch or BFG Repo Cleaner)
+      - Rotate all other credentials that were in the .env file
+      - Enable GitHub secret scanning and push protection on the repository
+      - Estimate the cost impact of unauthorized resource usage
+    pitfalls:
+      - Only rotating the exposed key without checking for attacker-created persistence
+      - Only checking the primary region — attackers commonly use all regions
+      - Removing the .env from HEAD but leaving it in git history
+      - Not checking for IAM policy changes that grant the attacker alternative access paths
+      - Deleting CloudTrail logs or resources before documenting the full scope
+    source_path: training/interactive/scenarios/security-breach.yaml
+
+  - id: sb-scenario-003
+    topic: security
+    difficulty: medium
+    scenario: >
+      An internal vulnerability scan discovers that a production Redis instance
+      is accessible from the internet without authentication. The Redis instance
+      contains session tokens and cached user profile data. It has been exposed
+      since a VPC security group change two weeks ago. There are no access logs
+      for Redis by default.
+    expected_actions:
+      - Immediately restrict the security group to allow Redis access only from application subnets
+      - Check if Redis AUTH was configured (if not, anyone could have read/written data)
+      - Invalidate all session tokens stored in Redis (force all users to re-authenticate)
+      - Check VPC Flow Logs for connections to the Redis port from external IPs
+      - Check if any Redis commands were used to write or exfiltrate data (MONITOR, if enabled)
+      - Enable Redis AUTH with a strong password and TLS in-transit encryption
+      - Audit the security group change that caused the exposure (who, when, why)
+      - Implement a security group audit tool or AWS Config rule to prevent future exposure
+      - Notify affected users if PII was potentially exposed (per compliance requirements)
+    pitfalls:
+      - Only fixing the security group without invalidating potentially compromised session tokens
+      - Assuming no breach occurred because there are no Redis access logs
+      - Not checking VPC Flow Logs as an alternative source of connection evidence
+      - Enabling AUTH without updating all application connection strings (causes an outage)
+    source_path: training/interactive/scenarios/security-breach.yaml
+
+  - id: sb-scenario-004
+    topic: security
+    difficulty: medium
+    scenario: >
+      A web application WAF starts blocking a surge of requests to the login
+      endpoint. Analysis shows a credential stuffing attack using a list of
+      email/password combinations likely from a third-party breach. Some
+      requests are getting through because the attackers are rotating through
+      thousands of IP addresses. The rate limit per IP is not effective.
+    expected_actions:
+      - Enable CAPTCHA or proof-of-work challenge on the login endpoint
+      - Implement rate limiting per account (not just per IP) to block distributed attacks
+      - Check for successful logins from the attack IPs — identify compromised accounts
+      - Force password reset for any accounts that had successful logins from attack IPs
+      - Enable account lockout after N failed attempts with exponential backoff
+      - Check if MFA is available and encourage or enforce it for all users
+      - Add device fingerprinting or behavioral analysis to detect automated login attempts
+      - Notify users whose credentials were used in the attack to change passwords everywhere
+    pitfalls:
+      - Relying solely on IP-based rate limiting against a distributed attack
+      - Blocking all login attempts, causing a denial of service to legitimate users
+      - Not checking for successful logins during the attack window
+      - Only stopping the current attack without implementing defenses against the next one
+    source_path: training/interactive/scenarios/security-breach.yaml
+
+  - id: sb-scenario-005
+    topic: security
+    difficulty: hard
+    scenario: >
+      During a routine audit, a team discovers a Kubernetes CronJob that runs
+      every hour and executes a script from an external URL. Nobody on the team
+      created it. The CronJob has a service account with cluster-admin privileges.
+      The script URL points to a domain registered one week ago. The CronJob was
+      created 5 days ago.
+    expected_actions:
+      - Immediately suspend the CronJob (kubectl patch cronjob --suspend=true) — do not delete
+      - Download and analyze the external script without executing it
+      - Check Kubernetes audit logs for who created the CronJob (user, IP, authentication method)
+      - Investigate the service account — how did it get cluster-admin privileges
+      - Check for other unauthorized resources created by the same user or service account
+      - Review RBAC policies to identify how the attacker obtained sufficient permissions
+      - Rotate all secrets in the cluster that the cluster-admin service account could access
+      - Capture the CronJob YAML as evidence before deleting it
+      - Implement admission controllers (OPA/Kyverno) to block external script execution
+      - Add alerting on cluster-admin role bindings and CronJob creation
+    pitfalls:
+      - Deleting the CronJob immediately without preserving it as evidence
+      - Not checking what the script actually does — it may have already exfiltrated data
+      - Only removing the CronJob without investigating how the attacker gained access
+      - Not rotating secrets that the cluster-admin service account had access to
+    source_path: training/interactive/scenarios/security-breach.yaml
+
+  - id: sb-scenario-006
+    topic: security
+    difficulty: medium
+    scenario: >
+      A production server is found to have an authorized_keys entry that nobody
+      on the team recognizes. The key was added 10 days ago. The server runs a
+      public-facing web application. SSH access logs show successful logins from
+      the associated key from a VPN exit node IP. The server has passwordless
+      sudo configured for the application user.
+    expected_actions:
+      - Remove the unauthorized authorized_keys entry immediately
+      - Check auth.log/secure for all SSH sessions using that key (timestamps, commands)
+      - Investigate how the key was planted (web application exploit, compromised user account, stolen credentials)
+      - Check for persistence mechanisms (other SSH keys, cron jobs, systemd services, modified binaries)
+      - Compare critical system binaries against package manager checksums (rpm -V or debsums)
+      - Check for rootkits (rkhunter, chkrootkit)
+      - Audit all other servers that the compromised server could reach (lateral movement)
+      - Disable passwordless sudo and implement proper privilege escalation controls
+      - Rebuild the server from a known-good image rather than trying to clean it
+      - Rotate all credentials and keys stored on or accessible from the server
+    pitfalls:
+      - Only removing the SSH key without checking for other persistence mechanisms
+      - Trusting the compromised server's own tools for forensic analysis
+      - Not rebuilding the server — a compromised system cannot be trusted
+      - Forgetting to check for lateral movement to other systems
+    source_path: training/interactive/scenarios/security-breach.yaml

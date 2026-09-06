@@ -1,0 +1,68 @@
+## Objective
+Fix the PDB to allow safe pod evictions while maintaining availability
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the PodDisruptionBudget:
+`kubectl get pdb -n k8squest`
+
+Look at the ALLOWED column - is it 0?
+
+Describe the PDB:
+`kubectl describe pdb db-proxy-pdb -n k8squest`
+
+Check "Disruptions allowed" - if it's 0, node drains will fail!
+
+Check the deployment:
+`kubectl get deployment database-proxy -n k8squest`
+
+How many replicas? Compare to PDB's minAvailable.
+
+## Hint 2
+🧭 Direction Hint:
+
+The PDB has `minAvailable: 3` but the deployment also has 3 replicas.
+
+This means:
+- minAvailable: 3 = "Must keep 3 pods available at all times"
+- Replicas: 3 = "Only have 3 pods total"
+- Result: Cannot evict ANY pod (3 - 0 < 3) ❌
+
+This blocks:
+- Node drains (kubectl drain)
+- Cluster upgrades
+- Autoscaler node removals
+- Any voluntary disruptions
+
+The PDB should allow at least 1 eviction!
+
+## Hint 3
+💡 Near-Solution Hint:
+
+Fix the PDB to allow evictions while maintaining availability.
+
+Steps:
+1. Edit the PDB:
+   `kubectl edit pdb db-proxy-pdb -n k8squest`
+
+2. Change minAvailable from 3 to 2:
+
+```yaml
+spec:
+  minAvailable: 2  # Keep 2 pods, allow 1 to be evicted
+```
+
+3. Save and verify:
+   `kubectl get pdb db-proxy-pdb -n k8squest`
+
+Now "ALLOWED" should be 1 instead of 0!
+
+Alternative: Use maxUnavailable instead:
+```yaml
+spec:
+  maxUnavailable: 1  # Allow 1 pod to be unavailable
+```
+
+Both achieve the same goal: allow 1 eviction, keep 2 running.
+

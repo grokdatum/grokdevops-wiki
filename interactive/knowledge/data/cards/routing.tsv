@@ -1,0 +1,42 @@
+---
+tags:
+- networking
+- l1
+- flashcard-deck
+- routing
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [Routing](../../../../library/portal/topics.md) | **Domain:** Networking
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+routing/a1b2c3d4e5f6	routing	easy	routing, linux, commands	How do you view the routing table on a modern Linux system?	"Use `ip route show` (iproute2). Legacy alternatives are `route -n` and `netstat -rn`.\n\nRemember: ""Routing table = GPS for packets."" Each entry says: to reach network X, send via gateway Y on interface Z.\n\nExample: ip route show displays the routing table. The ""default via"" entry is the gateway of last resort.\n\nFun fact: The `ip` command from iproute2 replaced `route` (from net-tools). On modern systems, `route` may not even be installed."	training/library/topics/routing/primer.md
+routing/b2c3d4e5f6a7	routing	easy	routing, gateway, networking	What is the default gateway and what happens if it is missing?	"The default gateway handles all traffic that does not match a more specific route. If it is missing, the host can only communicate with directly-connected networks.\n\nRemember: ""Static = manual, Dynamic = automatic."" Static routes are added with ip route add; dynamic routes are learned via OSPF, BGP, etc.\n\nGotcha: Static routes don't adapt to failures — if the next hop dies, traffic blackholes.\n\nAnalogy: The default gateway is like the exit door of a building — all traffic not addressed to someone inside the building goes through it."	training/library/topics/routing/primer.md
+routing/c3d4e5f6a7b8	routing	easy	routing, concepts	What is longest prefix match in routing?	"The kernel selects the most specific (longest prefix) matching route. A /24 route is preferred over a /8 route, which is preferred over the default route.\n\nRemember: ""Longest prefix wins."" A /32 route beats a /24 route beats the default /0 route. More specific = higher priority.\n\nExample: If routes exist for 10.0.0.0/8 and 10.0.1.0/24, traffic to 10.0.1.5 uses the /24.\n\nUnder the hood: The kernel uses a longest-prefix-match trie (radix tree) for fast route lookups, even with hundreds of thousands of routes."	training/library/topics/routing/primer.md
+routing/d4e5f6a7b8c9	routing	medium	routing, static, linux	How do you add a persistent static route on a Debian/Ubuntu system?	"Add `up ip route add <network> via <gateway>` to the interface stanza in /etc/network/interfaces, or use netplan/nmcli depending on the distribution.\n\nRemember: ""Gateway = next hop router."" The default gateway handles all traffic that doesn't match a more specific route.\n\nExample: ip route add default via 192.168.1.1 sets the default gateway.\n\nGotcha: `ip route add` changes are lost on reboot. Use netplan (Ubuntu), nmcli (RHEL), or /etc/network/interfaces (Debian) for persistence."	training/library/topics/routing/primer.md
+routing/e5f6a7b8c9d0	routing	medium	routing, bgp, ospf	What is the key difference between OSPF and BGP?	"OSPF is an interior gateway protocol (link-state, fast convergence, used within an organization). BGP is an exterior gateway protocol (path-vector, slower convergence, used between autonomous systems and increasingly inside datacenters).\n\nGotcha: BGP misconfigurations can take down the internet — route leaks and hijacks are real threats.\n\nRemember: ""BGP = the routing protocol of the internet. Autonomous Systems peer via BGP.""\n\nRemember: ""OSPF = within your network (interior). BGP = between networks (exterior)."" OSPF converges fast, BGP is policy-rich."	training/library/topics/routing/primer.md
+routing/f6a7b8c9d0e1	routing	medium	routing, asymmetric, firewalls	Why does asymmetric routing cause problems with stateful firewalls?	"Stateful firewalls track connections by seeing both directions of traffic. With asymmetric routing, the return path bypasses the firewall, so it drops the return traffic as it has no matching connection state.\n\nRemember: ""OSPF = Open Shortest Path First."" It uses Dijkstra's algorithm to find the shortest path. Area 0 is the backbone.\n\nExample: OSPF routers exchange link-state advertisements (LSAs) to build a topology map.\n\nDebug clue: `tcpdump` on the firewall shows SYN packets but no SYN-ACK return — classic sign of asymmetric routing."	training/library/topics/routing/primer.md
+routing/a7b8c9d0e1f2	routing	medium	routing, policy, linux	How do you implement policy-based routing on Linux?	"Use `ip rule add` to create rules that match on source address, fwmark, or other criteria, and direct matching traffic to a custom routing table created with `ip route add ... table <name>`.\n\nGotcha: Asymmetric routing (different paths in/out) breaks stateful firewalls — they see only half the connection.\n\nRemember: ""traceroute shows the forward path only — the return path may differ.""\n\nExample: Route all traffic from 10.0.1.0/24 through a VPN: `ip rule add from 10.0.1.0/24 table vpn` + `ip route add default via 10.0.0.1 table vpn`."	training/library/topics/routing/primer.md
+routing/c9d0e1f2a3b4	routing	hard	routing, blackhole, debugging	How do you identify and diagnose a blackhole route on Linux?	"Run `ip route get <destination>` to see if the kernel selects a blackhole route, and `ip route show type blackhole` to list all blackhole routes. Symptoms are silent packet drops with no ICMP unreachable or TCP RST.\n\nDebug clue: `ip route get <destination>` shows which route the kernel selects. If it says ""blackhole,"" that\'s your problem."	training/library/topics/routing/primer.md
+routing/d0e1f2a3b4c5	routing	hard	routing, kubernetes, containers	How do CNI plugins like Calico program routing on Kubernetes nodes, and where do you look when pod connectivity breaks?	Calico adds per-pod /32 routes (or per-node CIDR routes for Flannel) to the node's routing table, typically via a tunnel interface. Check `ip route show` on the node — missing or stale routes from the CNI indicate plugin misconfiguration or a failed bird/routing daemon.\n\nUnder the hood: Calico uses BGP (yes, the internet routing protocol) to distribute pod routes between nodes. `calicoctl node status` shows BGP peer state.	training/library/topics/routing/primer.md
+routing/e1f2a3b4c5d6	routing	hard	routing, arp, debugging	An application cannot reach a remote network but local network traffic works fine. The default route exists and points to the correct gateway IP. What do you check next?	Check the ARP/neighbor table with `ip neigh show <gateway-ip>`. If the entry is INCOMPLETE or FAILED, the gateway is not responding to ARP — it may be down, on a different VLAN, or have a misconfigured IP. The route is correct but the next-hop is unreachable at L2.	training/library/topics/routing/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [Case Study: Asymmetric Routing One Direction](../../../../library/case-studies/networking/asymmetric-routing-one-direction/README.md) (Case Study, L2) — Routing
+- [Case Study: BGP Peer Flapping](../../../../library/case-studies/networking/bgp-peer-flapping/README.md) (Case Study, L2) — Routing
+- [Case Study: Multicast Not Crossing Router](../../../../library/case-studies/networking/multicast-not-crossing-router/README.md) (Case Study, L2) — Routing
+- [Case Study: OSPF Stuck In Exstart](../../../../library/case-studies/networking/ospf-stuck-in-exstart/README.md) (Case Study, L2) — Routing
+- [Case Study: Proxy ARP Causing Issues](../../../../library/case-studies/networking/proxy-arp-causing-issues/README.md) (Case Study, L2) — Routing
+- [Case Study: Source Routing Policy Miss](../../../../library/case-studies/networking/source-routing-policy-miss/README.md) (Case Study, L2) — Routing
+- [Deep Dive: AWS VPC Internals](../../../../library/deep-dives/aws.vpc.internals.md) (deep_dive, L2) — Routing
+- [Networking Deep Dive](../../../../library/topics/networking/index.md) (Topic Pack, L1) — Routing
+- [Routing](../../../../library/topics/routing/index.md) (Topic Pack, L1) — Routing
+- [Scenario: Asymmetric Routing](../../../../library/scenarios/networking/asymmetric-routing.md) (Scenario, L2) — Routing
+
+<!-- wiki:related:end -->

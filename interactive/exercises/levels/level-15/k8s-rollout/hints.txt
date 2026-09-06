@@ -1,0 +1,63 @@
+## Objective
+Fix the rollout strategy to prevent all pods from being down simultaneously
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the deployment's rollout strategy:
+`kubectl get deployment critical-api -n k8squest -o yaml | grep -A 5 strategy`
+
+Look at `maxUnavailable` and `maxSurge`. What do you notice?
+
+Try triggering a rollout (change image tag):
+`kubectl set image deployment/critical-api api=hashicorp/http-echo:0.2.3 -n k8squest`
+
+Watch what happens to pods:
+`kubectl get pods -n k8squest -l app=api -w`
+
+Do ALL pods terminate at once? That would cause downtime!
+
+## Hint 2
+🧭 Direction Hint:
+
+The problem: `maxUnavailable: 100%` with `maxSurge: 0`
+
+This means:
+- maxUnavailable: 100% → Kubernetes can terminate ALL 3 pods at once (100% of 3 = 3)
+- maxSurge: 0 → Kubernetes cannot create extra pods during rollout
+
+Result: All old pods get terminated, then new pods start → COMPLETE DOWNTIME!
+
+For zero-downtime deployments, you need:
+- maxUnavailable < 100% (ensure some pods always running)
+- OR maxSurge > 0 (allow extra pods during transition)
+
+## Hint 3
+💡 Near-Solution Hint:
+
+Fix the rollout strategy to ensure zero downtime.
+
+Steps:
+1. Edit the deployment:
+   `kubectl edit deployment critical-api -n k8squest`
+
+2. Find the `strategy` section and change:
+
+```yaml
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1     # Only 1 pod down at a time
+      maxSurge: 1           # Allow 1 extra pod during rollout
+```
+
+This ensures:
+- With 3 replicas, at least 2 pods always running (3 - 1 = 2)
+- Can create up to 4 pods during rollout (3 + 1 = 4)
+- Zero downtime guaranteed!
+
+3. Save and verify:
+   `kubectl get deployment critical-api -n k8squest -o yaml | grep -A 5 strategy`
+
+Try a rollout now - it should be smooth with no downtime!
+

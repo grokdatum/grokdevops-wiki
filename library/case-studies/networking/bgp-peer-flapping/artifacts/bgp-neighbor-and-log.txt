@@ -1,0 +1,64 @@
+# BGP neighbor summary and event log from rtr-edge-01
+# Collected: 2026-03-02 09:45 UTC
+
+rtr-edge-01# show bgp summary
+BGP router identifier 192.168.100.1, local AS number 65001
+BGP table version is 148201, main routing table version 148201
+12841 network entries using 1847904 bytes of memory
+12841 path entries using 1027280 bytes of memory
+
+Neighbor        V    AS     MsgRcvd  MsgSent  TblVer  InQ  OutQ  Up/Down   State/PfxRcd
+192.168.100.2   4    64512  14892    15201    148201  0    0     00:01:42  12841
+
+# NOTE: Up/Down is only 00:01:42 -- session just recovered from a flap
+
+rtr-edge-01# show bgp neighbor 192.168.100.2
+BGP neighbor is 192.168.100.2, remote AS 64512, external link
+  BGP version 4, remote router ID 192.168.100.2
+  BGP state = Established, up for 00:01:42
+  Last read 00:00:04, last write 00:00:02, hold time is 15, keepalive interval is 5 seconds
+  Configured hold time is 15, keepalive interval is 5 seconds
+  Neighbor sessions:
+    1 active, is multisession capable
+  Message statistics:
+    InQ depth is 0
+    OutQ depth is 0
+                       Sent       Rcvd
+    Opens:                48         48
+    Notifications:        47          1
+    Updates:            8412       9201
+    Keepalives:        14892      14805
+    Route Refresh:         0          0
+    Total:             23399      24055
+  Last reset 00:01:45, due to BGP Notification sent
+  Notification sent: hold time expired (code 4, subcode 0)
+  Number of resets: 47
+
+# KEY FINDINGS:
+# - 47 resets in total (session has been flapping repeatedly)
+# - All resets due to "hold time expired"
+# - Hold time is only 15 seconds with 5 second keepalives
+
+rtr-edge-01# show log | include BGP | tail -20
+Mar  2 08:15:22: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 08:15:25: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+Mar  2 08:18:41: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 08:18:44: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+Mar  2 08:22:03: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 08:22:06: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+Mar  2 08:26:55: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 08:27:01: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+Mar  2 08:31:12: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 08:31:15: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+Mar  2 09:02:33: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 09:02:36: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+Mar  2 09:10:18: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 09:10:21: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+Mar  2 09:15:44: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 09:15:47: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+Mar  2 09:25:02: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 09:25:05: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+Mar  2 09:43:58: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Down BGP Notification sent: hold time expired
+Mar  2 09:44:01: %BGP-5-ADJCHANGE: neighbor 192.168.100.2 Up
+
+# Pattern: Down/Up cycles every 2-10 minutes, always "hold time expired"

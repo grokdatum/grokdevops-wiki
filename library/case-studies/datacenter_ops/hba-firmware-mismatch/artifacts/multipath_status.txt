@@ -1,0 +1,30 @@
+# multipath -ll output from srv-app-17 (affected host)
+
+$ multipath -ll
+data_vol01 (3600508b4000c4a370000500000e40000) dm-0 NETAPP,LUN C-Mode
+size=500G features='3 queue_if_no_path pg_init_retries 50' hwhandler='1 alua' wp=rw
+|-+- policy='service-time 0' prio=50 status=active
+| `- 0:0:0:0 sda 8:0   active ready  running
+`-+- policy='service-time 0' prio=10 status=enabled
+  `- 0:0:1:0 sdb 8:16  active shaky  running   <-- NOTE: "shaky" state
+
+data_vol02 (3600508b4000c4a370000500000e50000) dm-1 NETAPP,LUN C-Mode
+size=200G features='3 queue_if_no_path pg_init_retries 50' hwhandler='1 alua' wp=rw
+|-+- policy='service-time 0' prio=50 status=active
+| `- 0:0:0:1 sdc 8:32  active ready  running
+`-+- policy='service-time 0' prio=10 status=enabled
+  `- 0:0:1:1 sdd 8:48  active shaky  running   <-- NOTE: "shaky" state
+
+# multipathd show paths (srv-app-17)
+$ multipathd show paths format "%d %s %t %T %o %p"
+sda  active ready   running  [........] 50
+sdb  active shaky   running  [X.......] 10     <-- intermittent failures
+sdc  active ready   running  [........] 50
+sdd  active shaky   running  [X.......] 10     <-- intermittent failures
+
+# Compare with multipath -ll from srv-app-01 (updated host, no issues)
+$ ssh srv-app-01 multipathd show paths format "%d %s %t %T %o %p"
+sda  active ready   running  [........] 50
+sdb  active ready   running  [........] 10
+sdc  active ready   running  [........] 50
+sdd  active ready   running  [........] 10

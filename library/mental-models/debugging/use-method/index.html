@@ -1,0 +1,1719 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Origin: Brendan Gregg (Netflix performance engineer), formalized ~2012 One-liner: For every resource in the system, check Utilization, Saturation, and.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/mental-models/debugging/use-method/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Mental Model: USE Method - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Mental Model: USE Method - GrokDevOps Wiki" />
+<meta property="og:description" content="Origin: Brendan Gregg (Netflix performance engineer), formalized ~2012 One-liner: For every resource in the system, check Utilization, Saturation, and." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/mental-models/debugging/use-method.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/mental-models/debugging/use-method/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Mental Model: USE Method - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Origin: Brendan Gregg (Netflix performance engineer), formalized ~2012 One-liner: For every resource in the system, check Utilization, Saturation, and." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/mental-models/debugging/use-method.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#mental-model-use-method" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Mental Model: USE Method
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visual
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#linux-tool-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Linux Tool Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-reach-for-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to Reach for This
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-not-to-use-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When NOT to Use This
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#applied-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Applied Examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Applied Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-1-node-under-mysterious-load-kubernetes-worker-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 1: Node under mysterious load — Kubernetes worker node
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-2-network-performance-degradation-bare-metal-nic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 2: Network performance degradation — bare metal NIC
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adapting-use-to-cloud-environments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adapting USE to Cloud Environments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-junior-vs-senior-gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Junior vs Senior Gap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-method-in-practice-a-worked-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        USE Method in Practice: A Worked Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-pitfalls-and-anti-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Pitfalls and Anti-Patterns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-at-different-system-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        USE at Different System Layers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connections
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Connections">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pages-that-link-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pages that link here
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../portal/tags/#tag:mental-model" class="md-tag">mental-model</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="mental-model-use-method">Mental Model: USE Method<a class="headerlink" href="#mental-model-use-method" title="Permanent link">&para;</a></h1>
+<p><strong>Category:</strong> Debugging &amp; Diagnosis
+<strong>Origin:</strong> Brendan Gregg (Netflix performance engineer), formalized ~2012
+<strong>One-liner:</strong> For every resource in the system, check Utilization, Saturation, and Errors — in that order.</p>
+<h2 id="the-model">The Model<a class="headerlink" href="#the-model" title="Permanent link">&para;</a></h2>
+<p>The USE Method gives you a structured checklist to investigate performance problems. Without a framework, engineers gravitate toward familiar tools or gut instinct — running <code>top</code>, eyeballing CPU, and concluding "seems fine." The USE Method forces you to be systematic: enumerate <em>every</em> resource first, then apply the same three-question test to each one.</p>
+<p>The three dimensions: <strong>Utilization</strong> is the percentage of time a resource is busy doing work (as opposed to idle). A CPU at 90% utilization is busy 90% of the time. <strong>Saturation</strong> means the resource has more demand than it can immediately serve — work is queuing. A resource can be fully utilized <em>without</em> being saturated (steady throughput) or saturated at surprisingly low utilization if the queue is pathological. <strong>Errors</strong> are discrete failure events the resource is generating: hardware errors, dropped packets, disk I/O errors, CPU machine-check exceptions.</p>
+<p>The key insight is that these three signals each tell you something different. Utilization alone misses saturation — a disk at 60% utilization with a 500ms I/O queue is your bottleneck. Saturation alone misses errors — you might be saturated because you're retrying failed operations. Checking all three, for every resource, ensures you don't skip the real cause because it lives in an unfamiliar dimension.</p>
+<p>The method's boundary condition: it applies to <em>resource-based</em> bottlenecks. It does not directly help you debug logic errors, misconfigured applications, or latency caused by external dependencies that are not resources you can instrument. For service-layer problems — where the resource pool is healthy but requests are still slow — pivot to the RED Method.</p>
+<p>Applied to a Linux system, your resource checklist typically includes: CPUs (per-core), memory, storage devices (per disk, then filesystem), network interfaces (per NIC, per direction), hardware interrupt controllers, and bus bandwidth (PCIe, memory bus). In Kubernetes, extend this to: node-level resources, container CPU/memory limits vs requests, and pod-level scheduling saturation (Pending pods, eviction events).</p>
+<h2 id="visual">Visual<a class="headerlink" href="#visual" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Resource Inventory
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>┌─────────────────────────────────────────────────────────────────┐
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│  For EACH resource:                                             │
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│                                                                 │
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│  CPU ──────────┬──── Utilization?  (% busy)                    │
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│  Memory ───────┤──── Saturation?   (queue depth / wait time)   │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│  Disk(s) ──────┤──── Errors?       (discrete failures)         │
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│  Network NIC ──┤                                               │
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│  PCIe Bus ─────┘                                               │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>│                                                                 │
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│  Signal matrix:                                                 │
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>│  ┌──────────────┬──────────┬────────────┬────────────────────┐ │
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│  │ Resource     │ Util %   │ Saturation │ Errors             │ │
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>│  ├──────────────┼──────────┼────────────┼────────────────────┤ │
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│  │ CPU          │ 92%  ⚠   │ load &gt; nCPU│ mce: 0             │ │
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│  │ Memory       │ 78%      │ 0 swap     │ 0                  │ │
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│  │ sda (disk)   │ 15%      │ await 180ms│ iotop errors: 0    │ │
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│  │ eth0         │ 3%       │ 0 drops    │ rx_errors: 0       │ │
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│  └──────────────┴──────────┴────────────┴────────────────────┘ │
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>│                                                                 │
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>│  Reading: CPU util high AND load &gt; nCPU = CPU-bound process.   │
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>│           Disk await 180ms = I/O saturation (investigate next) │
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>└─────────────────────────────────────────────────────────────────┘
+</code></pre></div>
+<h2 id="linux-tool-reference">Linux Tool Reference<a class="headerlink" href="#linux-tool-reference" title="Permanent link">&para;</a></h2>
+<p>Building a USE table for a Linux host requires knowing which command surfaces each signal. This reference maps resource to tool to metric name:</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Utilization</th>
+<th>Saturation</th>
+<th>Errors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU</td>
+<td><code>mpstat -P ALL 1</code> → <code>%idle</code> inverse</td>
+<td><code>vmstat 1</code> → <code>r</code> (run queue)</td>
+<td><code>dmesg | grep mce</code> machine-check exceptions</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td><code>free -m</code> → used/total</td>
+<td><code>vmstat 1</code> → <code>si</code>, <code>so</code> (swap in/out)</td>
+<td><code>dmesg | grep -i "oom\|edac"</code></td>
+</tr>
+<tr>
+<td>Disk (per device)</td>
+<td><code>iostat -xz 1</code> → <code>%util</code></td>
+<td><code>iostat -xz 1</code> → <code>await</code>, <code>aqu-sz</code></td>
+<td><code>smartctl -a /dev/sdX</code> → reallocated sectors</td>
+</tr>
+<tr>
+<td>Network NIC</td>
+<td><code>sar -n DEV 1</code> → <code>rxkB/s</code>, <code>txkB/s</code> vs link speed</td>
+<td><code>ip -s link</code> → TX/RX dropped</td>
+<td><code>ethtool -S ethX | grep err</code></td>
+</tr>
+<tr>
+<td>PCIe / bus</td>
+<td><code>perf stat -e cache-misses</code> → memory bus pressure</td>
+<td>Implicit from memory latency</td>
+<td><code>lspci -vv</code> → error counters</td>
+</tr>
+</tbody>
+</table>
+<p>In Kubernetes environments, add these to the checklist:</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Utilization</th>
+<th>Saturation</th>
+<th>Errors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Node CPU</td>
+<td><code>kubectl top node</code></td>
+<td><code>kubectl describe node</code> → <code>Conditions</code> field</td>
+<td><code>kubectl get events --field-selector reason=OOMKilling</code></td>
+</tr>
+<tr>
+<td>Node Memory</td>
+<td><code>kubectl top node</code></td>
+<td><code>kubectl describe node</code> → memory pressure condition</td>
+<td><code>kubectl get events --field-selector reason=Evicted</code></td>
+</tr>
+<tr>
+<td>Pod CPU</td>
+<td><code>kubectl top pod -A</code></td>
+<td><code>kubectl describe pod</code> → throttling in <code>cpu.stat</code></td>
+<td>n/a (limits are soft)</td>
+</tr>
+<tr>
+<td>Pod Memory</td>
+<td><code>kubectl top pod -A</code></td>
+<td>cgroup memory.limit_in_bytes vs RSS</td>
+<td><code>kubectl describe pod</code> → OOMKilled in <code>lastState</code></td>
+</tr>
+</tbody>
+</table>
+<p>In Prometheus, the USE signals map to these metric families:
+- Utilization: <code>node_cpu_seconds_total</code>, <code>node_memory_MemAvailable_bytes</code>, <code>node_disk_io_time_seconds_total</code>
+- Saturation: <code>node_load1</code> / <code>node_load15</code>, <code>node_vmstat_pgpgin</code>, <code>node_disk_io_time_weighted_seconds_total</code>
+- Errors: <code>node_network_receive_errs_total</code>, <code>node_disk_read_errors_total</code>, hardware exporter metrics</p>
+<h2 id="when-to-reach-for-this">When to Reach for This<a class="headerlink" href="#when-to-reach-for-this" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A node, VM, or container is slow and you don't know why — start here before anything else</li>
+<li>Early in an incident to rapidly rule out resource exhaustion as the cause</li>
+<li>Performance regression: something was fast last week, slow this week — walk the resource list</li>
+<li>Capacity planning review: you want to know which resources are approaching saturation before users feel it</li>
+<li>After a hardware change, kernel upgrade, or cloud instance type migration</li>
+<li>When an application team reports "the server is slow" and you need to triage infrastructure vs application</li>
+</ul>
+<h2 id="when-not-to-use-this">When NOT to Use This<a class="headerlink" href="#when-not-to-use-this" title="Permanent link">&para;</a></h2>
+<ul>
+<li>When the problem is clearly in application logic (wrong query plan, infinite retry loop, bad algorithm) — USE tells you <em>resources</em> are fine, not <em>why</em> the application misbehaves</li>
+<li>Debugging network <em>connectivity</em> failures (packet loss between two hosts, firewall drops) — USE describes a NIC resource, not a network path; use traceroute, tcpdump, conntrack</li>
+<li>When you're investigating a security incident — USE looks for performance resource signals, not anomalous access patterns or unauthorized commands</li>
+<li>As a replacement for tracing or profiling: USE narrows to the <em>resource</em>, but profiling tells you which <em>code path</em> is consuming it</li>
+</ul>
+<h2 id="applied-examples">Applied Examples<a class="headerlink" href="#applied-examples" title="Permanent link">&para;</a></h2>
+<h3 id="example-1-node-under-mysterious-load-kubernetes-worker-node">Example 1: Node under mysterious load — Kubernetes worker node<a class="headerlink" href="#example-1-node-under-mysterious-load-kubernetes-worker-node" title="Permanent link">&para;</a></h3>
+<p>A Kubernetes worker node has <code>NotReady</code> events and pod evictions spiking. The on-call engineer opens a dashboard.</p>
+<p><strong>Utilization check:</strong> CPU: 18%. Memory: 94%. Network: 6%. Disk: 41%. Memory is in the high range but not obviously catastrophic.</p>
+<p><strong>Saturation check:</strong> CPU: load average 2.1 on an 8-core node — fine. Memory: <code>vmstat</code> shows <code>si</code>/<code>so</code> (swap in/swap out) both nonzero and climbing. Disk: <code>iostat -x</code> shows <code>await</code> at 320ms on the root device — far above healthy (&lt;20ms for SSD). The swap activity is saturating the disk.</p>
+<p><strong>Error check:</strong> <code>dmesg | grep -i "oom\|memory"</code> reveals OOM killer events targeting application pods. <code>smartctl</code> shows 0 reallocated sectors.</p>
+<p><strong>Conclusion:</strong> Memory saturation → kernel using swap → disk I/O saturation → pod response times degrade → kubelet health checks fail → evictions. The fix is increasing node memory or lowering pod memory limits. The CPU number was a red herring entirely.</p>
+<h3 id="example-2-network-performance-degradation-bare-metal-nic">Example 2: Network performance degradation — bare metal NIC<a class="headerlink" href="#example-2-network-performance-degradation-bare-metal-nic" title="Permanent link">&para;</a></h3>
+<p>A database replication job that normally completes in 4 minutes is now taking 22 minutes. The database DBA rules out query issues.</p>
+<p><strong>Utilization:</strong> <code>sar -n DEV 1</code> shows <code>eth0</code> throughput at 940 Mbps on a 1 Gbps NIC — 94% utilized. This is high but not itself a smoking gun.</p>
+<p><strong>Saturation:</strong> <code>ip -s link show eth0</code> reveals <code>TX errors: 0, dropped: 14882, overruns: 0</code>. The TX ring buffer is dropping frames because the NIC cannot drain fast enough — saturation confirmed.</p>
+<p><strong>Errors:</strong> <code>ethtool -S eth0 | grep -i err</code> shows <code>tx_timeout</code> events climbing. These are distinct from drops: timeouts mean the driver waited too long for a descriptor to free.</p>
+<p><strong>Conclusion:</strong> NIC is saturated at 94% utilization with a TX ring buffer overflow. Resolution: tune <code>ethtool -G eth0 tx 4096</code> to increase ring buffer size, then revisit whether the replication job needs bandwidth throttling or a dedicated 10GbE interface.</p>
+<h2 id="adapting-use-to-cloud-environments">Adapting USE to Cloud Environments<a class="headerlink" href="#adapting-use-to-cloud-environments" title="Permanent link">&para;</a></h2>
+<p>On AWS, GCP, or Azure, the physical resource layer is abstracted, but the USE Method still applies — the resources are just virtualized:</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Cloud equivalent</th>
+<th>Where to observe</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU utilization</td>
+<td>vCPU % (instance metrics)</td>
+<td>CloudWatch <code>CPUUtilization</code>, Stackdriver <code>compute.googleapis.com/instance/cpu/utilization</code></td>
+</tr>
+<tr>
+<td>CPU saturation</td>
+<td>CPU steal time (virtualization overhead)</td>
+<td><code>sar -u ALL</code> → <code>%steal</code> column; high steal = hypervisor contention</td>
+</tr>
+<tr>
+<td>Memory utilization</td>
+<td>Instance RAM %</td>
+<td>node_exporter → Prometheus, or cloud memory metrics</td>
+</tr>
+<tr>
+<td>Memory saturation</td>
+<td>Swap, OOM events</td>
+<td>CloudWatch <code>SwapUsage</code>, instance OOM kill events</td>
+</tr>
+<tr>
+<td>Network utilization</td>
+<td>Instance network bandwidth vs. limit</td>
+<td>CloudWatch <code>NetworkIn/Out</code> vs. instance type limit</td>
+</tr>
+<tr>
+<td>Network saturation</td>
+<td>Packet drops, throttling</td>
+<td><code>NetworkPacketsDrop</code>, ENI-level metrics</td>
+</tr>
+<tr>
+<td>Disk utilization</td>
+<td>EBS / persistent disk IOPS %</td>
+<td>CloudWatch <code>VolumeReadOps</code> + <code>VolumeWriteOps</code> vs. provisioned IOPS</td>
+</tr>
+<tr>
+<td>Disk saturation</td>
+<td><code>VolumeQueueLength</code> &gt; 1 = I/O queue building</td>
+<td>EBS queue depth metric</td>
+</tr>
+<tr>
+<td>Disk errors</td>
+<td><code>VolumeIdleTime</code>, <code>VolumeReadBytes</code> anomalies</td>
+<td>EBS health check</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Instance type limits matter:</strong> Cloud instances have network bandwidth and IOPS limits that are per-instance-type, not just per-NIC. A c5.large is limited to 10 Gbps network baseline, 4,750 Mbps EBS baseline. Exceeding these limits causes throttling (saturation) that does not appear as dropped packets — it appears as latency. The USE table for cloud instances must account for these limits, which requires knowing the instance type spec sheet.</p>
+<p><strong>Burstable instances (T-series on AWS):</strong> T-class instances have CPU credits. When credits are exhausted, the instance is throttled to its baseline CPU (which may be as low as 5-20% of one vCPU). A t3.micro at 100% CPU utilization burns credits rapidly; once exhausted, it will appear as a suddenly low-throughput host. The USE signal: CPU utilization drops suddenly (because the instance can no longer burst), while workload demand has not changed. Monitor <code>CPUCreditBalance</code> as part of the USE matrix for burstable instances.</p>
+<h2 id="the-junior-vs-senior-gap">The Junior vs Senior Gap<a class="headerlink" href="#the-junior-vs-senior-gap" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Junior</th>
+<th>Senior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Runs <code>top</code>, sees CPU at 30%, concludes "CPU is fine, must be application"</td>
+<td>Runs through all resources before drawing any conclusion</td>
+</tr>
+<tr>
+<td>Checks the first metric that looks interesting and digs deep immediately</td>
+<td>Checks all resources shallowly first to build a complete picture</td>
+</tr>
+<tr>
+<td>Conflates utilization and saturation — a "not busy" disk can still be the bottleneck</td>
+<td>Knows a disk at 30% utilization with 400ms await is a saturated disk</td>
+</tr>
+<tr>
+<td>Looks at aggregate system metrics; misses that one specific device (e.g., sdb vs sda) is the culprit</td>
+<td>Enumerates per-device, per-NIC, per-core metrics</td>
+</tr>
+<tr>
+<td>Stops when one suspicious metric is found</td>
+<td>Uses errors as a third confirming signal before committing to a hypothesis</td>
+</tr>
+<tr>
+<td>Reports "the server seems slow"</td>
+<td>Reports "eth0 is at 94% utilization with TX ring buffer saturation — this is the bottleneck"</td>
+</tr>
+</tbody>
+</table>
+<h2 id="use-method-in-practice-a-worked-checklist">USE Method in Practice: A Worked Checklist<a class="headerlink" href="#use-method-in-practice-a-worked-checklist" title="Permanent link">&para;</a></h2>
+<p>For an unknown performance problem on a Linux system, the following sequence builds the complete USE table efficiently without redundant tool invocations:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># 1. CPU — utilization and saturation together</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>mpstat<span class="w"> </span>-P<span class="w"> </span>ALL<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">3</span><span class="w">          </span><span class="c1"># per-core %idle (invert for utilization)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>vmstat<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">5</span><span class="w">                  </span><span class="c1"># r column = run-queue depth (saturation)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>cat<span class="w"> </span>/proc/loadavg<span class="w">           </span><span class="c1"># load average vs nCPU (saturation summary)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># 2. Memory — utilization and saturation together</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>free<span class="w"> </span>-m<span class="w">                     </span><span class="c1"># used/total + swap usage</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>vmstat<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">5</span><span class="w">                  </span><span class="c1"># si/so columns = swap activity (saturation)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>cat<span class="w"> </span>/proc/meminfo<span class="w">           </span><span class="c1"># MemAvailable, Dirty, Writeback detail</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># 3. Disk — per device, all three signals</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>iostat<span class="w"> </span>-xz<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">5</span><span class="w">              </span><span class="c1"># %util, await, aqu-sz per device</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>dmesg<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-50<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-iE<span class="w"> </span><span class="s2">"error|failed|io err"</span><span class="w">  </span><span class="c1"># errors</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="c1"># 4. Network — per NIC, all three signals</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>sar<span class="w"> </span>-n<span class="w"> </span>DEV<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">5</span><span class="w">              </span><span class="c1"># rxkB/s, txkB/s vs link speed</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>ip<span class="w"> </span>-s<span class="w"> </span>link<span class="w">                  </span><span class="c1"># TX/RX dropped frames (saturation signal)</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>ethtool<span class="w"> </span>-S<span class="w"> </span>eth0<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>err<span class="w">  </span><span class="c1"># NIC-level errors</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="c1"># 5. Hardware errors (cross-cutting)</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>dmesg<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-iE<span class="w"> </span><span class="s2">"mce|edac|hardware error|corrected"</span>
+</code></pre></div>
+<p>This sequence runs in under 2 minutes and produces a complete USE table. From the table, the resource with the highest saturation or any nonzero errors is the first investigation target.</p>
+<h2 id="common-pitfalls-and-anti-patterns">Common Pitfalls and Anti-Patterns<a class="headerlink" href="#common-pitfalls-and-anti-patterns" title="Permanent link">&para;</a></h2>
+<p><strong>Skipping the resource inventory step.</strong> The most common failure mode is jumping straight to checking "the obvious suspects" (CPU, then disk) without first listing every resource. A NIC error counter or a hardware interrupt rate that's never checked is where the real bottleneck hides. Write the inventory list on paper or in a scratchpad before starting.</p>
+<p><strong>Treating utilization as the only signal.</strong> A host at 20% CPU utilization that has load average &gt; N (where N is the number of cores) is CPU-saturated — processes are waiting to run despite low utilization. This happens when there are more runnable processes than schedulable time, not because any individual process runs long. <code>vmstat r</code> column tells you what utilization doesn't.</p>
+<p><strong>Ignoring per-device granularity.</strong> <code>iostat</code> for "disk" shows aggregate stats. <code>/dev/sda</code> and <code>/dev/sdb</code> may have radically different saturation levels. A RAID array may show low utilization at the RAID level while one member disk is saturated. Always drill per-device, per-NIC, per-core.</p>
+<p><strong>Confusing saturation metrics.</strong> <code>await</code> in <code>iostat</code> is total I/O latency including queue wait time. <code>svctm</code> (service time, deprecated but available) is only the device service time. High <code>await</code> with low <code>svctm</code> = queueing saturation. High both = device is slow. The distinction matters for whether you need fewer I/O operations or a faster device.</p>
+<p><strong>Stopping at "nothing looks bad."</strong> If all resources show normal utilization, saturation, and errors, the problem is not resource-based — it is in the application layer, an external dependency, or a correctness bug. USE has given you a negative result, which is valuable: don't waste more time on infrastructure. Pivot to RED, distributed tracing, or application profiling.</p>
+<h2 id="use-at-different-system-layers">USE at Different System Layers<a class="headerlink" href="#use-at-different-system-layers" title="Permanent link">&para;</a></h2>
+<p>The USE Method can be applied at multiple levels of abstraction within the same system. Applying it at each layer gives you a complete picture of where constraints exist:</p>
+<p><strong>Hardware layer:</strong> Physical CPUs (cores, sockets, NUMA topology), physical memory (DIMMs, channels), physical NICs (ports, speeds), physical disks (platters, SSDs, NVMe). These are the ultimate limits — everything above them is constrained by what hardware can provide.</p>
+<p><strong>Kernel layer:</strong> CPU scheduler (per-cgroup, per-process), memory management (virtual memory, page cache, huge pages, cgroup memory limits), block I/O scheduler (per-queue, merged vs. direct), network stack (socket buffers, conntrack table, iptables chain processing). Kernel-layer saturation often manifests as high system CPU time rather than user CPU time.</p>
+<p><strong>Container/cgroup layer:</strong> In Kubernetes, each pod has CPU requests/limits and memory requests/limits. CPU limits are enforced via CFS bandwidth throttling — a container "at limit" will have periods where its processes are forcibly paused. Memory limits are enforced via OOM kill. These are independent saturation points from the underlying node.</p>
+<p><strong>Application layer:</strong> Connection pools, thread pools, request queues within the application are also resources with utilization, saturation, and error signals — but they require application-level instrumentation to observe. A database connection pool at 100% utilization (all connections in use) is saturated even if the database host has headroom.</p>
+<p>The insight is that a bottleneck at any layer propagates upward as latency. A saturated kernel CFS scheduler shows up as application latency. A saturated database connection pool shows up as service p99 latency. USE applied only at the host level misses bottlenecks in the layers above the kernel.</p>
+<h2 id="connections">Connections<a class="headerlink" href="#connections" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Complements:</strong> RED Method (USE for infrastructure resources, RED for service/request metrics — run both simultaneously during an incident for full coverage)</li>
+<li><strong>Complements:</strong> Differential Diagnosis (USE generates the candidate list of hypotheses; Differential Diagnosis is the framework for eliminating them systematically)</li>
+<li><strong>Tensions:</strong> Five Whys (USE stops at identifying <em>which</em> resource; Five Whys pushes further to <em>why</em> that resource is exhausted — use USE first, then Five Whys to trace root cause)</li>
+<li><strong>Topic Packs:</strong> <a href="../../../topics/observability-deep-dive/">observability</a>, <a href="../../../topics/prometheus-deep-dive/">prometheus</a>, <a href="../../../topics/linux-performance/">linux-performance</a></li>
+<li><strong>Case Studies:</strong> <a href="../../../case-studies/kubernetes_ops/node-pressure-evictions/">node-pressure-evictions</a> (USE reveals memory saturation as the eviction driver), <a href="../../../case-studies/linux_ops/oom-killer-events/">oom-killer-events</a> (USE matrix shows memory errors and saturation before OOM kill)</li>
+</ul>
+<!-- wiki:backlinks:start -->
+
+<h3 id="pages-that-link-here">Pages that link here<a class="headerlink" href="#pages-that-link-here" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../">Debugging &amp; Diagnosis Models</a></li>
+<li><a href="../../">Mental Model Library</a></li>
+</ul>
+<!-- wiki:backlinks:end -->
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="August 19, 2026 13:40:59 UTC">August 19, 2026 13:40:59</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 21:15:27 UTC">March 19, 2026 21:15:27</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

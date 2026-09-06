@@ -1,0 +1,155 @@
+# Capacity Crisis Scenario Drills
+# Structured scenarios for practicing capacity-related incident response.
+# Schema: id, topic, difficulty, scenario, expected_actions, pitfalls, source_path
+
+scenarios:
+
+  - id: cc-scenario-001
+    topic: capacity_planning
+    difficulty: hard
+    scenario: >
+      A major marketing campaign drives 10x normal traffic to your e-commerce
+      platform. The auto-scaler is adding nodes but new pods are stuck in Pending
+      due to IP address exhaustion in the VPC subnet. The existing pods are
+      handling traffic but response times are degrading as the backlog grows.
+      The subnet has a /24 CIDR with 254 usable IPs, all allocated.
+    expected_actions:
+      - Immediately assess current service health and error rates
+      - Check if any non-critical workloads can be scaled down to free IPs
+      - Add a new subnet to the VPC and associate it with the EKS node group
+      - Verify the new subnet has the correct route table, NAT gateway, and security group associations
+      - Update the EKS managed node group or auto-scaling group to use the new subnet
+      - Monitor new nodes launching in the new subnet and pods scheduling
+      - For long-term fix, plan CIDR allocation with growth headroom (/20 or /18)
+      - Consider using VPC CNI prefix delegation to fit more pods per node
+    pitfalls:
+      - Assuming the auto-scaler is broken when the underlying problem is IP exhaustion
+      - Adding a subnet without proper route table and NAT gateway configuration
+      - Not planning for future growth and choosing another small CIDR block
+      - Restarting the auto-scaler hoping it will fix the scheduling problem
+    source_path: training/interactive/scenarios/capacity-crisis.yaml
+
+  - id: cc-scenario-002
+    topic: capacity_planning
+    difficulty: medium
+    scenario: >
+      A PostgreSQL database server reaches 95% CPU utilization during peak hours.
+      Query performance degrades and application timeouts increase. The top query
+      by CPU time is a dashboard query that runs every 30 seconds, performing a
+      full table scan on a 200 million row table. The query was added last week
+      by a new team member. The table does not have an index on the filtered column.
+    expected_actions:
+      - Identify the expensive query using pg_stat_statements or pg_stat_activity
+      - Add the missing index on the filtered column (CREATE INDEX CONCURRENTLY to avoid locks)
+      - Review the query plan before and after the index (EXPLAIN ANALYZE)
+      - Reduce the dashboard polling frequency from 30 seconds to 5 minutes if real-time is not needed
+      - Consider adding a read replica for analytics/dashboard queries
+      - Set up query execution time limits (statement_timeout) to prevent runaway queries
+      - Review the code review process — expensive queries should be caught before production
+      - Add pg_stat_statements monitoring to catch new expensive queries early
+    pitfalls:
+      - Adding the index with CREATE INDEX (blocks writes) instead of CREATE INDEX CONCURRENTLY
+      - Vertically scaling the database without identifying the root cause query
+      - Killing the query repeatedly without fixing the underlying issue
+      - Not reducing the polling frequency — the index helps but 30-second polling is still wasteful
+    source_path: training/interactive/scenarios/capacity-crisis.yaml
+
+  - id: cc-scenario-003
+    topic: capacity_planning
+    difficulty: medium
+    scenario: >
+      A Kubernetes cluster runs out of ephemeral storage on multiple nodes
+      simultaneously. Pods are being evicted with "The node was low on resource:
+      ephemeral-storage" messages. Investigation shows container logs are writing
+      to stdout at extremely high volume. The affected pods are all from the same
+      deployment that enabled debug logging in a recent config change.
+    expected_actions:
+      - Identify the deployment writing excessive logs (kubectl top pods, check node disk usage)
+      - Disable debug logging by reverting the configuration change
+      - Clean up accumulated log data on affected nodes (journalctl --vacuum-size)
+      - Set ephemeral storage limits on pods to prevent any single pod from exhausting node storage
+      - Configure container runtime log rotation (max-size, max-file in containerd/docker config)
+      - Re-schedule evicted pods after storage is recovered
+      - Add monitoring for node ephemeral storage usage with alerts at 70% and 85%
+      - Implement a log level management policy — debug logging only in non-production
+    pitfalls:
+      - Evicting more pods manually without addressing the root cause (debug logging)
+      - Adding more storage to nodes without fixing the log volume issue
+      - Not setting ephemeral storage limits, allowing recurrence with any verbose workload
+      - Forgetting that container stdout/stderr is written to the node's disk by the container runtime
+    source_path: training/interactive/scenarios/capacity-crisis.yaml
+
+  - id: cc-scenario-004
+    topic: capacity_planning
+    difficulty: hard
+    scenario: >
+      A SaaS platform experiences a sudden 3x spike in API requests. The
+      application layer auto-scales successfully, but the managed database
+      (RDS) cannot auto-scale and becomes the bottleneck. Connection pool
+      exhaustion causes cascading failures across all microservices. The
+      database is an r5.2xlarge with max_connections set to 500.
+    expected_actions:
+      - Implement connection pooling with PgBouncer or RDS Proxy in front of the database
+      - Activate read replicas for read-heavy queries to offload the primary
+      - Identify and cache frequently-read, rarely-changed data (Redis/ElastiCache)
+      - Enable circuit breakers in microservices to fail fast instead of queuing connections
+      - Scale up the RDS instance to a larger size (requires brief downtime for non-Aurora)
+      - Review connection pool settings per microservice — each should limit its own pool
+      - Add database connection count monitoring with alerts well below max_connections
+      - Evaluate Aurora Serverless or sharding for elastic database scaling long-term
+    pitfalls:
+      - Only scaling the application layer without addressing the database bottleneck
+      - Setting max_connections very high without memory considerations (each connection uses RAM)
+      - Not implementing circuit breakers — causes cascading failures when DB is slow
+      - Assuming managed databases auto-scale like application pods
+    source_path: training/interactive/scenarios/capacity-crisis.yaml
+
+  - id: cc-scenario-005
+    topic: capacity_planning
+    difficulty: easy
+    scenario: >
+      The CI/CD pipeline starts taking 45 minutes instead of the usual 12 minutes.
+      Builds are queuing for 30+ minutes before starting. The Jenkins controller
+      shows 8 builds queued but only 2 executor slots available. The Kubernetes
+      cluster hosting Jenkins agents has available capacity. The Jenkins
+      Kubernetes plugin is configured with a pod limit of 2.
+    expected_actions:
+      - Check the Jenkins Kubernetes cloud configuration for pod/executor limits
+      - Increase the pod limit from 2 to a reasonable number (e.g., 10-20)
+      - Verify the Kubernetes cluster has sufficient resources for more concurrent agents
+      - Check if there are resource quotas on the Jenkins namespace limiting pod count
+      - Review Jenkins agent pod resource requests to ensure they are right-sized
+      - Set up Jenkins queue monitoring to alert when queue time exceeds a threshold
+      - Consider implementing pipeline concurrency limits per project instead of global limits
+      - Add auto-scaling for the Kubernetes node pool if needed for peak CI load
+    pitfalls:
+      - Removing the pod limit entirely, which could overwhelm the cluster during peak commits
+      - Adding more nodes without checking if the pod limit is the actual constraint
+      - Not checking namespace resource quotas which may impose a separate limit
+      - Increasing the limit without verifying agent pods have appropriate resource requests
+    source_path: training/interactive/scenarios/capacity-crisis.yaml
+
+  - id: cc-scenario-006
+    topic: capacity_planning
+    difficulty: medium
+    scenario: >
+      A log aggregation cluster (Elasticsearch) is running at 90% disk capacity.
+      New logs are being rejected with "cluster_block_exception — index read-only /
+      allow delete." The cluster has 3 data nodes each with 1TB storage. Daily log
+      ingestion is 50GB and growing 10% monthly. The retention policy is set to
+      90 days but ILM policies are not configured.
+    expected_actions:
+      - Immediately free space by deleting the oldest indices manually (curator or API)
+      - Remove the read-only block after freeing space (PUT _settings cluster.blocks.read_only_allow_delete=false)
+      - Configure ILM (Index Lifecycle Management) policies with hot-warm-cold tiers
+      - Reduce retention from 90 days to match actual business requirements
+      - Enable index rollover based on size (e.g., 50GB per shard) not just time
+      - Add disk space monitoring with alerts at 70% and 80% thresholds
+      - Plan storage capacity based on current ingestion rate plus 10% monthly growth
+      - Consider compressing older indices or moving to cheaper storage tiers
+    pitfalls:
+      - Only deleting indices without setting up ILM to prevent recurrence
+      - Forgetting to remove the read-only block after freeing space
+      - Setting retention too low and losing log data needed for compliance
+      - Adding more disk without addressing the unbounded growth problem
+    source_path: training/interactive/scenarios/capacity-crisis.yaml

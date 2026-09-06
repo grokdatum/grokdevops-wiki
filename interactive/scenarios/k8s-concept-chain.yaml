@@ -1,0 +1,125 @@
+# K8s Concept Chain Scenarios
+# Troubleshooting scenarios that test understanding of why each K8s abstraction exists
+# and how to diagnose problems at each layer.
+
+scenarios:
+
+  - id: kcc-scenario-001
+    topic: k8s
+    difficulty: easy
+    scenario: >
+      A developer deployed their application as a bare Pod (no Deployment). The
+      Pod ran fine for two days. This morning, the node it was running on was
+      rebooted for kernel patching. The application is now completely down. There
+      is no record of the Pod in kubectl get pods. The developer asks why
+      Kubernetes didn't restart their application.
+    expected_actions:
+      - Explain that bare Pods have no controller to recreate them after node loss
+      - Create a Deployment with the same Pod spec and desired replicas
+      - Set replicas >= 2 for availability across node failures
+      - Add resource requests so the scheduler places Pods on nodes with capacity
+      - Add a readinessProbe so the Service only routes to healthy Pods
+      - Verify the Deployment is running with kubectl rollout status
+    pitfalls:
+      - Recreating a bare Pod instead of creating a Deployment
+      - Setting replicas to 1 which still has single-node failure risk
+      - Not adding health checks, leading to traffic routed to unhealthy Pods
+    source_path: training/interactive/scenarios/k8s-concept-chain.yaml
+
+  - id: kcc-scenario-002
+    topic: k8s
+    difficulty: medium
+    scenario: >
+      A team has 8 microservices in production. Each is exposed externally using
+      a Service of type LoadBalancer. The monthly cloud bill shows 8 load
+      balancers costing $160/month combined. Most of them handle fewer than 100
+      requests per day. The team lead asks you to reduce the cost without
+      reducing availability.
+    expected_actions:
+      - Identify which services actually need external access vs internal-only
+      - Convert internal-only services to ClusterIP type
+      - Install an Ingress Controller (e.g., ingress-nginx) if one is not present
+      - Create Ingress resources with host-based or path-based routing rules
+      - Convert remaining externally-exposed services to ClusterIP behind Ingress
+      - Verify routing works with curl to each hostname/path
+      - Result should be one load balancer (for the Ingress Controller) instead of eight
+    pitfalls:
+      - Forgetting to install an Ingress Controller before creating Ingress resources
+      - Not testing each route after migration, leaving some services unreachable
+      - Removing LoadBalancer services before Ingress routing is confirmed working
+      - Not configuring TLS termination on the Ingress, breaking HTTPS
+    source_path: training/interactive/scenarios/k8s-concept-chain.yaml
+
+  - id: kcc-scenario-003
+    topic: k8s
+    difficulty: medium
+    scenario: >
+      An application is experiencing intermittent connection refused errors from
+      other services in the cluster. The Deployment has 3 replicas and all Pods
+      show Running status. The Service was created weeks ago and worked fine
+      until the team changed the Deployment template labels from app: api to
+      app: api-v2 during a refactor. They updated the Deployment but forgot to
+      update the Service selector.
+    expected_actions:
+      - Check kubectl get endpoints SERVICE_NAME to confirm endpoints are empty
+      - Compare Service selector labels with Pod labels using kubectl get svc -o yaml and kubectl get pods --show-labels
+      - "Identify the mismatch between Service selector (app: api) and Pod labels (app: api-v2)"
+      - Update the Service selector to match the new Pod labels
+      - Verify endpoints are populated after the fix with kubectl get endpoints
+      - Test connectivity from another pod using curl or wget
+    pitfalls:
+      - Assuming Pods are unhealthy because the Service returns connection refused
+      - Rolling back the Pod labels instead of fixing the Service selector
+      - Not checking endpoints first, which immediately reveals the problem
+      - Restarting Pods hoping the issue resolves itself
+    source_path: training/interactive/scenarios/k8s-concept-chain.yaml
+
+  - id: kcc-scenario-004
+    topic: k8s
+    difficulty: hard
+    scenario: >
+      A production application uses HPA with a target CPU utilization of 70%.
+      During a traffic spike, HPA scaled from 3 to 12 Pods. However, 4 of the
+      new Pods are stuck in Pending state. The cluster has 3 nodes, all showing
+      high resource allocation. Karpenter is installed but no new nodes are
+      appearing. The Karpenter NodePool has a limits.cpu setting of 32 and the
+      cluster already has 30 CPUs allocated. Users are experiencing degraded
+      performance because only 8 of the desired 12 replicas are running.
+    expected_actions:
+      - Confirm Pods are Pending due to resource constraints with kubectl describe pod
+      - Check node resource allocation with kubectl describe nodes
+      - Check Karpenter NodePool limits with kubectl get nodepool -o yaml
+      - Identify that the NodePool CPU limit (32) is nearly exhausted (30 of 32 used)
+      - Increase the NodePool CPU limit or adjust instance types to allow Karpenter to provision
+      - Verify new nodes appear and Pending Pods are scheduled
+      - Review Pod resource requests to ensure they are right-sized (not over-requesting)
+      - Consider adding a PodDisruptionBudget for the Deployment to protect availability during future scale-down
+    pitfalls:
+      - Increasing HPA maxReplicas without addressing the node capacity constraint
+      - Manually adding nodes instead of fixing the Karpenter NodePool limit
+      - Not checking Pod resource requests, which may be over-provisioned
+      - Removing Karpenter limits entirely, risking runaway cloud costs
+    source_path: training/interactive/scenarios/k8s-concept-chain.yaml
+
+  - id: kcc-scenario-005
+    topic: k8s
+    difficulty: medium
+    scenario: >
+      A Pod is consuming 6GB of memory on a node with 8GB allocatable. Other
+      Pods on the same node are being OOM-killed. The rogue Pod has no resource
+      limits set. The team discovers it has QoS class BestEffort. They need to
+      stop the immediate bleeding and prevent this from happening again.
+    expected_actions:
+      - Identify the rogue Pod with kubectl top pods on the affected node
+      - Delete the rogue Pod (it will be recreated by its Deployment)
+      - Add memory limits to the Deployment spec to prevent recurrence
+      - Add memory requests to ensure proper scheduling
+      - Create a LimitRange in the namespace to enforce default limits for Pods that don't specify them
+      - Consider a ResourceQuota on the namespace to cap total resource consumption
+      - Verify the restarted Pod runs with Guaranteed or Burstable QoS class
+    pitfalls:
+      - Only adding limits to this one Deployment without enforcing defaults via LimitRange
+      - Setting memory limits too low causing the Pod to be immediately OOM-killed
+      - Not understanding that QoS BestEffort means no requests or limits at all
+      - Draining the node instead of addressing the root cause (missing limits)
+    source_path: training/interactive/scenarios/k8s-concept-chain.yaml

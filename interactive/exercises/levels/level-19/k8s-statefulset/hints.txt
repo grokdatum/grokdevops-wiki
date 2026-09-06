@@ -1,0 +1,88 @@
+## Objective
+Convert the Deployment to a StatefulSet to provide stable pod identities and persistent storage
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the current resource type:
+`kubectl get deployments,statefulsets -n k8squest`
+
+Is it a Deployment or StatefulSet?
+
+Check the pod names:
+`kubectl get pods -n k8squest -l app=database`
+
+Deployment pods have random names like: database-7d8f9c-abc12
+StatefulSet pods have stable names like: database-0, database-1, database-2
+
+For stateful apps (databases, message queues), you need stable identities!
+
+Try deleting a pod:
+`kubectl delete pod <pod-name> -n k8squest`
+
+Watch it recreate - does it get the same name?
+
+## Hint 2
+🧭 Direction Hint:
+
+The problem: You're using a Deployment for a database.
+
+Deployments are designed for STATELESS apps (web servers, APIs) where:
+- Any pod can be replaced
+- Pods are interchangeable
+- No stable identity needed
+
+Databases are STATEFUL and need:
+- Stable pod names (database-0, database-1)
+- Stable network IDs (database-0.database-service)
+- Persistent storage per pod
+- Ordered startup (primary before replicas)
+- Ordered shutdown (replicas before primary)
+
+Solution: Use StatefulSet instead of Deployment!
+
+## Hint 3
+💡 Near-Solution Hint:
+
+Convert the Deployment to a StatefulSet.
+
+Steps:
+1. Delete the existing Deployment:
+   `kubectl delete deployment database -n k8squest`
+
+2. Create a StatefulSet instead:
+   `kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: database
+  namespace: k8squest
+spec:
+  serviceName: "database-service"  # Important!
+  replicas: 3
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+      - name: db
+        image: hashicorp/http-echo:latest
+        args:
+          - "-text=Database Pod"
+          - "-listen=:8080"
+        ports:
+        - containerPort: 8080
+EOF`
+
+3. Watch pods start in order (0, then 1, then 2):
+   `kubectl get pods -n k8squest -l app=database -w`
+
+4. Verify stable names:
+   `kubectl get pods -n k8squest -l app=database`
+
+Should see: database-0, database-1, database-2 (not random hashes)!
+

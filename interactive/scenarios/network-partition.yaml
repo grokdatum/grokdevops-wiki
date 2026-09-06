@@ -1,0 +1,160 @@
+# Network Partition Scenario Drills
+# Structured scenarios for practicing network split-brain and partition recovery.
+# Schema: id, topic, difficulty, scenario, expected_actions, pitfalls, source_path
+
+scenarios:
+
+  - id: np-scenario-001
+    topic: networking
+    difficulty: hard
+    scenario: >
+      A multi-AZ Kubernetes cluster experiences intermittent connectivity between
+      availability zones. Pods in AZ-a can reach pods in AZ-b but not AZ-c.
+      CoreDNS resolution works within each AZ but cross-AZ service discovery
+      is failing. etcd members report "leader election timeout" warnings. The
+      issue started after a cloud provider maintenance window.
+    expected_actions:
+      - Check the cloud provider status page and maintenance notifications
+      - Verify inter-AZ connectivity at the VPC/subnet level (VPC Flow Logs, route tables)
+      - Check transit gateway or VPC peering routes if used for inter-AZ traffic
+      - Monitor etcd cluster health — a network partition can cause leader election storms
+      - Verify Kubernetes API server connectivity from nodes in each AZ
+      - If etcd loses quorum, do NOT restart etcd members — wait for network recovery
+      - Route traffic away from the partitioned AZ if possible (update service topology)
+      - Contact cloud provider support with specific connectivity test results
+      - After recovery, verify etcd cluster is consistent and all members are in sync
+    pitfalls:
+      - Restarting etcd during a partition, which can cause data inconsistency
+      - Assuming the issue is Kubernetes-level when it is a cloud provider network issue
+      - Draining nodes in the affected AZ before confirming the partition scope
+      - Not checking etcd health — a split-brain etcd cluster can corrupt state
+    source_path: training/interactive/scenarios/network-partition.yaml
+
+  - id: np-scenario-002
+    topic: networking
+    difficulty: medium
+    scenario: >
+      An application deployment across two data centers uses an active-passive
+      database with synchronous replication. After a WAN link degradation (not
+      full failure), the passive site reports replication lag climbing from
+      milliseconds to 30+ seconds. The active site is slowing down because
+      synchronous commits wait for passive acknowledgment. Users notice
+      increasing latency on all write operations.
+    expected_actions:
+      - Monitor the WAN link metrics (latency, packet loss, bandwidth utilization)
+      - Consider temporarily switching from synchronous to asynchronous replication
+      - Assess the RPO impact of switching to async — some transactions may be lost if the active fails
+      - Check if the WAN provider has a degradation or maintenance event scheduled
+      - Verify the replication stream is still connected and not fully broken
+      - If latency is unacceptable, failover to the passive site only if replication is caught up
+      - Do NOT failover if replication lag is significant — you will lose those transactions
+      - After WAN recovery, switch back to synchronous replication and verify consistency
+    pitfalls:
+      - Failing over to the passive site with 30 seconds of replication lag (data loss)
+      - Leaving synchronous replication on while the WAN is degraded (cascading latency)
+      - Not communicating the RPO risk when switching to asynchronous mode
+      - Assuming the WAN will recover quickly without contacting the provider
+    source_path: training/interactive/scenarios/network-partition.yaml
+
+  - id: np-scenario-003
+    topic: networking
+    difficulty: medium
+    scenario: >
+      A service mesh (Istio) environment reports that service-to-service
+      calls intermittently fail with "upstream connect error or disconnect/reset
+      before headers." The failures correlate with specific source-destination
+      pod pairs. Pods on the same node communicate fine. The cluster uses
+      Calico for CNI with VXLAN encapsulation. The issue affects only pods
+      on nodes in a specific rack.
+    expected_actions:
+      - Check MTU settings on the affected nodes — VXLAN adds 50 bytes of overhead
+      - Verify the pod network MTU accounts for VXLAN encapsulation (should be host MTU minus 50)
+      - Check the rack switch for MTU configuration — jumbo frames may not be enabled
+      - Test with ping -M do -s to identify the effective path MTU between affected nodes
+      - Compare network configuration between working and failing node pairs
+      - Check for packet drops on the VXLAN interface (ip -s link show vxlan.calico)
+      - Fix the MTU mismatch at the switch or node level
+      - Verify Istio sidecar is not adding additional header overhead that exceeds the path MTU
+    pitfalls:
+      - Blaming Istio for what is a network underlay MTU problem
+      - Changing MTU on pods without also fixing the switch or host MTU
+      - Not testing the full path MTU including VXLAN overhead
+      - Restarting pods or sidecars instead of fixing the network configuration
+    source_path: training/interactive/scenarios/network-partition.yaml
+
+  - id: np-scenario-004
+    topic: networking
+    difficulty: hard
+    scenario: >
+      A Redis Sentinel cluster with 3 sentinels and 1 primary + 2 replicas
+      experiences a network partition. The primary is isolated from the sentinels
+      and replicas. The sentinels elect a new primary from the replicas. The
+      old primary continues accepting writes from clients in the same network
+      partition. When the partition heals, there are two primaries with
+      conflicting data.
+    expected_actions:
+      - Identify the split-brain condition — two nodes both think they are primary
+      - Check Redis Sentinel logs for failover events and timeline
+      - Determine which primary has the most recent and most complete data
+      - Force the old primary to become a replica of the new primary (REPLICAOF command)
+      - Assess data loss — writes to the old primary during the partition will be lost
+      - Recover lost writes from the old primary's RDB/AOF if business-critical
+      - Configure min-replicas-to-write to prevent the old primary from accepting writes when isolated
+      - Set min-replicas-max-lag to ensure the primary detects replica disconnect quickly
+      - Review the client connection configuration — clients should use Sentinel for discovery
+    pitfalls:
+      - Not setting min-replicas-to-write, allowing an isolated primary to accept writes
+      - Forcing the new primary to become replica of the old one (loses the failover writes)
+      - Not recovering writes from the old primary before converting it to a replica
+      - Assuming Redis handles split-brain automatically without configuration
+    source_path: training/interactive/scenarios/network-partition.yaml
+
+  - id: np-scenario-005
+    topic: networking
+    difficulty: easy
+    scenario: >
+      After a firewall rule change, an application cannot reach an external API.
+      The curl command times out. The application worked before the change.
+      The firewall team says they only added a new rule, did not modify existing
+      ones. The firewall has an implicit deny-all policy. The application uses
+      HTTPS on port 443.
+    expected_actions:
+      - Review the firewall rules in order — firewalls evaluate rules top to bottom
+      - Check if the new rule was inserted above the existing allow rule for port 443
+      - Identify if the new rule has a broader match that inadvertently blocks the traffic
+      - Check if the new rule denies traffic to a CIDR that includes the external API's IP
+      - Test with traceroute or mtr to see where the traffic is being dropped
+      - Ask the firewall team for the exact rule they added and its position in the rule list
+      - Fix the rule order or the overly broad deny rule
+      - Verify connectivity after the fix with curl and a full TLS handshake
+    pitfalls:
+      - Assuming the existing rules were not affected because the team said they only added one
+      - Not checking rule ordering — a new deny before an existing allow takes precedence
+      - Only testing with ping (ICMP) which may behave differently than TCP/443
+      - Adding a new allow rule at the bottom instead of fixing the problematic rule
+    source_path: training/interactive/scenarios/network-partition.yaml
+
+  - id: np-scenario-006
+    topic: networking
+    difficulty: medium
+    scenario: >
+      A Consul service mesh reports that services in datacenter dc1 cannot
+      discover services in datacenter dc2. Consul WAN gossip between the
+      datacenters shows "failed to join" errors. The WAN federation was
+      working until a TLS certificate rotation was performed on dc2's
+      Consul servers. dc1 servers still have the old CA certificate.
+    expected_actions:
+      - Check Consul server logs on both datacenters for TLS handshake errors
+      - Verify the CA certificates on dc1 match or trust the new certificates on dc2
+      - Compare the TLS configuration between the two datacenters
+      - Update dc1's CA bundle to include both the old and new CA certificates (trust chain)
+      - Perform a rolling restart of dc1 Consul servers to pick up the new CA bundle
+      - Verify WAN gossip reconnects after the CA update (consul members -wan)
+      - Implement CA certificate rotation procedures that update all datacenters before expiring old CAs
+      - Add monitoring for Consul WAN gossip health and TLS certificate expiration
+    pitfalls:
+      - Rotating certificates on one datacenter without updating trust on all others
+      - Restarting all Consul servers at once instead of a rolling restart (quorum loss)
+      - Replacing the old CA entirely instead of adding the new CA alongside it
+      - Not testing WAN federation after certificate changes
+    source_path: training/interactive/scenarios/network-partition.yaml

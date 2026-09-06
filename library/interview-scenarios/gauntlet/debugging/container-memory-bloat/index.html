@@ -1,0 +1,1554 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Interviewer: 'A Java service in Kubernetes is using 2 GB of memory but the application only needs about 1 GB based on its heap configuration.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/interview-scenarios/gauntlet/debugging/container-memory-bloat/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Interview Gauntlet: Container Using 2x Expected Memory - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Interview Gauntlet: Container Using 2x Expected Memory - GrokDevOps Wiki" />
+<meta property="og:description" content="Interviewer: 'A Java service in Kubernetes is using 2 GB of memory but the application only needs about 1 GB based on its heap configuration." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/interview-scenarios/gauntlet/debugging/container-memory-bloat.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/interview-scenarios/gauntlet/debugging/container-memory-bloat/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Interview Gauntlet: Container Using 2x Expected Memory - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Interviewer: 'A Java service in Kubernetes is using 2 GB of memory but the application only needs about 1 GB based on its heap configuration." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/interview-scenarios/gauntlet/debugging/container-memory-bloat.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#interview-gauntlet-container-using-2x-expected-memory" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Interview Gauntlet: Container Using 2x Expected Memory
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#round-1-the-opening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 1: The Opening
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 1: The Opening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-weak-answers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Weak Answers:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-2-the-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 2: The Probe
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 2: The Probe">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trap-alert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trap Alert:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-3-the-constraint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 3: The Constraint
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 3: The Constraint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-senior-signal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Senior Signal:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-4-the-curveball" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 4: The Curveball
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 4: The Curveball">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trap-question-variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trap Question Variant:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-5-the-synthesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 5: The Synthesis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 5: The Synthesis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-this-sequence-tested" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What This Sequence Tested:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisite-topic-packs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisite Topic Packs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-interview-scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Interview Scenarios
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../../portal/tags/#tag:interview" class="md-tag">interview</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="interview-gauntlet-container-using-2x-expected-memory">Interview Gauntlet: Container Using 2x Expected Memory<a class="headerlink" href="#interview-gauntlet-container-using-2x-expected-memory" title="Permanent link">&para;</a></h1>
+<p><strong>Category:</strong> Debugging
+<strong>Difficulty:</strong> L2-L3
+<strong>Duration:</strong> 15-20 minutes
+<strong>Domains:</strong> JVM, Containers</p>
+<hr />
+<h2 id="round-1-the-opening">Round 1: The Opening<a class="headerlink" href="#round-1-the-opening" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "A Java service in Kubernetes is using 2 GB of memory but the application only needs about 1 GB based on its heap configuration. The container memory limit is 2.5 GB and you're getting OOMKilled intermittently. What's happening?"</p>
+<h3 id="strong-answer">Strong Answer:<a class="headerlink" href="#strong-answer" title="Permanent link">&para;</a></h3>
+<p>"In a JVM container, the total memory footprint is much more than just the heap. The JVM memory model has several regions: the heap (controlled by <code>-Xmx</code>), metaspace (class metadata), thread stacks (each thread gets 1 MB by default in Linux), the code cache (JIT-compiled code), direct byte buffers (NIO allocations), and the garbage collector's own overhead. If <code>-Xmx</code> is set to 1 GB, the total JVM process can easily consume 1.5-2x that. I'd start by enabling Native Memory Tracking: add <code>-XX:NativeMemoryTracking=summary</code> to the JVM flags, then exec into the container and run <code>jcmd &lt;pid&gt; VM.native_memory summary</code>. This breaks down memory by category: heap, metaspace, threads, code cache, GC, internal, symbol, and arena. The most common surprise is thread count — if the application has 500 threads (common with thread-per-request models), that's 500 MB in thread stacks alone. The second most common is direct byte buffers from NIO or Netty, which live off-heap and aren't bounded by <code>-Xmx</code>."</p>
+<h3 id="common-weak-answers">Common Weak Answers:<a class="headerlink" href="#common-weak-answers" title="Permanent link">&para;</a></h3>
+<ul>
+<li>"You have a memory leak — use a profiler." — This assumes the heap is the problem. If <code>-Xmx</code> is 1 GB and heap usage is 800 MB, there's no heap leak. The extra memory is off-heap.</li>
+<li>"Just increase the memory limit." — This masks the problem. If off-heap growth is unbounded, you'll hit the new limit too.</li>
+<li>"Set <code>-Xmx</code> equal to the container limit." — Dangerous. Setting <code>-Xmx</code> to 2.5 GB in a 2.5 GB container guarantees OOMKill because the JVM needs memory beyond the heap.</li>
+</ul>
+<hr />
+<h2 id="round-2-the-probe">Round 2: The Probe<a class="headerlink" href="#round-2-the-probe" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "You run Native Memory Tracking and see: Heap: 1024 MB, Thread Stacks: 512 MB (512 threads), Metaspace: 120 MB, Code Cache: 80 MB, Other: 200 MB. That's 1.9 GB. Where is the 'Other' 200 MB coming from, and how do you reduce the thread stack usage?"</p>
+<blockquote>
+<p><em>What the interviewer is testing:</em> Deep understanding of JVM memory regions and practical experience tuning them.</p>
+</blockquote>
+<h3 id="strong-answer_1">Strong Answer:<a class="headerlink" href="#strong-answer_1" title="Permanent link">&para;</a></h3>
+<p>"The 'Other' 200 MB in NMT includes several categories: direct byte buffers (allocatable via <code>ByteBuffer.allocateDirect()</code> or Netty's pooled allocator), mapped byte buffers (memory-mapped files), JVM internal structures, and native code loaded via JNI. To investigate, I'd check <code>jcmd &lt;pid&gt; VM.native_memory detail</code> which shows individual allocations, and also look at direct buffer usage: <code>jcmd &lt;pid&gt; VM.flags | grep MaxDirectMemorySize</code> — the default is equal to <code>-Xmx</code> if not set, meaning the JVM could allocate another 1 GB of direct buffers. I'd also check with <code>jcmd &lt;pid&gt; GC.class_histogram</code> to look for <code>java.nio.DirectByteBuffer</code> instances. For thread stacks: 512 threads at 1 MB each is 512 MB, which is substantial. I'd reduce this two ways. First, check if 512 threads are actually needed — in a reactive framework (Spring WebFlux, Vert.x), the thread count should be much lower (2 * CPU cores). If this is a servlet-based app using Tomcat with default settings, <code>server.tomcat.threads.max</code> defaults to 200 but can be lower for most workloads. Second, reduce the per-thread stack size with <code>-Xss512k</code> or even <code>-Xss256k</code>. Most Java applications never use more than 256 KB of stack space. This alone would save 256 MB with 512 threads."</p>
+<h3 id="trap-alert">Trap Alert:<a class="headerlink" href="#trap-alert" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>If the candidate bluffs here:</strong> The interviewer will ask "What's the default <code>-Xss</code> value on Linux?" It's 1 MB for 64-bit JVMs (changed from 512 KB in some versions). The exact default varies by JVM vendor and version. It's fine to say "I believe it's 1 MB for the HotSpot 64-bit JVM but I'd verify with <code>java -XX:+PrintFlagsFinal | grep ThreadStackSize</code>." Guessing exact JVM defaults when you're not sure is easily caught by a JVM-savvy interviewer.</p>
+</blockquote>
+<hr />
+<h2 id="round-3-the-constraint">Round 3: The Constraint<a class="headerlink" href="#round-3-the-constraint" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "The team says: 'We can't reduce threads — we need 500 threads for our connection pool and request handling. And we can't switch to a reactive framework — that's a rewrite.' Given these constraints, how do you make this Java service fit in a 2 GB container limit without OOMKills?"</p>
+<h3 id="strong-answer_2">Strong Answer:<a class="headerlink" href="#strong-answer_2" title="Permanent link">&para;</a></h3>
+<p>"If 500 threads are truly necessary and a framework change is off the table, I need to squeeze the JVM memory budget. Here's the math: I need to fit heap + metaspace + thread stacks + code cache + direct buffers + GC overhead into 2 GB, with some headroom. Thread stacks: 500 * 512 KB (using <code>-Xss512k</code>) = 250 MB. This is the first optimization — halving from 1 MB to 512 KB. Metaspace: set <code>-XX:MaxMetaspaceSize=150M</code> to cap it. Code cache: <code>-XX:ReservedCodeCacheSize=64M</code> (default is 240 MB on 64-bit, most apps use far less). Direct memory: <code>-XX:MaxDirectMemorySize=128M</code> to bound NIO allocations. GC: switch to G1GC or ZGC which have different overhead profiles. With G1, GC overhead is roughly 10-15% of heap. So my budget: 250 MB (threads) + 150 MB (metaspace) + 64 MB (code cache) + 128 MB (direct) + say 100 MB (GC + misc) = 692 MB of non-heap. That leaves about 1.2 GB for heap from a 2 GB limit. I'd set <code>-Xmx1100m</code> to leave ~100 MB of headroom. Then I'd set the Kubernetes memory request to 1.8 GB and the limit to 2 GB, giving the OOM killer some margin. The key: every JVM memory region must be explicitly bounded. The JVM's defaults assume it has the whole machine, not a container."</p>
+<h3 id="the-senior-signal">The Senior Signal:<a class="headerlink" href="#the-senior-signal" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><em>What separates a senior answer:</em> The explicit math. Laying out every memory region with its size, adding them up, and deriving the heap size from what's left. Most candidates either handwave "set -Xmx to something smaller" or don't know that metaspace, code cache, and direct memory all need explicit caps. The insight that "the JVM's defaults assume it has the whole machine" is the key architectural understanding.</p>
+</blockquote>
+<hr />
+<h2 id="round-4-the-curveball">Round 4: The Curveball<a class="headerlink" href="#round-4-the-curveball" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "You deploy the tuned JVM settings and memory drops to 1.6 GB. But two weeks later, OOMKills are back. Memory has crept back up to 2 GB. NMT shows heap and all bounded regions are within limits. What's leaking?"</p>
+<h3 id="strong-answer_3">Strong Answer:<a class="headerlink" href="#strong-answer_3" title="Permanent link">&para;</a></h3>
+<p>"If all the explicitly bounded regions are within limits, the growth must be in unbounded native memory. This is memory allocated outside the JVM's managed regions — typically via JNI, native libraries, or the OS-level allocations that the JVM runtime itself makes (like the glibc memory allocator's fragmentation and overhead). I'd check a few things. First, <code>pmap -x &lt;pid&gt;</code> to see the full memory map of the process — this shows every mapped region including native allocations that NMT doesn't track. Second, check for native library leaks: if the application uses JDBC drivers, compression libraries (like zlib, snappy), or SSL/TLS (which uses native OpenSSL or BoringSSL), those allocate native memory outside the JVM's tracking. Third, glibc memory allocator fragmentation: the default glibc <code>malloc</code> creates per-thread arenas, and each arena can hold 64 MB. With 500 threads, the arena overhead alone can be significant. The fix is to set the environment variable <code>MALLOC_ARENA_MAX=2</code> (or 4) in the container, which limits the number of arenas and reduces fragmentation. This is one of the most common causes of unexplained native memory growth in containerized JVMs. Fourth, I'd enable native memory tracking at the detail level and compare snapshots over time: <code>jcmd &lt;pid&gt; VM.native_memory baseline</code> then later <code>jcmd &lt;pid&gt; VM.native_memory summary.diff</code> to see what's growing."</p>
+<h3 id="trap-question-variant">Trap Question Variant:<a class="headerlink" href="#trap-question-variant" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>The right answer is "I'd look at native memory outside JVM tracking."</strong> Candidates who say "it must be a heap leak" aren't listening — the premise states heap is within limits. Candidates who immediately jump to <code>MALLOC_ARENA_MAX</code> without the debugging process are probably reciting a blog post. The strong signal is: methodically ruling out JVM-managed regions, then investigating OS-level allocations, and knowing about <code>pmap</code> and <code>MALLOC_ARENA_MAX</code> as tools for this specific problem.</p>
+</blockquote>
+<hr />
+<h2 id="round-5-the-synthesis">Round 5: The Synthesis<a class="headerlink" href="#round-5-the-synthesis" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "Java in containers is clearly tricky. If you were writing best practices for your team, what are the top 5 JVM-in-container rules?"</p>
+<h3 id="strong-answer_4">Strong Answer:<a class="headerlink" href="#strong-answer_4" title="Permanent link">&para;</a></h3>
+<p>"Rule one: always set <code>-Xmx</code> explicitly and leave at least 25-30% of the container memory limit for non-heap usage. Never use <code>-XX:MaxRAMPercentage=75</code> unless you've verified it works for your workload, because it doesn't account for specific non-heap needs. Rule two: explicitly bound every memory region — metaspace, code cache, direct memory. If the JVM can grow something unboundedly, it will, and the OOM killer doesn't care which region is responsible. Rule three: use <code>-XX:NativeMemoryTracking=summary</code> in all non-production environments and know how to read the output. This should be in every team's debugging playbook. Rule four: set <code>MALLOC_ARENA_MAX=2</code> in the container environment for any JVM with more than a few dozen threads. This prevents glibc allocator fragmentation from silently consuming hundreds of megabytes. Rule five: set Kubernetes memory requests equal to or very close to limits for JVM workloads. JVM memory usage is relatively stable (unlike Node.js or Python where peak usage varies widely), and setting request &lt;&lt; limit leads to overcommit where the node runs out of physical memory and the OOM killer picks a victim semi-randomly. Having request close to limit ensures the scheduler places the pod on a node that can actually support it."</p>
+<h3 id="what-this-sequence-tested">What This Sequence Tested:<a class="headerlink" href="#what-this-sequence-tested" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Round</th>
+<th>Skill Tested</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Understanding JVM memory model beyond heap</td>
+</tr>
+<tr>
+<td>2</td>
+<td>NMT interpretation and specific memory region tuning</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Practical JVM memory budgeting under container constraints</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Native memory debugging and OS-level memory management</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Operational best practices and knowledge codification</td>
+</tr>
+</tbody>
+</table>
+<h2 id="prerequisite-topic-packs">Prerequisite Topic Packs<a class="headerlink" href="#prerequisite-topic-packs" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../../../topics/containers-deep-dive/">Containers Deep Dive</a></li>
+<li><a href="../../../../topics/linux-memory-management/">Linux Memory Management</a></li>
+<li><a href="../../../../topics/oomkilled/">OOMKilled</a></li>
+<li><a href="../../../../topics/k8s-pods-and-scheduling/">Kubernetes Pods and Scheduling</a></li>
+</ul>
+<h2 id="related-interview-scenarios">Related Interview Scenarios<a class="headerlink" href="#related-interview-scenarios" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../../08-pods-oomkilled/">Pods OOMKilled under load</a></li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="August 19, 2026 13:40:59 UTC">August 19, 2026 13:40:59</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 13:58:35 UTC">March 19, 2026 13:58:35</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,23 @@
+### tcpdump showing RST after idle period ###
+
+# Connection established at 08:00:02, last data at 08:15:44, RST at 09:15:44 (exactly 1hr after last data)
+
+08:00:02.112345 IP 10.1.1.50.48832 > 10.2.2.100.5432: Flags [S], seq 1823456789, win 65535
+08:00:02.112890 IP 10.2.2.100.5432 > 10.1.1.50.48832: Flags [S.], seq 987654321, ack 1823456790, win 65535
+08:00:02.113001 IP 10.1.1.50.48832 > 10.2.2.100.5432: Flags [.], ack 1, win 65535
+08:15:44.891234 IP 10.1.1.50.48832 > 10.2.2.100.5432: Flags [P.], seq 1:245, ack 1, win 65535
+08:15:44.923456 IP 10.2.2.100.5432 > 10.1.1.50.48832: Flags [P.], seq 1:1892, ack 245, win 65535
+08:15:44.923789 IP 10.1.1.50.48832 > 10.2.2.100.5432: Flags [.], ack 1892, win 65535
+   ... (connection idle for 1 hour) ...
+09:15:45.001234 IP 10.1.1.50.48832 > 10.2.2.100.5432: Flags [P.], seq 245:490, ack 1892, win 65535
+09:15:45.002100 IP 10.2.2.100.5432 > 10.1.1.50.48832: Flags [R], seq 987656213, win 0
+
+### Firewall conntrack table (queried during idle, before expiry) ###
+
+$ conntrack -L -p tcp --dport 5432
+tcp  6  src=10.1.1.50 dst=10.2.2.100 sport=48832 dport=5432 [ESTABLISHED] timeout=1247
+
+### Firewall conntrack table (after expiry - entry gone) ###
+
+$ conntrack -L -p tcp --dport 5432 --src 10.1.1.50
+conntrack v1.4.5: 0 flow entries have been shown.

@@ -1,0 +1,4 @@
+FROM --platform=linux/s390x python:3.11-slim
+WORKDIR /app
+COPY app.py .
+CMD ["python3", "app.py"]

@@ -1,0 +1,48 @@
+# Interface error counters on rtr-edge-01 GigabitEthernet0/1
+# Collected: 2026-03-02 09:50 UTC
+
+rtr-edge-01# show interface GigabitEthernet0/1
+GigabitEthernet0/1 is up, line protocol is up (connected)
+  Hardware is Gigabit Ethernet, address is 001e.f7a2.b301
+  Description: Uplink to ISP via media converter
+  Internet address is 192.168.100.1/30
+  MTU 1500 bytes, BW 1000000 Kbit/sec, DLY 10 usec,
+     reliability 255/255, txload 1/255, rxload 1/255
+  Encapsulation ARPA, loopback not set
+  Keepalive set (10 sec)
+  Full-duplex, 1000Mb/s, media type is SFP
+  input flow-control is off, output flow-control is off
+  Last input 00:00:00, output 00:00:00, output hang never
+  Last clearing of "show interface" counters 24:00:00
+     Input queue: 0/75/0/0 (size/max/drops/flushes)
+     5 minute input rate 12480000 bits/sec, 1041 packets/sec
+     5 minute output rate 8920000 bits/sec, 892 packets/sec
+     89210432 packets input, 71284201472 bytes, 0 no buffer
+     Received 1204 broadcasts, 0 runts, 0 giants, 0 throttles
+     1248 input errors, 1198 CRC, 50 frame, 0 overrun, 0 ignored
+     0 watchdog, 0 multicast, 0 pause input
+     87104201 packets output, 68210482048 bytes, 0 underruns
+     0 output errors, 0 collisions, 0 interface resets
+     0 unknown protocol drops
+     0 output buffer failures, 0 output buffers swapped out
+
+# KEY FINDINGS:
+# 1,248 input errors in 24 hours (~52/hour)
+# 1,198 CRC errors -- indicates physical layer corruption
+# This is consistent with a bad media converter or SFP
+
+# Error rate calculation:
+# 1,248 errors / 89,210,432 packets = 0.0014% packet loss
+# Sounds small, but with 5-second keepalives:
+#   - Each keepalive is ~1 packet every 5 seconds = 17,280 per day
+#   - Expected corrupted keepalives: ~0.24 per day
+#   - BUT CRC errors are BURSTY (not evenly distributed)
+#   - A burst of 3+ errors in 15 seconds = hold timer expiry
+
+rtr-edge-01# show interface GigabitEthernet0/1 counters errors
+Port            Align-Err  FCS-Err  Xmit-Err  Rcv-Err  UnderSize  OutDiscards
+Gi0/1           0          1198     0         1248     0          0
+
+# First sample at 09:50:00: CRC=1198
+# Second sample at 09:55:00: CRC=1203 (+5 in 5 minutes)
+# Errors are still actively occurring

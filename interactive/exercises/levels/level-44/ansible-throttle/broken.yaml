@@ -1,0 +1,25 @@
+---
+- name: Database migration with controlled concurrency
+  hosts: dbservers
+  become: true
+  tasks:
+    - name: Stop application connections
+      ansible.builtin.service:
+        name: myapp
+        state: stopped
+
+    - name: Run database migration
+      ansible.builtin.shell:
+        cmd: /opt/app/migrate.sh
+      throttle: "one"
+
+    - name: Verify migration
+      ansible.builtin.shell:
+        cmd: /opt/app/verify-migration.sh
+      register: migration_check
+
+    - name: Start application
+      ansible.builtin.service:
+        name: myapp
+        state: started
+      when: migration_check.rc == 0

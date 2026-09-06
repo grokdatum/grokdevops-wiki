@@ -1,0 +1,1563 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Interviewer: 'You get a disk usage alert at 3 AM — the production PostgreSQL database server is at 92% disk utilization.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/interview-scenarios/gauntlet/incident-response/disk-usage-prod-database/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Interview Gauntlet: Disk Usage on Prod Database - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Interview Gauntlet: Disk Usage on Prod Database - GrokDevOps Wiki" />
+<meta property="og:description" content="Interviewer: 'You get a disk usage alert at 3 AM — the production PostgreSQL database server is at 92% disk utilization." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/interview-scenarios/gauntlet/incident-response/disk-usage-prod-database.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/interview-scenarios/gauntlet/incident-response/disk-usage-prod-database/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Interview Gauntlet: Disk Usage on Prod Database - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Interviewer: 'You get a disk usage alert at 3 AM — the production PostgreSQL database server is at 92% disk utilization." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/interview-scenarios/gauntlet/incident-response/disk-usage-prod-database.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#interview-gauntlet-disk-usage-on-prod-database" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Interview Gauntlet: Disk Usage on Prod Database
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#round-1-the-opening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 1: The Opening
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 1: The Opening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-weak-answers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Weak Answers:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-2-the-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 2: The Probe
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 2: The Probe">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trap-alert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trap Alert:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-3-the-constraint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 3: The Constraint
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 3: The Constraint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-senior-signal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Senior Signal:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-4-the-curveball" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 4: The Curveball
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 4: The Curveball">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trap-question-variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trap Question Variant:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-5-the-synthesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 5: The Synthesis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 5: The Synthesis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-this-sequence-tested" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What This Sequence Tested:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisite-topic-packs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisite Topic Packs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-interview-scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Interview Scenarios
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../../portal/tags/#tag:incident_response" class="md-tag">incident_response</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../../../portal/tags/#tag:interview" class="md-tag">interview</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="interview-gauntlet-disk-usage-on-prod-database">Interview Gauntlet: Disk Usage on Prod Database<a class="headerlink" href="#interview-gauntlet-disk-usage-on-prod-database" title="Permanent link">&para;</a></h1>
+<p><strong>Category:</strong> Incident Response
+<strong>Difficulty:</strong> L2-L3
+<strong>Duration:</strong> 15-20 minutes
+<strong>Domains:</strong> Database, Replication</p>
+<hr />
+<h2 id="round-1-the-opening">Round 1: The Opening<a class="headerlink" href="#round-1-the-opening" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "You get a disk usage alert at 3 AM — the production PostgreSQL database server is at 92% disk utilization. It was at 60% yesterday. What do you do?"</p>
+<h3 id="strong-answer">Strong Answer:<a class="headerlink" href="#strong-answer" title="Permanent link">&para;</a></h3>
+<p>"First, I'd check the growth rate to understand urgency. If it jumped from 60% to 92% in 24 hours, I have hours, not days. I'd SSH in and run <code>df -h</code> to confirm which filesystem, then <code>du -sh /var/lib/postgresql/*/</code> to see whether it's the data directory or something else. The most common culprits for sudden disk growth on a PostgreSQL server are: WAL (Write-Ahead Log) files accumulating in <code>pg_wal/</code>, bloated tables from a vacuum not running, temporary files from large queries, or log files if verbose logging is enabled. I'd check <code>du -sh /var/lib/postgresql/14/main/pg_wal/</code> specifically — WAL accumulation is the most common cause of sudden growth because it means either archiving is failing or replication is lagging. Quick mitigation while investigating: if there are old log files or temp files, I can safely remove those. But I would not touch WAL files without understanding why they're accumulating — deleting WAL files can break replication and point-in-time recovery."</p>
+<h3 id="common-weak-answers">Common Weak Answers:<a class="headerlink" href="#common-weak-answers" title="Permanent link">&para;</a></h3>
+<ul>
+<li>"I'd increase the disk size." — This buys time but doesn't address the root cause. If WAL files are growing at 30% per day, a bigger disk just delays the same alert.</li>
+<li>"I'd delete old data from the database." — Extremely risky at 3 AM without understanding what data is expendable. Also, in PostgreSQL, deleting rows doesn't immediately free disk space — you need VACUUM.</li>
+<li>"I'd restart PostgreSQL." — Doesn't free disk space and risks making things worse if the database takes a long time to recover.</li>
+</ul>
+<hr />
+<h2 id="round-2-the-probe">Round 2: The Probe<a class="headerlink" href="#round-2-the-probe" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "You check and it's not the data tables — the <code>pg_wal/</code> directory has grown from 2 GB to 80 GB. What's happening and how do you fix it?"</p>
+<blockquote>
+<p><em>What the interviewer is testing:</em> Understanding of PostgreSQL WAL mechanics — specifically why WAL files accumulate and the implications of various interventions.</p>
+</blockquote>
+<h3 id="strong-answer_1">Strong Answer:<a class="headerlink" href="#strong-answer_1" title="Permanent link">&para;</a></h3>
+<p>"WAL files accumulate when they can't be recycled. PostgreSQL recycles WAL files after they've been both checkpointed and either archived (if archiving is enabled) or consumed by all replication slots. I'd check three things. First, <code>SELECT * FROM pg_stat_archiver;</code> — if <code>last_failed_wal</code> has a recent timestamp, WAL archiving is failing. Maybe the archive destination (S3, a network share) is unreachable or full. Second, <code>SELECT * FROM pg_replication_slots;</code> — if there's a replication slot with a <code>restart_lsn</code> that's far behind <code>pg_current_wal_lsn()</code>, that slot is preventing WAL cleanup. This is the most common cause in my experience. Third, <code>SHOW wal_keep_size;</code> — if this is set very high, PostgreSQL is retaining WAL files even if nothing else requires them. For immediate remediation: if it's a stale replication slot from a decommissioned replica, I'd drop it with <code>SELECT pg_drop_replication_slot('slot_name');</code>. The WAL files will be cleaned up at the next checkpoint. If the slot is for an active replica that's lagging, I need to understand why the replica is behind before dropping it."</p>
+<h3 id="trap-alert">Trap Alert:<a class="headerlink" href="#trap-alert" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>If the candidate bluffs here:</strong> The interviewer will ask "What's the difference between <code>wal_keep_size</code> and <code>min_wal_size</code>?" <code>wal_keep_size</code> (formerly <code>wal_keep_segments</code>) is the minimum amount of WAL retained for streaming replication regardless of checkpoint status. <code>min_wal_size</code> is the minimum total size of the <code>pg_wal</code> directory — PostgreSQL won't recycle below this floor. Mixing these up suggests textbook knowledge without operational experience. It's fine to say "I always have to look up which parameter does what — let me check the docs."</p>
+</blockquote>
+<hr />
+<h2 id="round-3-the-constraint">Round 3: The Constraint<a class="headerlink" href="#round-3-the-constraint" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "It's a replication slot. The replica is 70 GB behind the primary. You check the replica and it's running, but replication throughput is only 5 MB/s when it needs to be 50 MB/s to catch up before the primary runs out of disk. What's bottlenecking the replica?"</p>
+<h3 id="strong-answer_2">Strong Answer:<a class="headerlink" href="#strong-answer_2" title="Permanent link">&para;</a></h3>
+<p>"Replication throughput is constrained by either network, disk I/O on the replica, or the replay (apply) speed. I'd check each. Network: <code>iperf3</code> between primary and replica — if the network link is only 50 Mbps, that's our ceiling. But 5 MB/s is 40 Mbps, which is suspiciously close to a throttled link. I'd check for QoS policies, a saturated network interface, or a firewall doing deep packet inspection. Disk I/O on the replica: <code>iostat -x 1</code> on the replica to check if the disk is at 100% utilization. If the replica is using spinning disks or an EBS volume at its IOPS/throughput limit, the WAL replay speed is capped by write throughput. I'd check <code>aws ec2 describe-volumes</code> if it's EBS — gp2 volumes have a throughput ceiling that depends on volume size. A 100 GB gp2 volume maxes out at ~128 MB/s burst, which should be fine, but the baseline for a small volume is much lower. Replay speed: <code>SELECT * FROM pg_stat_wal_receiver;</code> on the replica shows <code>write_lsn</code> vs <code>flush_lsn</code> vs <code>replay_lsn</code>. If write and flush are keeping up but replay is behind, the bottleneck is applying the WAL — which can happen if the WAL contains heavy index updates that are slow to replay."</p>
+<h3 id="the-senior-signal">The Senior Signal:<a class="headerlink" href="#the-senior-signal" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><em>What separates a senior answer:</em> Distinguishing between the three layers of replication (receive, write, replay) and knowing how to check each independently using <code>pg_stat_wal_receiver</code>. Also: recognizing that EBS volumes have throughput limits that scale with volume size — this is a common "invisible" bottleneck that only becomes apparent under sustained write loads.</p>
+</blockquote>
+<hr />
+<h2 id="round-4-the-curveball">Round 4: The Curveball<a class="headerlink" href="#round-4-the-curveball" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "You discover the network is saturated — but not by replication. A backup job runs at 2 AM every night and consumes 80% of the replica's network bandwidth. The backup was configured by the DBA who left the company 6 months ago. There's no documentation. Do you kill the backup?"</p>
+<h3 id="strong-answer_3">Strong Answer:<a class="headerlink" href="#strong-answer_3" title="Permanent link">&para;</a></h3>
+<p>"I would not kill the backup without understanding what depends on it. But I need to act fast because the primary is filling up. My approach: first, check if the backup can be throttled rather than killed. Tools like <code>pg_basebackup</code> support <code>--max-rate</code> for bandwidth limiting, and <code>rsync</code> can use <code>--bw-limit</code>. If the backup command is running via a cron job, I can see exactly what it's doing from <code>ps aux | grep -i backup</code> or the crontab. If I can throttle it to 20% of bandwidth and give replication the other 80%, both can proceed. If I can't throttle it and the primary is going to run out of disk in the next 2 hours, then yes, I'd kill the backup — but only after confirming that yesterday's backup completed successfully, so we still have a recent backup. I'd check the backup destination for the most recent successful backup and its timestamp. Then I'd document everything I did and why, file a ticket to reschedule the backup window to avoid conflicting with peak replication demand, and — critically — write a runbook for this scenario so the next on-call engineer doesn't have to rediscover this at 3 AM."</p>
+<h3 id="trap-question-variant">Trap Question Variant:<a class="headerlink" href="#trap-question-variant" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>The right answer involves admitting uncertainty.</strong> "I don't know what downstream systems depend on this backup — it could be feeding a data warehouse, a compliance archive, or a disaster recovery process. Killing it might fix the immediate problem but cause a different failure tomorrow morning when someone discovers the backup didn't complete." Candidates who immediately say "just kill it" are showing bias toward action over safety. Candidates who refuse to kill it under any circumstances are showing bias toward inaction. The senior answer weighs the risks and takes a bounded action (throttle first, kill only if needed, document everything).</p>
+</blockquote>
+<hr />
+<h2 id="round-5-the-synthesis">Round 5: The Synthesis<a class="headerlink" href="#round-5-the-synthesis" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "This whole incident chain — WAL growth, replication lag, network contention with backups — was preventable. What monitoring and operational practices would you put in place?"</p>
+<h3 id="strong-answer_4">Strong Answer:<a class="headerlink" href="#strong-answer_4" title="Permanent link">&para;</a></h3>
+<p>"Multiple layers. First, monitoring: alert on WAL directory size (not just total disk), replication lag in both bytes and time, and replication slot age. The replication slot alert is the critical one — a slot that's more than 10 GB behind or 1 hour behind should page. Second, capacity planning: the backup job should have a dedicated network path or at least be scheduled to not conflict with peak replication demand. If the replica is the backup source (which is a good practice), it needs enough network bandwidth for both replication and backup simultaneously — this is a sizing requirement that should be documented. Third, runbooks: every critical cron job needs a documented owner, a description of what it does, where the output goes, and what happens if it fails or is killed. The fact that the DBA left and took all the knowledge with them is an organizational failure. Fourth, guardrails: <code>max_slot_wal_keep_size</code> in PostgreSQL 13+ lets you set a maximum WAL size per slot. If the replica falls too far behind, the slot is invalidated and WAL files are cleaned up, which protects the primary at the cost of requiring a full replica rebuild. Whether to enable this depends on whether you'd rather have the primary run out of disk (total outage) or lose the replica (reduced redundancy). I'd choose to protect the primary."</p>
+<h3 id="what-this-sequence-tested">What This Sequence Tested:<a class="headerlink" href="#what-this-sequence-tested" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Round</th>
+<th>Skill Tested</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Structured triage for disk pressure on a database server</td>
+</tr>
+<tr>
+<td>2</td>
+<td>PostgreSQL WAL mechanics and replication slot management</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Replication performance debugging across network, disk, and replay layers</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Judgment under pressure when operational knowledge is missing</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Preventive monitoring design and operational maturity</td>
+</tr>
+</tbody>
+</table>
+<h2 id="prerequisite-topic-packs">Prerequisite Topic Packs<a class="headerlink" href="#prerequisite-topic-packs" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../../../topics/postgresql/">PostgreSQL</a></li>
+<li><a href="../../../../topics/database-ops/">Database Ops</a></li>
+<li><a href="../../../../topics/disk-and-storage-ops/">Disk and Storage Ops</a></li>
+<li><a href="../../../../topics/backup-restore/">Backup and Restore</a></li>
+<li><a href="../../../../topics/linux-performance/">Linux Performance</a></li>
+</ul>
+<h2 id="related-interview-scenarios">Related Interview Scenarios<a class="headerlink" href="#related-interview-scenarios" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../../17-database-failover-during-deploy/">Database failover during deploy</a></li>
+<li><a href="../../../21-linux-server-slow/">Linux server running slow</a></li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="August 19, 2026 13:40:59 UTC">August 19, 2026 13:40:59</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 13:58:35 UTC">March 19, 2026 13:58:35</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,37 @@
+### Server NIC MTU settings ###
+
+server-a$ ip link show eth0
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000 qdisc mq state UP mode DEFAULT
+    link/ether 00:50:56:ab:11:22 brd ff:ff:ff:ff:ff:ff
+
+server-b$ ip link show eth0
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000 qdisc mq state UP mode DEFAULT
+    link/ether 00:50:56:ab:33:44 brd ff:ff:ff:ff:ff:ff
+
+### Ping tests with jumbo payload (8972 + 28 = 9000) ###
+
+# Test 1: server-a to ToR switch (same rack) -- PASS
+server-a$ ping -s 8972 -M do -c 2 10.1.1.1
+PING 10.1.1.1 (10.1.1.1) 8972(9000) bytes of data.
+8980 bytes from 10.1.1.1: icmp_seq=1 ttl=64 time=0.234 ms
+8980 bytes from 10.1.1.1: icmp_seq=2 ttl=64 time=0.218 ms
+
+# Test 2: server-a to aggregation switch -- FAIL
+server-a$ ping -s 8972 -M do -c 2 10.0.0.1
+PING 10.0.0.1 (10.0.0.1) 8972(9000) bytes of data.
+
+--- 10.0.0.1 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 2014ms
+
+# Test 3: server-a to aggregation switch with standard MTU -- PASS
+server-a$ ping -s 1472 -M do -c 2 10.0.0.1
+PING 10.0.0.1 (10.0.0.1) 1472(1500) bytes of data.
+1480 bytes from 10.0.0.1: icmp_seq=1 ttl=63 time=0.456 ms
+1480 bytes from 10.0.0.1: icmp_seq=2 ttl=63 time=0.423 ms
+
+# Test 4: server-a to server-b (cross-rack, via agg switch) -- FAIL
+server-a$ ping -s 8972 -M do -c 2 10.2.2.100
+PING 10.2.2.100 (10.2.2.100) 8972(9000) bytes of data.
+
+--- 10.2.2.100 ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 2014ms

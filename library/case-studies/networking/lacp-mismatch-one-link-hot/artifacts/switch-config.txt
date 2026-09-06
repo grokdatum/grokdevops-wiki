@@ -1,0 +1,51 @@
+# Switch port-channel configuration (ToR switch sw-rack05)
+# Collected: 2026-02-24 16:45 UTC
+
+sw-rack05# show running-config interface port-channel 12
+interface Port-channel12
+  description db-prod-02 LACP bond
+  switchport mode trunk
+  switchport trunk allowed vlan 100,200,300
+  spanning-tree port type edge trunk
+  no shutdown
+
+sw-rack05# show running-config interface Ethernet1/25
+interface Ethernet1/25
+  description db-prod-02 eth2
+  switchport mode trunk
+  switchport trunk allowed vlan 100,200,300
+  channel-group 12 mode active
+
+sw-rack05# show running-config interface Ethernet1/26
+interface Ethernet1/26
+  description db-prod-02 eth3
+  switchport mode trunk
+  switchport trunk allowed vlan 100,200,300
+  channel-group 12 mode active
+
+sw-rack05# show port-channel load-balance
+Port Channel Load-Balancing Configuration:
+  System: src-mac
+
+# ^^^ ROOT CAUSE: switch uses src-mac hashing
+# Since the server bond presents a single MAC address (0a:1b:2c:3d:4e:50),
+# ALL traffic from any source host destined to the server hashes based on
+# that source's MAC. If the upstream router has one MAC, all traffic goes
+# to one link.
+
+sw-rack05# show port-channel summary | include Po12
+12    Po12(SU)    Eth1/25(P)    Eth1/26(P)
+
+sw-rack05# show interface port-channel 12 counters
+Port           InOctets       InUcastPkts    OutOctets      OutUcastPkts
+Po12           4,136,277,012  3,891,204      5,940,396,160  4,502,881
+
+sw-rack05# show interface Ethernet1/25 counters
+Port           InOctets       InUcastPkts    OutOctets      OutUcastPkts
+Eth1/25        2,104,857,600  1,982,401      5,892,104,320  4,431,209
+
+sw-rack05# show interface Ethernet1/26 counters
+Port           InOctets       InUcastPkts    OutOctets      OutUcastPkts
+Eth1/26        2,031,419,412  1,908,803         48,291,840     71,672
+
+# Eth1/25 OutOctets >> Eth1/26 OutOctets -- confirms imbalance on switch TX

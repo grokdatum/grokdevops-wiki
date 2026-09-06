@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Training Content Graph — grokdevops</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0d1117;
+  color: #c9d1d9;
+  overflow: hidden;
+}
+
+#controls {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: rgba(13, 17, 23, 0.95);
+  border-bottom: 1px solid #30363d;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+#controls h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #58a6ff;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+#search {
+  padding: 6px 10px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #161b22;
+  color: #c9d1d9;
+  font-size: 14px;
+  width: 220px;
+}
+#search:focus { outline: none; border-color: #58a6ff; }
+#search::placeholder { color: #484f58; }
+
+select {
+  padding: 5px 8px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #161b22;
+  color: #c9d1d9;
+  font-size: 13px;
+}
+
+.filter-label {
+  font-size: 12px;
+  color: #8b949e;
+  margin-right: 2px;
+}
+
+#stats {
+  margin-left: auto;
+  font-size: 12px;
+  color: #8b949e;
+  white-space: nowrap;
+}
+
+#tooltip {
+  position: fixed;
+  display: none;
+  background: #1c2128;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 20;
+  max-width: 320px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+#tooltip .tt-title { font-weight: 600; color: #f0f6fc; margin-bottom: 4px; }
+#tooltip .tt-meta { color: #8b949e; font-size: 12px; line-height: 1.5; }
+#tooltip .tt-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  margin-right: 4px;
+}
+
+#legend {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  z-index: 10;
+  background: rgba(13, 17, 23, 0.92);
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+#legend h3 { font-size: 12px; color: #8b949e; margin-bottom: 6px; }
+.legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+svg { display: block; }
+
+.link { stroke-opacity: 0.25; }
+.link.prerequisite { stroke: #58a6ff; }
+.link.shared_topic { stroke: #484f58; stroke-dasharray: 3,3; }
+.link.highlighted { stroke-opacity: 0.8; stroke-width: 2px; }
+
+.node circle { cursor: pointer; stroke: #0d1117; stroke-width: 1.5px; }
+.node circle:hover { stroke: #f0f6fc; stroke-width: 2.5px; }
+.node.dimmed circle { opacity: 0.15; }
+.node.dimmed text { opacity: 0.1; }
+.link.dimmed { stroke-opacity: 0.04; }
+
+.node text {
+  font-size: 9px;
+  fill: #8b949e;
+  pointer-events: none;
+  text-anchor: middle;
+}
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <h1>Training Graph</h1>
+  <input id="search" type="text" placeholder="Search topics...">
+  <span class="filter-label">Type:</span>
+  <select id="filter-type"><option value="">All types</option></select>
+  <span class="filter-label">Level:</span>
+  <select id="filter-level"><option value="">All levels</option></select>
+  <span class="filter-label">Area:</span>
+  <select id="filter-area"><option value="">All areas</option></select>
+  <span id="stats"></span>
+</div>
+
+<div id="tooltip">
+  <div class="tt-title"></div>
+  <div class="tt-meta"></div>
+</div>
+
+<div id="legend">
+  <h3>Node type</h3>
+</div>
+
+<svg id="graph"></svg>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+(function() {
+  "use strict";
+
+  // -- Color scheme by content type --
+  const TYPE_COLORS = {
+    lesson:      "#58a6ff",
+    flashcard:   "#3fb950",
+    drill:       "#d29922",
+    exercise:    "#f78166",
+    scenario:    "#bc8cff",
+    case_study:  "#f692ce",
+    runbook:     "#79c0ff",
+    assessment:  "#ffa657",
+    deep_dive:   "#7ee787",
+    cheat_sheet: "#a5d6ff",
+    lab:         "#ff7b72",
+  };
+
+  const TYPE_LABELS = {
+    lesson:      "Lesson / Topic Pack",
+    flashcard:   "Flashcard Deck",
+    drill:       "Drill",
+    exercise:    "Exercise Set",
+    scenario:    "Scenario",
+    case_study:  "Case Study",
+    runbook:     "Runbook",
+    assessment:  "Assessment",
+    deep_dive:   "Deep Dive",
+    cheat_sheet: "Cheat Sheet",
+    lab:         "Lab",
+  };
+
+  // -- Load data and render --
+  const dataUrl = "graph_data.json";
+
+  d3.json(dataUrl).then(function(data) {
+    if (!data || !data.nodes || !data.edges) {
+      document.getElementById("stats").textContent = "Error loading graph data";
+      return;
+    }
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    const svg = d3.select("#graph")
+      .attr("width", width)
+      .attr("height", height);
+
+    // Zoom container
+    const g = svg.append("g");
+    const zoom = d3.zoom()
+      .scaleExtent([0.1, 8])
+      .on("zoom", (event) => g.attr("transform", event.transform));
+    svg.call(zoom);
+
+    // Node size scale (by link count)
+    const maxLinks = d3.max(data.nodes, d => d.link_count) || 1;
+    const radiusScale = d3.scaleSqrt().domain([0, maxLinks]).range([3, 18]);
+
+    // Build lookup maps
+    const nodeById = new Map(data.nodes.map(d => [d.id, d]));
+
+    // Populate filter dropdowns
+    const types = [...new Set(data.nodes.map(d => d.type))].sort();
+    const levels = [...new Set(data.nodes.map(d => d.level))].sort();
+    const areas = [...new Set(data.nodes.map(d => d.area))].sort();
+
+    populateSelect("#filter-type", types);
+    populateSelect("#filter-level", levels);
+    populateSelect("#filter-area", areas, d => {
+      const n = data.nodes.find(n => n.area === d);
+      return n ? n.area_display : d;
+    });
+
+    // Build legend
+    const legendEl = document.getElementById("legend");
+    const usedTypes = new Set(data.nodes.map(d => d.type));
+    for (const [type, color] of Object.entries(TYPE_COLORS)) {
+      if (!usedTypes.has(type)) continue;
+      const item = document.createElement("div");
+      item.className = "legend-item";
+      item.innerHTML = `<span class="legend-dot" style="background:${color}"></span>${TYPE_LABELS[type] || type}`;
+      legendEl.appendChild(item);
+    }
+
+    // Create simulation
+    const simulation = d3.forceSimulation(data.nodes)
+      .force("link", d3.forceLink(data.edges)
+        .id(d => d.id)
+        .distance(d => d.type === "prerequisite" ? 60 : 100)
+        .strength(d => d.type === "prerequisite" ? 0.3 : 0.05))
+      .force("charge", d3.forceManyBody().strength(-40).distanceMax(300))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius(d => radiusScale(d.link_count) + 2));
+
+    // Draw edges
+    const link = g.append("g")
+      .selectAll("line")
+      .data(data.edges)
+      .join("line")
+      .attr("class", d => "link " + d.type)
+      .attr("stroke-width", d => d.type === "prerequisite" ? 1.2 : 0.6);
+
+    // Draw nodes
+    const node = g.append("g")
+      .selectAll("g")
+      .data(data.nodes)
+      .join("g")
+      .attr("class", "node")
+      .call(d3.drag()
+        .on("start", dragStarted)
+        .on("drag", dragged)
+        .on("end", dragEnded));
+
+    node.append("circle")
+      .attr("r", d => radiusScale(d.link_count))
+      .attr("fill", d => TYPE_COLORS[d.type] || "#888");
+
+    // Labels for high-connection nodes
+    node.filter(d => d.link_count >= 5)
+      .append("text")
+      .attr("dy", d => radiusScale(d.link_count) + 11)
+      .text(d => d.title.length > 22 ? d.title.slice(0, 20) + "..." : d.title);
+
+    // Tooltip
+    const tooltip = document.getElementById("tooltip");
+    const ttTitle = tooltip.querySelector(".tt-title");
+    const ttMeta = tooltip.querySelector(".tt-meta");
+
+    node.on("mouseover", function(event, d) {
+      const color = TYPE_COLORS[d.type] || "#888";
+      ttTitle.textContent = d.title;
+      ttMeta.innerHTML =
+        `<span class="tt-badge" style="background:${color}">${TYPE_LABELS[d.type] || d.type}</span>` +
+        `<span class="tt-badge" style="background:#30363d">${d.level}</span>` +
+        `<span class="tt-badge" style="background:${d.color}">${d.area_display}</span>` +
+        `<br>Links: ${d.link_count}` +
+        (d.topics.length ? `<br>Topics: ${d.topics.slice(0, 5).join(", ")}${d.topics.length > 5 ? "..." : ""}` : "");
+      tooltip.style.display = "block";
+      positionTooltip(event);
+
+      // Highlight connected
+      const connected = new Set();
+      connected.add(d.id);
+      data.edges.forEach(e => {
+        const sid = typeof e.source === "object" ? e.source.id : e.source;
+        const tid = typeof e.target === "object" ? e.target.id : e.target;
+        if (sid === d.id) connected.add(tid);
+        if (tid === d.id) connected.add(sid);
+      });
+
+      node.classed("dimmed", n => !connected.has(n.id));
+      link.classed("dimmed", e => {
+        const sid = typeof e.source === "object" ? e.source.id : e.source;
+        const tid = typeof e.target === "object" ? e.target.id : e.target;
+        return sid !== d.id && tid !== d.id;
+      });
+      link.classed("highlighted", e => {
+        const sid = typeof e.source === "object" ? e.source.id : e.source;
+        const tid = typeof e.target === "object" ? e.target.id : e.target;
+        return sid === d.id || tid === d.id;
+      });
+    })
+    .on("mousemove", function(event) { positionTooltip(event); })
+    .on("mouseout", function() {
+      tooltip.style.display = "none";
+      node.classed("dimmed", false);
+      link.classed("dimmed", false);
+      link.classed("highlighted", false);
+    })
+    .on("click", function(event, d) {
+      if (d.path) {
+        // Navigate relative to repo root (assume served from repo root or adjust)
+        const url = "../../../" + d.path;
+        window.open(url, "_blank");
+      }
+    });
+
+    // Simulation tick
+    simulation.on("tick", () => {
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+      node.attr("transform", d => `translate(${d.x},${d.y})`);
+    });
+
+    // Stats
+    updateStats(data.nodes.length, data.edges.length);
+
+    // -- Filters and search --
+    const searchEl = document.getElementById("search");
+    const filterType = document.getElementById("filter-type");
+    const filterLevel = document.getElementById("filter-level");
+    const filterArea = document.getElementById("filter-area");
+
+    function applyFilters() {
+      const query = searchEl.value.toLowerCase().trim();
+      const typeVal = filterType.value;
+      const levelVal = filterLevel.value;
+      const areaVal = filterArea.value;
+
+      let visibleCount = 0;
+      const visibleIds = new Set();
+
+      node.each(function(d) {
+        let visible = true;
+        if (query && !d.title.toLowerCase().includes(query) &&
+            !d.topics.some(t => t.toLowerCase().includes(query)) &&
+            !d.id.toLowerCase().includes(query)) {
+          visible = false;
+        }
+        if (typeVal && d.type !== typeVal) visible = false;
+        if (levelVal && d.level !== levelVal) visible = false;
+        if (areaVal && d.area !== areaVal) visible = false;
+
+        d._visible = visible;
+        if (visible) {
+          visibleIds.add(d.id);
+          visibleCount++;
+        }
+        d3.select(this).style("display", visible ? null : "none");
+      });
+
+      link.style("display", function(d) {
+        const sid = typeof d.source === "object" ? d.source.id : d.source;
+        const tid = typeof d.target === "object" ? d.target.id : d.target;
+        return visibleIds.has(sid) && visibleIds.has(tid) ? null : "none";
+      });
+
+      const visibleEdges = data.edges.filter(d => {
+        const sid = typeof d.source === "object" ? d.source.id : d.source;
+        const tid = typeof d.target === "object" ? d.target.id : d.target;
+        return visibleIds.has(sid) && visibleIds.has(tid);
+      }).length;
+
+      updateStats(visibleCount, visibleEdges);
+    }
+
+    searchEl.addEventListener("input", applyFilters);
+    filterType.addEventListener("change", applyFilters);
+    filterLevel.addEventListener("change", applyFilters);
+    filterArea.addEventListener("change", applyFilters);
+
+    // Drag handlers
+    function dragStarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+    function dragEnded(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
+
+    // Resize
+    window.addEventListener("resize", () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      svg.attr("width", w).attr("height", h);
+      simulation.force("center", d3.forceCenter(w / 2, h / 2));
+      simulation.alpha(0.1).restart();
+    });
+
+  }).catch(err => {
+    console.error("Failed to load graph data:", err);
+    document.getElementById("stats").textContent = "Error: " + err.message;
+  });
+
+  // -- Helpers --
+  function populateSelect(selector, values, labelFn) {
+    const el = document.querySelector(selector);
+    values.forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = labelFn ? labelFn(v) : v;
+      el.appendChild(opt);
+    });
+  }
+
+  function updateStats(nodeCount, edgeCount) {
+    document.getElementById("stats").textContent =
+      `${nodeCount} nodes, ${edgeCount} edges`;
+  }
+
+  function positionTooltip(event) {
+    const tt = document.getElementById("tooltip");
+    let x = event.clientX + 14;
+    let y = event.clientY + 14;
+    if (x + 320 > window.innerWidth) x = event.clientX - 324;
+    if (y + 200 > window.innerHeight) y = event.clientY - 200;
+    tt.style.left = x + "px";
+    tt.style.top = y + "px";
+  }
+
+})();
+</script>
+</body>
+</html>

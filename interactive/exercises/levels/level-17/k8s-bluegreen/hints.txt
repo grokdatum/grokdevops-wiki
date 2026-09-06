@@ -1,0 +1,74 @@
+## Objective
+Update the service selector to route traffic to the new blue-green deployment
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the deployments:
+`kubectl get deployments -n k8squest`
+
+You should see app-blue and app-green, both with 3/3 replicas.
+
+Check the service:
+`kubectl get service app-service -n k8squest -o yaml | grep -A 5 selector`
+
+Which version is it pointing to?
+
+Check the endpoints:
+`kubectl get endpoints app-service -n k8squest`
+
+Try to access the service and see which version responds:
+`kubectl run -it --rm test --image=busybox --restart=Never -n k8squest -- wget -q -O- app-service`
+
+## Hint 2
+🧭 Direction Hint:
+
+You have two deployments running:
+- app-blue (old version)
+- app-green (new version)
+
+The service selector is:
+```yaml
+selector:
+  app: myapp
+  version: blue  # Problem!
+```
+
+This means the service only routes traffic to pods with BOTH labels:
+- app=myapp ✅
+- version=blue ✅ (matches app-blue pods)
+
+The app-green pods have version=green, so they don't match!
+
+Users are still seeing the OLD (blue) version.
+
+## Hint 3
+💡 Near-Solution Hint:
+
+In blue-green deployments, you switch traffic by updating the service selector.
+
+Steps:
+1. Edit the service:
+   `kubectl edit service app-service -n k8squest`
+
+2. Change the selector from blue to green:
+
+```yaml
+spec:
+  selector:
+    app: myapp
+    version: green  # Changed from blue to green
+```
+
+3. Save and exit.
+
+4. Verify traffic is now going to green:
+   `kubectl get endpoints app-service -n k8squest`
+
+You should see 3 IPs from the green deployment now!
+
+5. Test:
+   `kubectl run -it --rm test --image=busybox --restart=Never -n k8squest -- wget -q -O- app-service`
+
+Should show "Version GREEN (NEW)"!
+

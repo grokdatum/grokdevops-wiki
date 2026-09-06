@@ -1,0 +1,1746 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="On 2025-05-08 at 10:23 UTC, a Kubernetes Ingress resource with a wildcard host: '*' field was deployed to the staging cluster by a Platform Engineering.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/near-miss/wildcard-ingress-admin-exposure/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Postmortem: Wildcard Ingress Rule Nearly Exposes Internal Admin Panel - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Postmortem: Wildcard Ingress Rule Nearly Exposes Internal Admin Panel - GrokDevOps Wiki" />
+<meta property="og:description" content="On 2025-05-08 at 10:23 UTC, a Kubernetes Ingress resource with a wildcard host: '*' field was deployed to the staging cluster by a Platform Engineering." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/near-miss/wildcard-ingress-admin-exposure.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/near-miss/wildcard-ingress-admin-exposure/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Postmortem: Wildcard Ingress Rule Nearly Exposes Internal Admin Panel - GrokDevOps Wiki" />
+<meta property="twitter:description" content="On 2025-05-08 at 10:23 UTC, a Kubernetes Ingress resource with a wildcard host: '*' field was deployed to the staging cluster by a Platform Engineering." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/near-miss/wildcard-ingress-admin-exposure.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#postmortem-wildcard-ingress-rule-nearly-exposes-internal-admin-panel" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Postmortem: Wildcard Ingress Rule Nearly Exposes Internal Admin Panel
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-all-times-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline (All times UTC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Impact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customer-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customer Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-would-have-happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Would Have Happened
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root Cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happened-technical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happened (Technical)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contributing Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-we-got-lucky-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What We Got Lucky About
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-we-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How We Detected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-this-almost-wasnt-caught" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why This Almost Wasn't Caught
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-went-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Well
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-could-have-gone-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Could Have Gone Better
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lessons-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lessons Learned
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../portal/tags/#tag:postmortem" class="md-tag">postmortem</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="postmortem-wildcard-ingress-rule-nearly-exposes-internal-admin-panel">Postmortem: Wildcard Ingress Rule Nearly Exposes Internal Admin Panel<a class="headerlink" href="#postmortem-wildcard-ingress-rule-nearly-exposes-internal-admin-panel" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ID</strong></td>
+<td>PM-027</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2025-05-08</td>
+</tr>
+<tr>
+<td><strong>Severity</strong></td>
+<td>Near-Miss</td>
+</tr>
+<tr>
+<td><strong>Duration</strong></td>
+<td>0m (no customer impact)</td>
+</tr>
+<tr>
+<td><strong>Time to Detect</strong></td>
+<td>94m</td>
+</tr>
+<tr>
+<td><strong>Time to Mitigate</strong></td>
+<td>22m</td>
+</tr>
+<tr>
+<td><strong>Customer Impact</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Revenue Impact</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Teams Involved</strong></td>
+<td>Platform Engineering, QA, Security, Backend Engineering</td>
+</tr>
+<tr>
+<td><strong>Postmortem Author</strong></td>
+<td>Theodora Blum</td>
+</tr>
+<tr>
+<td><strong>Postmortem Date</strong></td>
+<td>2025-05-12</td>
+</tr>
+</tbody>
+</table>
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>On 2025-05-08 at 10:23 UTC, a Kubernetes Ingress resource with a wildcard <code>host: "*"</code> field was deployed to the staging cluster by a Platform Engineering engineer. The wildcard host matched all HTTP requests that did not match a more specific ingress rule, routing them to the internal admin panel service — a service that relies entirely on ingress-layer hostname restriction for access control and has no independent authentication. The misconfiguration was in staging only and was caught 94 minutes after deployment when QA engineer Fatima Osei accidentally navigated to the admin panel while mistyping a staging URL. The ingress was corrected and redeployed in 22 minutes. If the change had been promoted to production in the next scheduled release (T-minus 6 hours), the internal admin panel would have been reachable from any hostname with no authentication required.</p>
+<h2 id="timeline-all-times-utc">Timeline (All times UTC)<a class="headerlink" href="#timeline-all-times-utc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>09:45</td>
+<td>Platform Engineering engineer Callum Reed deploys new ingress resource <code>ingress-frontend-v2</code> to staging namespace via <code>kubectl apply</code>; intends to add a hostname for a new marketing subdomain</td>
+</tr>
+<tr>
+<td>09:47</td>
+<td>Callum verifies the new subdomain routes correctly; does not test other routes or review ingress precedence</td>
+</tr>
+<tr>
+<td>10:07</td>
+<td>Staging smoke test suite runs; passes all checks (smoke tests only verify the happy path for each named service, not catch-all behavior)</td>
+</tr>
+<tr>
+<td>10:23</td>
+<td>QA engineer Fatima Osei is testing a checkout flow on <code>checkout-stg.cardinal-systems.io</code>; mistypes URL as <code>checkout-stg.cardinal-systems.io/adm1n</code></td>
+</tr>
+<tr>
+<td>10:24</td>
+<td>Fatima receives the internal admin panel login-bypass page (no login prompt — the admin UI renders directly; it assumes all traffic has been pre-authenticated at the ingress layer)</td>
+</tr>
+<tr>
+<td>10:26</td>
+<td>Fatima screenshots the page, opens Slack thread in <code>#qa-bugs</code>: "Why am I seeing the admin panel at a URL I just made up?"</td>
+</tr>
+<tr>
+<td>10:29</td>
+<td>Platform Engineering on-call (Yuki Hashimoto) joins the thread; immediately recognizes the ingress catch-all risk</td>
+</tr>
+<tr>
+<td>10:31</td>
+<td>Yuki runs <code>kubectl get ingress -n staging</code> and identifies <code>ingress-frontend-v2</code> with <code>host: "*"</code></td>
+</tr>
+<tr>
+<td>10:33</td>
+<td>Yuki notifies <code>#sec-incidents</code>; Security lead Theodora Blum joins</td>
+</tr>
+<tr>
+<td>10:39</td>
+<td>Callum fixes the ingress spec: replaces <code>host: "*"</code> with <code>host: "marketing-stg.cardinal-systems.io"</code></td>
+</tr>
+<tr>
+<td>10:51</td>
+<td>Corrected ingress applied; Yuki and Fatima confirm admin panel is no longer reachable via arbitrary hostnames</td>
+</tr>
+<tr>
+<td>11:10</td>
+<td>Security confirms no external traffic reached the admin panel during the 94-minute window by reviewing staging load balancer access logs</td>
+</tr>
+<tr>
+<td>11:30</td>
+<td>Production release (T-6h) held pending completion of this postmortem and addition of ingress validation to CI pipeline</td>
+</tr>
+<tr>
+<td>17:00</td>
+<td>Release proceeds after PM-027-01 validation gate is merged to CI</td>
+</tr>
+</tbody>
+</table>
+<h2 id="impact">Impact<a class="headerlink" href="#impact" title="Permanent link">&para;</a></h2>
+<h3 id="customer-impact">Customer Impact<a class="headerlink" href="#customer-impact" title="Permanent link">&para;</a></h3>
+<p>None — the misconfiguration was in the staging cluster only and was caught before any production promotion.</p>
+<h3 id="internal-impact">Internal Impact<a class="headerlink" href="#internal-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Callum Reed (Platform Engineering): ~1 hour (fix, testing, postmortem participation)</li>
+<li>Yuki Hashimoto (on-call): ~1.5 hours (investigation, coordination)</li>
+<li>Fatima Osei (QA): ~30 minutes (reporting, verification)</li>
+<li>Theodora Blum (Security): ~2 hours (access log audit, postmortem authorship)</li>
+<li>Production release delayed by approximately 5.5 hours</li>
+<li>Total: approximately 5 engineering-hours</li>
+</ul>
+<h3 id="data-impact">Data Impact<a class="headerlink" href="#data-impact" title="Permanent link">&para;</a></h3>
+<p>None. Access logs confirm no external requests reached the admin panel during the window. The staging load balancer receives only internal QA and engineering traffic.</p>
+<h2 id="what-would-have-happened">What Would Have Happened<a class="headerlink" href="#what-would-have-happened" title="Permanent link">&para;</a></h2>
+<p>If the wildcard ingress had been promoted to the production cluster in the 17:00 UTC release as originally scheduled, the <code>ingress-admin-internal</code> service would have been reachable via any hostname that did not match a more specific ingress rule. In practice, this means any HTTP request to the production load balancer IP with an arbitrary or misspelled <code>Host:</code> header would have been routed to the admin panel — a surface trivially discoverable by subdomain enumeration tools or even accidental user navigation.</p>
+<p>The admin panel (<code>admin.internal.cardinal-systems.io</code>, internal-only in normal operation) provides unrestricted access to: user account management (create, delete, role assignment); feature flag controls affecting all 340,000 active users; database admin UI (read access to all tables via pgAdmin-style interface); and internal API key management. Critically, the admin panel was built with the assumption that all traffic reaching it had already been authenticated at the ingress layer. There is no secondary login prompt, no CSRF protection, and no rate limiting. An attacker reaching the panel from the internet would have had full administrative capability without any credentials.</p>
+<p>Cardinal Systems processes payment card data under PCI DSS scope. Unauthorized access to the database admin UI — which includes raw access to the <code>orders</code> and <code>payment_methods</code> tables — would have constituted a reportable PCI DSS breach. The likely attacker scenario is automated: subdomain permutation scanners regularly probe load balancer IPs with wordlist-based <code>Host:</code> headers. Cardinal Systems' production load balancer is indexed in Shodan; exposure would likely have been discovered within hours of the production release.</p>
+<h2 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<h3 id="what-happened-technical">What Happened (Technical)<a class="headerlink" href="#what-happened-technical" title="Permanent link">&para;</a></h3>
+<p>Callum was adding an ingress rule for a new marketing subdomain (<code>marketing-stg.cardinal-systems.io</code>). He created a new <code>Ingress</code> resource rather than patching the existing one, working from a template that used <code>host: "*"</code> as a placeholder. He replaced the placeholder in the <code>rules[0].host</code> field but the template also had a second rule block — a catch-all — that he did not remove. The resulting manifest had:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">rules</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="s">"marketing-stg.cardinal-systems.io"</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">http</span><span class="p">:</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="nt">paths</span><span class="p">:</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">          </span><span class="nt">backend</span><span class="p">:</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">            </span><span class="nt">service</span><span class="p">:</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">frontend-marketing</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="s">"*"</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="nt">http</span><span class="p">:</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">      </span><span class="nt">paths</span><span class="p">:</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">          </span><span class="nt">backend</span><span class="p">:</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">            </span><span class="nt">service</span><span class="p">:</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">              </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">admin-internal</span>
+</code></pre></div>
+<p>The second rule was inherited verbatim from the template, which had used it as an example of catch-all routing. In nginx-ingress, a <code>host: "*"</code> rule is functionally equivalent to no host restriction — it matches any <code>Host:</code> header value not claimed by a more specific rule. Because <code>admin-internal</code> happened to be the backend in the template's example catch-all, it became the unintended backend for all unmatched traffic.</p>
+<p>Kubernetes does not reject or warn on wildcard host ingress rules at admission time (with default configuration). The <code>kubectl apply</code> succeeded cleanly. The ingress controller accepted and activated the rule within seconds.</p>
+<h3 id="contributing-factors">Contributing Factors<a class="headerlink" href="#contributing-factors" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Catch-all rule present in the ingress template:</strong> The template used for new ingress resources contained a <code>host: "*"</code> example rule as documentation scaffolding. Templates with executable but dangerous placeholder content are hazardous — engineers working under time pressure frequently apply them with incomplete edits.</li>
+<li><strong>Admin panel relies solely on ingress hostname restriction for auth:</strong> The admin service had no independent authentication layer. This is a single point of failure: any misconfiguration at the ingress level translates directly to unauthenticated admin access. Defense-in-depth requires the admin panel to enforce its own authn regardless of where traffic originates.</li>
+<li><strong>CI/CD pipeline lacked ingress manifest validation:</strong> No admission webhook or CI linting step checked for wildcard host values in ingress resources. The smoke test suite validated service-specific routes but did not test for unintended catch-all behavior.</li>
+</ol>
+<h3 id="what-we-got-lucky-about">What We Got Lucky About<a class="headerlink" href="#what-we-got-lucky-about" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Fatima mistyped a URL.</strong> The discovery was entirely accidental. Fatima was not performing any security testing; she hit the admin panel because of a typo in her browser's address bar. If she had not made that specific typo — landing on a path the admin panel's router happened to render rather than returning a 404 — the misconfiguration would have gone undetected until the production promotion 6 hours later.</li>
+<li><strong>The window was during business hours with low external traffic to staging.</strong> The staging load balancer is not publicly advertised and receives traffic only from the QA and engineering networks during business hours. If the wildcard ingress had persisted overnight or been deployed to production first, the exposure window under realistic external traffic would have been far longer before anyone noticed.</li>
+</ol>
+<h2 id="detection">Detection<a class="headerlink" href="#detection" title="Permanent link">&para;</a></h2>
+<h3 id="how-we-detected">How We Detected<a class="headerlink" href="#how-we-detected" title="Permanent link">&para;</a></h3>
+<p>Accidental discovery by QA engineer Fatima Osei during routine testing. Fatima mistyped a staging URL, received an unexpected admin panel response, and recognized the anomaly as worth escalating.</p>
+<h3 id="why-this-almost-wasnt-caught">Why This Almost Wasn't Caught<a class="headerlink" href="#why-this-almost-wasnt-caught" title="Permanent link">&para;</a></h3>
+<p>No automated check validates ingress manifests for wildcard host rules before or after deployment. The CI smoke test suite tests that each named service is reachable at its expected hostname — it does not test that unexpected hostnames do not reach sensitive backends. Kubernetes admission control in the staging cluster has no OPA/Kyverno policy to reject or flag <code>host: "*"</code> in ingress specs. Without Fatima's accidental discovery, the change would have passed all automated gates and been promoted to production.</p>
+<h2 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h2>
+<h3 id="what-went-well">What Went Well<a class="headerlink" href="#what-went-well" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Once reported in Slack, the on-call engineer identified the root cause (wildcard ingress rule) within 5 minutes by running a single <code>kubectl get ingress</code> command — fast and effective.</li>
+<li>The production release was correctly held pending resolution rather than proceeding on schedule. The 5.5-hour delay was the right trade-off given the severity of what was narrowly avoided.</li>
+</ol>
+<h3 id="what-could-have-gone-better">What Could Have Gone Better<a class="headerlink" href="#what-could-have-gone-better" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Callum did not review the full rendered manifest before applying. A <code>kubectl diff</code> or dry-run against the cluster would have highlighted the second rule block. This is a habitual gap, not a one-time mistake.</li>
+<li>The team had no ingress-specific validation in CI. The gap was known (a backlog item existed) but had not been prioritized. This near-miss is the forcing function it needed.</li>
+</ol>
+<h2 id="action-items">Action Items<a class="headerlink" href="#action-items" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Action</th>
+<th>Priority</th>
+<th>Owner</th>
+<th>Status</th>
+<th>Due Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PM027-01</td>
+<td>Add OPA/Kyverno admission policy to staging and production clusters rejecting ingress resources with <code>host: "*"</code></td>
+<td>P0</td>
+<td>Platform Engineering</td>
+<td>Completed</td>
+<td>2025-05-08</td>
+</tr>
+<tr>
+<td>PM027-02</td>
+<td>Add independent authentication (OAuth2 proxy or mTLS) to the admin panel service; remove reliance on ingress hostname restriction as sole auth layer</td>
+<td>P0</td>
+<td>Backend Engineering</td>
+<td>In Progress</td>
+<td>2025-05-30</td>
+</tr>
+<tr>
+<td>PM027-03</td>
+<td>Remove catch-all <code>host: "*"</code> rule from all ingress templates; replace with commented documentation note explaining the pattern and why it is dangerous</td>
+<td>P1</td>
+<td>Callum Reed</td>
+<td>Completed</td>
+<td>2025-05-09</td>
+</tr>
+<tr>
+<td>PM027-04</td>
+<td>Add CI linting step (conftest or kubeval + custom rule) that fails the pipeline if any staged ingress manifest contains <code>host: "*"</code></td>
+<td>P1</td>
+<td>Platform Engineering</td>
+<td>In Progress</td>
+<td>2025-05-16</td>
+</tr>
+<tr>
+<td>PM027-05</td>
+<td>Extend smoke test suite to assert that a curated list of sensitive service backends (admin, internal API, database proxy) are NOT reachable via arbitrary host headers</td>
+<td>P2</td>
+<td>QA</td>
+<td>Open</td>
+<td>2025-05-23</td>
+</tr>
+</tbody>
+</table>
+<h2 id="lessons-learned">Lessons Learned<a class="headerlink" href="#lessons-learned" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>A single authentication layer is not defense-in-depth.</strong> When the admin panel's only access control is "the ingress will filter out bad traffic," any ingress misconfiguration becomes a full authentication bypass. Sensitive services must enforce their own authn independent of the network layer that delivers traffic to them.</li>
+<li><strong>Templates with runnable placeholder content are accidents waiting to happen.</strong> A template that contains <code>host: "*"</code> as an example will eventually be applied before the engineer removes it. Templates should use values that fail loudly (e.g., <code>host: "REPLACE_ME.example.com"</code>) rather than values that silently do something dangerous.</li>
+<li><strong>Negative-path testing is as important as positive-path testing.</strong> The smoke suite verified that correct routes work. It did not verify that incorrect routes fail. For security-sensitive services, explicitly testing that they are unreachable from unexpected paths is a necessary part of the test plan.</li>
+</ol>
+<h2 id="cross-references">Cross-References<a class="headerlink" href="#cross-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Failure Pattern:</strong> Misconfigured Network Policy / Catch-All Route Exposure</li>
+<li><strong>Topic Packs:</strong> Kubernetes Ingress, Admission Control, Zero-Trust Network Architecture, Defense in Depth</li>
+<li><strong>Runbook:</strong> K8S-RB-014 — Ingress Misconfiguration Response; SEC-RB-011 — Unintended Service Exposure</li>
+<li><strong>Decision Tree:</strong> Security Triage → Unintended Service Exposure → Is it in prod? → No → Patch ingress, audit access logs, evaluate prod promotion gate</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="April 8, 2026 23:43:45 UTC">April 8, 2026 23:43:45</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 23:53:02 UTC">March 19, 2026 23:53:02</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,42 @@
+# conntrack table statistics from nat-gw-01
+# Collected: 2026-03-01 11:30 UTC (during peak business hours)
+
+$ sysctl net.netfilter.nf_conntrack_count
+net.netfilter.nf_conntrack_count = 65536
+
+$ sysctl net.netfilter.nf_conntrack_max
+net.netfilter.nf_conntrack_max = 65536
+
+# TABLE IS 100% FULL
+
+$ conntrack -S
+cpu=0           found=892104 invalid=4521 ignore=12041 insert=0 insert_failed=48291 drop=48291 early_drop=0 error=0 search_restart=120
+cpu=1           found=881203 invalid=4102 ignore=11892 insert=0 insert_failed=47103 drop=47103 early_drop=0 error=0 search_restart=108
+
+# insert_failed=48291+47103 = 95,394 FAILED inserts (dropped connections!)
+
+$ conntrack -L | awk -F'src=' '{print $2}' | awk '{print $1}' | sort | uniq -c | sort -rn | head -10
+   8412 10.200.12.50
+   4201 10.200.8.33
+   3891 10.200.15.101
+   2104 10.200.3.22
+   1892 10.200.7.45
+   1503 10.200.11.8
+   1201 10.200.9.91
+    892 10.200.4.10
+    701 10.200.6.55
+    612 10.200.1.30
+
+# Top talker: 10.200.12.50 with 8,412 entries (likely a crawler or monitoring tool)
+
+$ conntrack -L | grep 'TIME_WAIT' | wc -l
+18204
+
+$ conntrack -L | grep 'ESTABLISHED' | wc -l
+41832
+
+$ conntrack -L | grep 'CLOSE_WAIT' | wc -l
+3291
+
+# Many entries are in TIME_WAIT (18K) and CLOSE_WAIT (3K) -- these are
+# finished connections lingering due to long default timeouts

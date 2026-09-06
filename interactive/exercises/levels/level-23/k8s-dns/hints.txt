@@ -1,0 +1,55 @@
+## Objective
+Fix DNS configuration so pods can resolve service names
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the client pod logs: `kubectl logs app-client -n k8squest`
+
+You'll see "Connection failed" repeating. The pod is trying to connect to hostname "database".
+
+But what's the actual SERVICE name? `kubectl get svc -n k8squest`
+
+The service is named "database-service", not "database"!
+
+## Hint 2
+🧭 Direction Hint:
+
+Kubernetes DNS creates records for services in format:
+`<service-name>.<namespace>.svc.cluster.local`
+
+Within same namespace, you can use short name: `<service-name>`
+
+The client is using "database" but service is "database-service".
+
+You need to fix the client pod to use the correct service name!
+
+## Hint 3
+✅ Solution Hint:
+
+Fix the client pod to use correct service name:
+
+```bash
+kubectl delete pod app-client -n k8squest
+kubectl apply -f solution.yaml -n k8squest
+```
+
+Or edit broken.yaml and change:
+```yaml
+args:
+- |
+  pg_isready -h database -p 5432  # Wrong
+```
+
+To:
+```yaml
+args:
+- |
+  pg_isready -h database-service -p 5432  # Correct!
+```
+
+Then recreate the pod. Check logs to verify connection success:
+```bash
+kubectl logs app-client -n k8squest
+```
+

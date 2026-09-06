@@ -1,0 +1,39 @@
+# LLDP output on srv-prod-55
+
+$ lldpctl eno1
+-------------------------------------------------------------------------------
+LLDP neighbors:
+-------------------------------------------------------------------------------
+Interface:    eno1, via: LLDP
+  Chassis:
+    ChassisID:    mac 00:be:75:3a:11:00
+    SysName:      sw-tor-c12
+    SysDescr:     Cisco NX-OS(tm) nxos.10.3.4a.bin, Nexus 9300
+    MgmtIP:       10.254.12.1
+  Port:
+    PortID:       local Eth1/9                    <-- WRONG: should be Eth1/33
+    PortDescr:    Ethernet1/9
+    PVID:         50                               <-- VLAN 50 (development)
+    VLAN:         50, pvid: yes
+
+# Expected LLDP (from cabling plan):
+#   Port: Eth1/33
+#   VLAN: 320 (production)
+
+# IP address on the server
+
+$ ip addr show eno1
+2: eno1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether 3c:fd:fe:b2:44:60 brd ff:ff:ff:ff:ff:ff
+    inet 172.16.50.112/24 brd 172.16.50.255 scope global dynamic noprefixroute eno1
+       valid_lft 3412sec preferred_lft 3412sec
+
+# Expected IP: 10.30.20.55/24 (production VLAN 320)
+# Actual IP:   172.16.50.112/24 (development VLAN 50)
+
+$ ip route
+default via 172.16.50.1 dev eno1 proto dhcp metric 100
+172.16.50.0/24 dev eno1 proto kernel scope link src 172.16.50.112 metric 100
+
+$ ping -c 3 10.30.20.1
+connect: Network is unreachable

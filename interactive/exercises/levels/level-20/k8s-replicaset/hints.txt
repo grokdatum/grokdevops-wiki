@@ -1,0 +1,92 @@
+## Objective
+Convert the standalone ReplicaSet to a Deployment for better management
+
+## Hint 1
+🔍 Observation Hint:
+
+Check what resources exist:
+`kubectl get deployments,replicasets -n k8squest`
+
+Do you see a standalone ReplicaSet (web-app-rs) without a Deployment?
+
+Try to update the image:
+`kubectl set image replicaset/web-app-rs web=hashicorp/http-echo:latest -n k8squest`
+
+Check the pods:
+`kubectl get pods -n k8squest -l app=webapp`
+
+Did the update work? Spoiler: It updated the ReplicaSet spec, but the EXISTING pods didn't change!
+
+ReplicaSets don't do rolling updates - you'd have to manually delete pods or create a new ReplicaSet.
+
+## Hint 2
+🧭 Direction Hint:
+
+The problem: You have a standalone ReplicaSet.
+
+ReplicaSets are a LOW-LEVEL resource that:
+- Ensures desired number of pods are running
+- Replaces crashed pods
+- But does NOT handle updates gracefully
+
+Deployments are a HIGH-LEVEL resource that:
+- Creates and manages ReplicaSets for you
+- Handles rolling updates automatically
+- Provides rollback capability
+- Tracks rollout history
+
+Think of it like:
+- ReplicaSet = "Keep 3 pods running" (simple)
+- Deployment = "Manage versions, updates, rollbacks" (smart)
+
+You should almost NEVER create ReplicaSets directly. Always use Deployments!
+
+## Hint 3
+💡 Near-Solution Hint:
+
+Convert the ReplicaSet to a Deployment.
+
+Steps:
+1. Delete the standalone ReplicaSet:
+   `kubectl delete replicaset web-app-rs -n k8squest`
+
+2. Create a Deployment instead:
+   `kubectl create deployment web-app --image=hashicorp/http-echo:latest -n k8squest --replicas=3 -- -text="Version 2.0" -listen=:8080`
+
+3. OR use a YAML file:
+   ```bash
+   kubectl apply -f - <<EOF
+   apiVersion: apps/v1
+   kind: Deployment
+   metadata:
+     name: web-app
+     namespace: k8squest
+   spec:
+     replicas: 3
+     selector:
+       matchLabels:
+         app: webapp
+     template:
+       metadata:
+         labels:
+           app: webapp
+       spec:
+         containers:
+         - name: web
+           image: hashicorp/http-echo:latest
+           args: ["-text=Version 2.0", "-listen=:8080"]
+           ports:
+           - containerPort: 8080
+   EOF
+   ```
+
+4. Verify:
+   `kubectl get deployments,replicasets,pods -n k8squest`
+
+You should see:
+- 1 Deployment
+- 1 ReplicaSet (created BY the deployment)
+- 3 Pods
+
+The Deployment automatically created and manages the ReplicaSet!
+

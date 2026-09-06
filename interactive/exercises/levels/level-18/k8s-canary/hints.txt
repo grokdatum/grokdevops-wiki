@@ -1,0 +1,67 @@
+## Objective
+Fix the replica counts to achieve proper 90/10 traffic split for canary testing
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the deployments:
+`kubectl get deployments -n k8squest`
+
+Look at the READY column. How many stable pods? How many canary pods?
+
+Check the service endpoints:
+`kubectl get endpoints app-service -n k8squest`
+
+Count the IPs - this shows ALL pods receiving traffic (both stable and canary).
+
+Test the traffic distribution:
+`for i in {1..20}; do kubectl run -it --rm test-$i --image=busybox --restart=Never -n k8squest -- wget -q -O- app-service; done`
+
+Count how many times you see "Stable" vs "Canary". Is it close to 50/50? That's wrong for a canary!
+
+## Hint 2
+🧭 Direction Hint:
+
+In canary deployments, you typically want:
+- 90% traffic → Stable version
+- 10% traffic → Canary version (new version being tested)
+
+Currently, you have:
+- app-stable: 5 replicas
+- app-canary: 5 replicas
+- Total: 10 pods
+
+This gives 50/50 split (5/10 = 50%)!
+
+For 10% canary with round numbers:
+- Need 9 stable : 1 canary (9/10 = 90%, 1/10 = 10%)
+- OR 18 stable : 2 canary
+- OR 90 stable : 10 canary
+
+The problem: Too many canary replicas!
+
+## Hint 3
+💡 Near-Solution Hint:
+
+Fix the replica counts to achieve 90/10 split.
+
+Steps:
+1. Scale stable to 9 replicas:
+   `kubectl scale deployment app-stable --replicas=9 -n k8squest`
+
+2. Scale canary to 1 replica:
+   `kubectl scale deployment app-canary --replicas=1 -n k8squest`
+
+3. Wait for pods to be ready:
+   `kubectl get deployments -n k8squest -w`
+
+4. Verify the split:
+   ```bash
+   STABLE=$(kubectl get deployment app-stable -n k8squest -o jsonpath='{.status.readyReplicas}')
+   CANARY=$(kubectl get deployment app-canary -n k8squest -o jsonpath='{.status.readyReplicas}')
+   echo "Stable: $STABLE, Canary: $CANARY"
+   echo "Canary percentage: $((CANARY * 100 / (STABLE + CANARY)))%"
+   ```
+
+Should show ~10% canary!
+

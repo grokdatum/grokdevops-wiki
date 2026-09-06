@@ -1,0 +1,32 @@
+---
+- name: Deploy application with error handling
+  hosts: appservers
+  become: true
+  tasks:
+    - name: Deploy application
+      block:
+        - name: Pull latest code
+          ansible.builtin.git:
+            repo: https://github.com/example/app.git
+            dest: /opt/app
+            version: main
+
+        - name: Install dependencies
+          ansible.builtin.pip:
+            requirements: /opt/app/requirements.txt
+
+      rescue:
+          - name: Log deployment failure
+            ansible.builtin.debug:
+              msg: "Deployment failed, rolling back"
+
+          - name: Restore from backup
+            ansible.builtin.copy:
+              src: /opt/app.bak/
+              dest: /opt/app/
+              remote_src: true
+
+      always:
+        - name: Send notification
+          ansible.builtin.debug:
+            msg: "Deployment process completed"

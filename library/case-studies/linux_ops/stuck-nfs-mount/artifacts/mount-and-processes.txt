@@ -1,0 +1,23 @@
+$ cat /proc/mounts | grep shared-data
+nfs.internal:/exports/shared-data /mnt/shared-data nfs4 rw,relatime,vers=4.1,rsize=1048576,wsize=1048576,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=192.168.1.50,local_lock=none,addr=192.168.1.200 0 0
+
+$ ps aux | awk '$8 ~ /D/ {print}'
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+deploy    9234  0.0  0.0   8540  1024 pts/0    D+   14:20   0:00 ls /mnt/shared-data
+app      11456  0.0  0.2 425680 34816 ?        D    14:18   0:00 python3 /opt/app/deploy.py --target /mnt/shared-data/releases
+root     11789  0.0  0.0  10240  2048 pts/1    D+   14:22   0:00 stat /mnt/shared-data
+app      12001  0.0  0.1 312456 18432 ?        D    14:15   0:00 rsync -av /tmp/build/ /mnt/shared-data/releases/v3.2.0/
+
+$ cat /proc/9234/wchan
+rpc_wait_bit_killable
+
+$ cat /proc/11456/wchan
+rpc_wait_bit_killable
+
+$ ping -c 3 nfs.internal
+PING nfs.internal (192.168.1.200): 56 data bytes
+--- nfs.internal ping statistics ---
+3 packets transmitted, 0 packets received, 100% packet loss
+
+$ showmount -e nfs.internal
+clnt_create: RPC: Unable to receive; errno = No route to host

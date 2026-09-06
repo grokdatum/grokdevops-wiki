@@ -1,0 +1,152 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+🔍 HINT 1: Observing the Problem
+
+Let's investigate the RBAC permission issue:
+
+1️⃣ Check pod status and logs:
+   kubectl get pod pod-lister -n k8squest
+   kubectl logs pod-lister -n k8squest
+
+   What error do you see? "Forbidden"?
+
+2️⃣ Check ServiceAccount:
+   kubectl get serviceaccount pod-reader -n k8squest
+
+   ServiceAccount exists, but does it have permissions?
+
+3️⃣ Check for Role:
+   kubectl get role -n k8squest
+
+   Is there a Role defined?
+
+4️⃣ Check for RoleBinding:
+   kubectl get rolebinding -n k8squest
+
+   Is there a RoleBinding connecting ServiceAccount to Role?
+
+5️⃣ Test permissions directly:
+   kubectl auth can-i list pods --as=system:serviceaccount:k8squest:pod-reader -n k8squest
+
+   Does it say "no"?
+
+📝 Key Observation:
+The ServiceAccount exists but has NO RBAC permissions! Missing Role and RoleBinding.
+
+🤔 Questions:
+• What is RBAC?
+• What's the difference between Role and RoleBinding?
+• How do you grant permissions to a ServiceAccount?
+
+## Hint 2
+🎯 HINT 2: Understanding RBAC
+
+The problem is missing Role and RoleBinding!
+
+📚 RBAC Components:
+
+**1. ServiceAccount (WHO)**
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pod-reader  # The "user"
+```
+
+**2. Role (WHAT permissions)**
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader-role
+rules:
+- apiGroups: [""]  # Core API
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]  # What actions allowed
+```
+
+**3. RoleBinding (WHO gets WHAT)**
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pod-reader-binding
+roleRef:
+  kind: Role
+  name: pod-reader-role  # The WHAT
+subjects:
+- kind: ServiceAccount
+  name: pod-reader  # The WHO
+```
+
+🔍 How It Works:
+
+1. ServiceAccount = Identity (who the pod runs as)
+2. Role = Permission definition (what can be done)
+3. RoleBinding = Grants Role to ServiceAccount
+
+**Current State:**
+- ✅ ServiceAccount exists
+- ❌ No Role (no permissions defined)
+- ❌ No RoleBinding (ServiceAccount not granted anything)
+
+**Result:** Permission denied!
+
+💡 The Solution:
+Create Role with pod list permissions, then create RoleBinding to grant it to the ServiceAccount!
+
+## Hint 3
+✅ HINT 3: Complete Solution
+
+Fix: Create Role and RoleBinding
+
+📝 Step 1: Create Role
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader-role
+  namespace: k8squest
+rules:
+- apiGroups: [""]  # "" = core API group
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+```
+
+📝 Step 2: Create RoleBinding
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pod-reader-binding
+  namespace: k8squest
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-reader-role  # Reference the Role
+subjects:
+- kind: ServiceAccount
+  name: pod-reader  # Grant to this ServiceAccount
+  namespace: k8squest
+```
+
+🚀 Apply:
+```bash
+kubectl delete -f broken.yaml
+kubectl apply -f solution.yaml
+kubectl logs pod-lister -n k8squest
+# Should show: "✅ Success! Can list pods"
+```
+
+🔍 Verify permissions:
+```bash
+kubectl auth can-i list pods \
+  --as=system:serviceaccount:k8squest:pod-reader \
+  -n k8squest
+# Should output: yes
+```
+
+💡 Remember: Role + RoleBinding = RBAC permissions!
+

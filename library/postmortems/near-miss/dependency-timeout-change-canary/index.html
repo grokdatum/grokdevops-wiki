@@ -1,0 +1,1742 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="On 2025-07-15 at 19:42 UTC, a canary deployment of the order-service at 5% traffic began showing an elevated API error rate driven by HTTP client.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/near-miss/dependency-timeout-change-canary/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Postmortem: Go Dependency Update Silently Changes Default Timeout — Caught in Canary - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Postmortem: Go Dependency Update Silently Changes Default Timeout — Caught in Canary - GrokDevOps Wiki" />
+<meta property="og:description" content="On 2025-07-15 at 19:42 UTC, a canary deployment of the order-service at 5% traffic began showing an elevated API error rate driven by HTTP client." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/near-miss/dependency-timeout-change-canary.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/near-miss/dependency-timeout-change-canary/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Postmortem: Go Dependency Update Silently Changes Default Timeout — Caught in Canary - GrokDevOps Wiki" />
+<meta property="twitter:description" content="On 2025-07-15 at 19:42 UTC, a canary deployment of the order-service at 5% traffic began showing an elevated API error rate driven by HTTP client." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/near-miss/dependency-timeout-change-canary.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#postmortem-go-dependency-update-silently-changes-default-timeout-caught-in-canary" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Postmortem: Go Dependency Update Silently Changes Default Timeout — Caught in Canary
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-all-times-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline (All times UTC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Impact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customer-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customer Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-would-have-happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Would Have Happened
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root Cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happened-technical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happened (Technical)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contributing Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-we-got-lucky-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What We Got Lucky About
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-we-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How We Detected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-this-almost-wasnt-caught" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why This Almost Wasn't Caught
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-went-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Well
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-could-have-gone-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Could Have Gone Better
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lessons-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lessons Learned
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../portal/tags/#tag:postmortem" class="md-tag">postmortem</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="postmortem-go-dependency-update-silently-changes-default-timeout-caught-in-canary">Postmortem: Go Dependency Update Silently Changes Default Timeout — Caught in Canary<a class="headerlink" href="#postmortem-go-dependency-update-silently-changes-default-timeout-caught-in-canary" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ID</strong></td>
+<td>PM-028</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2025-07-15</td>
+</tr>
+<tr>
+<td><strong>Severity</strong></td>
+<td>Near-Miss</td>
+</tr>
+<tr>
+<td><strong>Duration</strong></td>
+<td>0m (no customer impact)</td>
+</tr>
+<tr>
+<td><strong>Time to Detect</strong></td>
+<td>8m</td>
+</tr>
+<tr>
+<td><strong>Time to Mitigate</strong></td>
+<td>12m (auto-rollback)</td>
+</tr>
+<tr>
+<td><strong>Customer Impact</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Revenue Impact</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Teams Involved</strong></td>
+<td>Backend Engineering, Platform Engineering, SRE</td>
+</tr>
+<tr>
+<td><strong>Postmortem Author</strong></td>
+<td>Aleksei Voronov</td>
+</tr>
+<tr>
+<td><strong>Postmortem Date</strong></td>
+<td>2025-07-18</td>
+</tr>
+</tbody>
+</table>
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>On 2025-07-15 at 19:42 UTC, a canary deployment of the <code>order-service</code> at 5% traffic began showing an elevated API error rate driven by HTTP client timeouts on calls to the upstream <code>inventory-service</code>. The root cause was a minor version bump of the <code>httpclient-go</code> library (<code>v1.4.2</code> to <code>v1.5.0</code>) which silently changed the default HTTP client timeout from 30 seconds to 5 seconds. The <code>inventory-service</code> has a p99 response latency of approximately 8 seconds under normal load, placing it well above the new default. The canary's automated rollback threshold (error rate &gt; 2% for 5 consecutive minutes) triggered at 19:50 UTC, rolling back the canary pods before any traffic was promoted further. Had the canary step been removed — as the Backend Engineering team had proposed 2 weeks earlier in the name of deployment velocity — this change would have reached 100% of production traffic and caused roughly 12% of all API requests to fail.</p>
+<h2 id="timeline-all-times-utc">Timeline (All times UTC)<a class="headerlink" href="#timeline-all-times-utc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>14:30</td>
+<td>Dependency PR #4417 merged: bumps <code>httpclient-go</code> from <code>v1.4.2</code> to <code>v1.5.0</code>; PR description notes "minor bump, no breaking changes per semver"; reviewers approve without reading upstream changelog</td>
+</tr>
+<tr>
+<td>18:55</td>
+<td>CI pipeline completes; Docker image <code>order-service:v3.47.0</code> built and pushed to registry</td>
+</tr>
+<tr>
+<td>19:15</td>
+<td>Deployment pipeline begins: staging deployment of <code>order-service:v3.47.0</code> completes; staging smoke tests pass (staging <code>inventory-service</code> stub has &lt;100ms response time, so 5s timeout is never triggered)</td>
+</tr>
+<tr>
+<td>19:42</td>
+<td>Canary deployment starts: 5% of production traffic routed to pods running <code>v3.47.0</code></td>
+</tr>
+<tr>
+<td>19:44</td>
+<td>First timeout errors appear in canary pods' logs: <code>context deadline exceeded</code> on calls to <code>inventory-service</code></td>
+</tr>
+<tr>
+<td>19:46</td>
+<td>Error rate in canary cohort reaches 8.3%; PagerDuty alert fires: "order-service canary error rate &gt; 2%" (SRE on-call: Jemima Thornton)</td>
+</tr>
+<tr>
+<td>19:48</td>
+<td>Jemima acknowledges alert; reviews canary dashboard in Grafana; sees timeout errors correlating precisely with <code>inventory-service</code> calls</td>
+</tr>
+<tr>
+<td>19:50</td>
+<td>Automated rollback threshold sustained for 5 minutes; Argo Rollouts initiates canary abort and scale-down</td>
+</tr>
+<tr>
+<td>19:54</td>
+<td>Canary pods fully drained; 100% of traffic on stable <code>v3.46.3</code>; error rate returns to baseline 0.1%</td>
+</tr>
+<tr>
+<td>19:58</td>
+<td>Jemima opens investigation; diffs <code>v3.47.0</code> vs <code>v3.46.3</code> go.sum and identifies <code>httpclient-go</code> version change</td>
+</tr>
+<tr>
+<td>20:11</td>
+<td>Aleksei Voronov (Backend Engineering lead) reads <code>httpclient-go</code> v1.5.0 changelog: "Changed default timeout to 5s for improved safety defaults" — listed under "improvements," not "breaking changes"</td>
+</tr>
+<tr>
+<td>20:35</td>
+<td>Hotfix PR #4419 opened: pins <code>httpclient-go</code> to <code>v1.4.2</code>, adds explicit <code>Timeout: 30*time.Second</code> in client initialization</td>
+</tr>
+<tr>
+<td>21:10</td>
+<td>Hotfix merged and deployed through full pipeline; canary completes without errors; full rollout proceeds</td>
+</tr>
+<tr>
+<td>21:55</td>
+<td>Incident closed; postmortem scheduled</td>
+</tr>
+</tbody>
+</table>
+<h2 id="impact">Impact<a class="headerlink" href="#impact" title="Permanent link">&para;</a></h2>
+<h3 id="customer-impact">Customer Impact<a class="headerlink" href="#customer-impact" title="Permanent link">&para;</a></h3>
+<p>None — the canary carried only 5% of traffic, and the automated rollback restored stable behavior before any user-visible degradation could persist. The canary error rate was 8.3% for approximately 8 minutes, but this affected only 5% of traffic, and those requests received error responses rather than partial data. Users who experienced an error during this window would have seen a transient checkout failure and could retry successfully.</p>
+<h3 id="internal-impact">Internal Impact<a class="headerlink" href="#internal-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Jemima Thornton (SRE on-call): ~1.5 hours (alert response, investigation, monitoring rollout of hotfix)</li>
+<li>Aleksei Voronov (Backend Engineering): ~2 hours (root cause analysis, hotfix PR, postmortem authorship)</li>
+<li>Lena Martínez (Backend Engineering, dependency PR author): ~1 hour (hotfix review, postmortem participation)</li>
+<li>Platform Engineering review of canary configuration: ~1 hour</li>
+<li>Total: approximately 5.5 engineering-hours</li>
+</ul>
+<h3 id="data-impact">Data Impact<a class="headerlink" href="#data-impact" title="Permanent link">&para;</a></h3>
+<p>None. Timed-out requests returned errors to clients; no partial writes or data corruption occurred. The <code>inventory-service</code> was unaffected; requests simply failed on the client side before the upstream responded.</p>
+<h2 id="what-would-have-happened">What Would Have Happened<a class="headerlink" href="#what-would-have-happened" title="Permanent link">&para;</a></h2>
+<p>If the canary step had been removed from the <code>order-service</code> deployment pipeline — as proposed in Backend Engineering's "Deploy Faster" initiative (proposal documented in RFC-0038, discussed but not adopted) — <code>order-service:v3.47.0</code> would have been promoted directly to 100% of production traffic after the staging smoke tests passed. Staging uses a stubbed <code>inventory-service</code> with sub-100ms response times; the 5-second timeout is never triggered there. The regression would have reached production silently.</p>
+<p>Under full production traffic, the 5-second timeout would have caused failures on all <code>inventory-service</code> calls with response times above 5 seconds. The <code>inventory-service</code> p99 latency is 8.2 seconds (driven by a known slow N+1 query that is tracked in backend-backlog but not yet fixed). Approximately 12% of <code>order-service</code> requests touch the inventory check path and wait for the slow query. This would have produced an immediate 12% API error rate on order placement — the core revenue-generating flow. Based on order volume and average order value, the revenue impact was estimated at $45,000 per hour by the Finance team's on-call analyst.</p>
+<p>The symptoms would have been ambiguous at first: timeout errors on calls from <code>order-service</code> to <code>inventory-service</code> look identical to <code>inventory-service</code> being overloaded or down. SRE would likely have spent 20-40 minutes investigating the inventory service before correlating the incident with the deployment. A deployment rollback would then have been straightforward, but the mean time to mitigate from first alert to rollback complete would likely have been 35-60 minutes — representing $26K-$45K in lost revenue during the incident window, plus customer trust impact on the checkout flow.</p>
+<h2 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<h3 id="what-happened-technical">What Happened (Technical)<a class="headerlink" href="#what-happened-technical" title="Permanent link">&para;</a></h3>
+<p>The <code>httpclient-go</code> library is a thin wrapper around Go's <code>net/http</code> package used across several Helix services to standardize middleware (logging, tracing, retry logic). Version <code>v1.5.0</code> was released by its maintainers on 2025-07-10 with the following changelog entry:</p>
+<blockquote>
+<p><strong>Improvements</strong>
+- Changed default timeout from 30s to 5s to prevent hung goroutines in high-concurrency environments. Existing code that relies on the 30s default should set <code>Timeout</code> explicitly.</p>
+</blockquote>
+<p>This is a behaviorally breaking change despite being released as a minor version, violating semver conventions. The library's maintainers classified it as an "improvement" and did not bump the major version or add a deprecation notice in the previous minor release.</p>
+<p>The dependency bump PR (#4417) was opened by Lena Martínez as part of a routine weekly dependency update pass. The PR description was auto-generated by Dependabot and stated "Minor version bump — no breaking changes." Lena and the two reviewers did not consult the upstream changelog. The library's test suite, which runs in CI, exercises the <code>httpclient-go</code> client against mock servers with zero-latency responses; the 5-second timeout was never approached.</p>
+<p>The staging environment's <code>inventory-service</code> is a stub that returns hardcoded responses in under 10 milliseconds. The 5-second timeout regression is structurally invisible to staging. This is a class of regression — behavior that changes only under realistic latency conditions — that staging environments routinely fail to catch.</p>
+<h3 id="contributing-factors">Contributing Factors<a class="headerlink" href="#contributing-factors" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Semver minor bump treated as safe by convention:</strong> Both automated tooling (Dependabot) and human reviewers operated under the assumption that a <code>v1.x.y → v1.x+1.0</code> bump is non-breaking. This assumption is frequently wrong in practice, especially for libraries that control infrastructure behavior like timeouts, retries, and connection pooling. No process existed to require changelog review for minor bumps.</li>
+<li><strong>Staging uses fast stubs, not realistic upstream simulators:</strong> The <code>inventory-service</code> stub used in staging was built for functional correctness testing, not for performance envelope testing. It cannot reproduce the p99 latency characteristics of the real upstream. Any regression that manifests only above a latency threshold will pass staging cleanly.</li>
+<li><strong>HTTP client timeout was implicit rather than explicit:</strong> The <code>order-service</code> code relied on the library's default timeout rather than setting <code>Timeout</code> explicitly in the client initialization. Relying on library defaults for critical parameters (timeouts, retry counts, buffer sizes) creates invisible coupling to library version behavior.</li>
+</ol>
+<h3 id="what-we-got-lucky-about">What We Got Lucky About<a class="headerlink" href="#what-we-got-lucky-about" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>The canary step was in place and was not removed.</strong> Two weeks before this incident, Backend Engineering proposed removing the canary step from the <code>order-service</code> deployment pipeline (RFC-0038) to reduce deployment cycle time by approximately 25 minutes. The proposal was tabled after SRE raised concerns. If it had been adopted, the regression would have gone straight to 100% of production traffic. This near-miss is direct evidence for why the canary step exists.</li>
+<li><strong>The slow upstream service (inventory-service) had a latency that fell neatly between the old and new timeout.</strong> The p99 of 8.2 seconds is above the new 5-second default but well below the old 30-second default. If the upstream had been faster (p99 &lt; 5s), the regression would have been silent even in the canary. If it had been slower (p99 &gt; 30s), the issue would have already been visible before this incident. The latency profile made the regression detectable.</li>
+</ol>
+<h2 id="detection">Detection<a class="headerlink" href="#detection" title="Permanent link">&para;</a></h2>
+<h3 id="how-we-detected">How We Detected<a class="headerlink" href="#how-we-detected" title="Permanent link">&para;</a></h3>
+<p>The canary deployment's automated error rate monitoring in Argo Rollouts triggered a PagerDuty alert when the canary cohort's error rate exceeded 2% for 5 consecutive minutes. SRE on-call Jemima Thornton reviewed the Grafana dashboard, identified the timeout errors, and confirmed correlation with the <code>inventory-service</code> call path. Automated rollback was already in progress when Jemima began her investigation.</p>
+<h3 id="why-this-almost-wasnt-caught">Why This Almost Wasn't Caught<a class="headerlink" href="#why-this-almost-wasnt-caught" title="Permanent link">&para;</a></h3>
+<p>The regression is structurally invisible to the staging test environment. If the canary step had been removed (as proposed), no automated gate would have caught this before full production rollout. The only other detection path would have been an engineer manually reading the <code>httpclient-go</code> v1.5.0 changelog during PR review — a step that was not part of the dependency update process.</p>
+<h2 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h2>
+<h3 id="what-went-well">What Went Well<a class="headerlink" href="#what-went-well" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The automated canary rollback worked exactly as designed. No human intervention was required to roll back the bad deployment; the system detected and remediated the regression autonomously within the canary window.</li>
+<li>Root cause identification was fast (17 minutes from rollback to confirmed root cause) because the error messages (<code>context deadline exceeded</code> with stack trace pointing to the <code>httpclient-go</code> call site) made the failure mode clear, and the recent dependency bump was an obvious candidate.</li>
+</ol>
+<h3 id="what-could-have-gone-better">What Could Have Gone Better<a class="headerlink" href="#what-could-have-gone-better" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The dependency bump PR had two approvals and zero changelog review. For libraries that own infrastructure-level behavior, "minor bump" does not mean "safe to apply without reading the diff." The review process had no explicit requirement to consult the changelog.</li>
+<li>The <code>order-service</code> used an implicit timeout default. Explicit configuration of all critical client parameters — with a comment explaining the chosen value — would have made this class of regression impossible: the timeout would have been pinned in application code regardless of library defaults.</li>
+</ol>
+<h2 id="action-items">Action Items<a class="headerlink" href="#action-items" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Action</th>
+<th>Priority</th>
+<th>Owner</th>
+<th>Status</th>
+<th>Due Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PM028-01</td>
+<td>Add lint rule (via <code>go vet</code> custom analyzer or golangci-lint) that flags <code>httpclient-go.NewClient()</code> calls without explicit <code>Timeout</code> field set</td>
+<td>P0</td>
+<td>Aleksei Voronov</td>
+<td>In Progress</td>
+<td>2025-07-22</td>
+</tr>
+<tr>
+<td>PM028-02</td>
+<td>Update dependency update PR template to require: "(a) link to upstream changelog, (b) confirmation that no behavior defaults changed" for all library bumps touching networking, timeouts, or connection handling</td>
+<td>P1</td>
+<td>Lena Martínez</td>
+<td>Open</td>
+<td>2025-07-25</td>
+</tr>
+<tr>
+<td>PM028-03</td>
+<td>Close RFC-0038 (canary removal proposal) with documented rationale citing PM-028</td>
+<td>P0</td>
+<td>Platform Engineering</td>
+<td>Completed</td>
+<td>2025-07-16</td>
+</tr>
+<tr>
+<td>PM028-04</td>
+<td>Add a latency-injection test in staging that simulates <code>inventory-service</code> p95/p99 latencies; include in pre-deployment gate</td>
+<td>P1</td>
+<td>SRE</td>
+<td>Open</td>
+<td>2025-08-05</td>
+</tr>
+<tr>
+<td>PM028-05</td>
+<td>Audit all services for implicit use of <code>httpclient-go</code> default timeout; pin explicit values in each</td>
+<td>P1</td>
+<td>Backend Engineering</td>
+<td>Open</td>
+<td>2025-07-30</td>
+</tr>
+<tr>
+<td>PM028-06</td>
+<td>File upstream issue with <code>httpclient-go</code> maintainers requesting proper semver major bump for timeout default change</td>
+<td>P2</td>
+<td>Aleksei Voronov</td>
+<td>Open</td>
+<td>2025-07-22</td>
+</tr>
+</tbody>
+</table>
+<h2 id="lessons-learned">Lessons Learned<a class="headerlink" href="#lessons-learned" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>"Minor version" does not mean "no behavior change."</strong> Library maintainers frequently release behavior-changing defaults as minor or patch versions. Dependency review processes must explicitly check changelogs for behavioral changes, not defer to semver labels, especially for libraries that control infrastructure-level behavior like timeouts and connection settings.</li>
+<li><strong>Implicit defaults are invisible coupling.</strong> When application code relies on a library's default value for a critical parameter, it is silently coupled to that library's versioned behavior. Explicit configuration — even if it matches the current default — documents the intent and prevents silent regression on upgrade.</li>
+<li><strong>Canary deployments catch a specific class of regression that staging cannot.</strong> Regressions that manifest only under realistic traffic patterns, upstream latency distributions, or data volumes are structurally invisible to staging. The canary step is not a formality; it is the only automated gate that exposes this class of bug under real conditions.</li>
+</ol>
+<h2 id="cross-references">Cross-References<a class="headerlink" href="#cross-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Failure Pattern:</strong> Silent Behavioral Change in Dependency Upgrade / Staging Environment Blind Spot</li>
+<li><strong>Topic Packs:</strong> Progressive Delivery, Canary Deployments, Dependency Management, Go HTTP Client Configuration</li>
+<li><strong>Runbook:</strong> DEPLOY-RB-005 — Canary Rollback Procedure; DEPLOY-RB-009 — Dependency Regression Investigation</li>
+<li><strong>Decision Tree:</strong> Deployment Triage → Canary Error Rate Spike → Correlated with recent dependency bump? → Yes → Rollback, diff go.sum, audit changelog</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="April 8, 2026 23:43:45 UTC">April 8, 2026 23:43:45</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 23:53:02 UTC">March 19, 2026 23:53:02</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

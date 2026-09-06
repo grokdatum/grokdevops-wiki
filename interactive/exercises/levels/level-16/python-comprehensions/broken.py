@@ -1,0 +1,5 @@
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# Get only even numbers
+evens = [n for n in numbers if n % 2 != 0]
+print(f"Even numbers: {evens}")

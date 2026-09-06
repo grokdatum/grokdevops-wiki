@@ -1,0 +1,338 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+# 💡 HINT 1: Observation and Analysis
+
+Start by examining what's happening with the pod:
+
+## Step 1: Check Pod Status
+
+```bash
+kubectl get pod web-app -n k8squest
+```
+
+Look for the status. You might see:
+- `CreateContainerConfigError`
+- `CrashLoopBackOff`
+- Or pod might be stuck in `Pending`
+
+## Step 2: Examine Pod Events
+
+```bash
+kubectl describe pod web-app -n k8squest
+```
+
+Look at the **Events** section at the bottom. You should see an error like:
+```
+Error: container has runAsNonRoot and image will run as root
+```
+
+This tells you the issue: **runAsNonRoot is enabled but no user ID specified!**
+
+## Step 3: Check Current SecurityContext
+
+```bash
+kubectl get pod web-app -n k8squest -o yaml | grep -A 10 securityContext
+```
+
+You'll see:
+```yaml
+securityContext:
+  runAsNonRoot: true
+  # Missing: runAsUser
+  # Missing: allowPrivilegeEscalation setting
+```
+
+## Understanding the Problem
+
+**What's happening:**
+1. SecurityContext has `runAsNonRoot: true`
+2. This tells Kubernetes "don't let container run as root"
+3. But the nginx image defaults to running as root (UID 0)
+4. No `runAsUser` specified to override this
+5. Kubernetes rejects the pod for security reasons
+
+**The conflict:**
+- Policy says: "Must run as non-root"
+- Container wants: "Run as root (default)"
+- Result: Pod creation fails
+
+## What You Need to Fix
+
+You need to tell Kubernetes **which non-root user to use**.
+
+The SecurityContext needs:
+1. Keep `runAsNonRoot: true` ✅
+2. Add `runAsUser: <some-non-zero-UID>` ❌ (missing!)
+3. Add `allowPrivilegeEscalation: false` ❌ (missing!)
+
+## Testing Commands
+
+After fixing:
+```bash
+# Check if pod is running
+kubectl get pod web-app -n k8squest
+
+# Verify what user container is running as
+kubectl exec web-app -n k8squest -- id
+
+# Should show: uid=1000 (not uid=0/root)
+```
+
+---
+
+**Next hint** will explain SecurityContext fields in detail.
+
+## Hint 2
+# 💡 HINT 2: Understanding SecurityContext
+
+## What is SecurityContext?
+
+SecurityContext defines **security settings for a pod or container**. It controls:
+- Which user/group the container runs as
+- What privileges the container has
+- File system permissions
+- Security capabilities
+
+## Key SecurityContext Fields
+
+### 1. runAsNonRoot (Boolean)
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+```
+
+**What it does:**
+- Validates that container doesn't run as root (UID 0)
+- If container tries to run as root, Kubernetes blocks it
+- Security best practice for production
+
+**Why it matters:**
+- Root containers can escape to host system
+- Compromised root container = compromised node
+- Non-root limits damage from breaches
+
+### 2. runAsUser (Integer - User ID)
+
+```yaml
+securityContext:
+  runAsUser: 1000
+```
+
+**What it does:**
+- Specifies which user ID the container runs as
+- Overrides the user set in Docker image
+- Must be non-zero when runAsNonRoot: true
+
+**Common UIDs:**
+- `0` = root (don't use!)
+- `1000` = typical first non-root user
+- `65534` = nobody (minimal permissions)
+
+### 3. allowPrivilegeEscalation (Boolean)
+
+```yaml
+securityContext:
+  allowPrivilegeEscalation: false
+```
+
+**What it does:**
+- Controls if process can gain more privileges than parent
+- Prevents setuid binaries from escalating privileges
+- Essential security hardening
+
+**Why it matters:**
+- Prevents container from gaining root even if it starts as non-root
+- Blocks common privilege escalation attacks
+
+### 4. capabilities (Advanced)
+
+```yaml
+securityContext:
+  capabilities:
+    drop:
+    - ALL  # Drop all Linux capabilities
+    add:
+    - NET_BIND_SERVICE  # Only add what's needed
+```
+
+**What it does:**
+- Fine-grained control over Linux capabilities
+- Best practice: drop ALL, then add only what's needed
+
+## Your Current Configuration (Broken)
+
+```yaml
+securityContext:
+  runAsNonRoot: true  # ✅ Good - requires non-root
+  # ❌ Missing: runAsUser (what user to use?)
+  # ❌ Missing: allowPrivilegeEscalation: false
+```
+
+**The Problem:**
+- Says "must be non-root" but doesn't specify which user
+- Image defaults to root, conflicts with runAsNonRoot
+- Kubernetes rejects it
+
+## The Fix You Need
+
+```yaml
+securityContext:
+  runAsNonRoot: true  # ✅ Validate non-root
+  runAsUser: 1000  # ✅ Specify which non-root user
+  allowPrivilegeEscalation: false  # ✅ Prevent escalation
+```
+
+Now Kubernetes knows:
+1. Run as UID 1000 (non-root) ✅
+2. Verify it's not root ✅
+3. Don't allow privilege escalation ✅
+
+## Pod-level vs Container-level
+
+SecurityContext can be set at two levels:
+
+### Pod Level (applies to all containers)
+```yaml
+spec:
+  securityContext:
+    runAsUser: 1000
+    fsGroup: 2000
+  containers:
+  - name: app
+```
+
+### Container Level (overrides pod level)
+```yaml
+spec:
+  containers:
+  - name: app
+    securityContext:
+      runAsUser: 1000  # Just this container
+```
+
+For this challenge, use **container-level** SecurityContext.
+
+---
+
+**Next hint** will show the complete solution with examples.
+
+## Hint 3
+# 💡 HINT 3: Complete Solution
+
+## The Complete Fix
+
+Here's the corrected SecurityContext configuration:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-app
+  namespace: k8squest
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    ports:
+    - containerPort: 8080  # Non-privileged port
+    securityContext:
+      runAsNonRoot: true  # ✅ Enforce non-root requirement
+      runAsUser: 1000  # ✅ Run as UID 1000 (non-root)
+      allowPrivilegeEscalation: false  # ✅ Prevent privilege escalation
+      capabilities:
+        drop:
+        - ALL  # ✅ Drop all capabilities (best practice)
+```
+
+## What Each Field Does
+
+### runAsNonRoot: true
+- Kubernetes validates container doesn't run as root
+- Acts as a safety check
+- Required by many security policies
+
+### runAsUser: 1000
+- Container runs as user ID 1000
+- Any non-zero UID works (1000 is conventional)
+- Overrides image's default user (usually root)
+
+### allowPrivilegeEscalation: false
+- Prevents process from gaining more privileges
+- Blocks setuid binaries
+- Critical security hardening
+
+### capabilities.drop: ALL
+- Removes all Linux capabilities
+- Minimal permissions
+- Add back only what's needed (we don't need any)
+
+## Why Port 8080 Instead of 80?
+
+Ports below 1024 are "privileged ports" - only root can bind to them.
+
+Since we're running as non-root user:
+- Port 80 would fail (permission denied)
+- Port 8080 works (non-privileged)
+
+## Applying the Fix
+
+```bash
+# Apply the corrected configuration
+kubectl apply -f solution.yaml
+
+# Verify pod is running
+kubectl get pod web-app -n k8squest
+
+# Check what user it's running as
+kubectl exec web-app -n k8squest -- id
+# Should show: uid=1000 gid=0
+
+# Check security context was applied
+kubectl get pod web-app -n k8squest -o jsonpath='{.spec.containers[0].securityContext}' | jq
+```
+
+## Verification
+
+The pod should now:
+1. ✅ Start successfully
+2. ✅ Run as UID 1000 (non-root)
+3. ✅ Have privilege escalation disabled
+4. ✅ Have minimal capabilities
+5. ✅ Pass all security checks
+
+## Alternative: Using fsGroup
+
+If your application needs to access files, you might also need:
+
+```yaml
+spec:
+  securityContext:  # Pod-level
+    fsGroup: 2000  # Files owned by group 2000
+  containers:
+  - name: nginx
+    securityContext:  # Container-level
+      runAsUser: 1000
+      runAsGroup: 2000
+```
+
+This ensures file permissions work correctly.
+
+## Security Best Practices Applied
+
+1. ✅ **Non-root user** - Limits blast radius
+2. ✅ **No privilege escalation** - Prevents gaining root
+3. ✅ **Dropped capabilities** - Minimal permissions
+4. ✅ **Non-privileged port** - Can't bind to system ports
+5. ✅ **Explicit user ID** - No defaults, no surprises
+
+---
+
+**Run the validation script** to verify everything is configured correctly!
+
+```bash
+./validate.sh
+```
+

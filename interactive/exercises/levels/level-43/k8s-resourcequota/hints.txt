@@ -1,0 +1,431 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+# 💡 HINT 1: Observation and Analysis
+
+Start by understanding the quota situation:
+
+## Step 1: Check Pod Status
+
+```bash
+kubectl get pod resource-hungry-app -n k8squest
+```
+
+You'll likely see status **Pending** instead of Running.
+
+## Step 2: Examine Pod Events
+
+```bash
+kubectl describe pod resource-hungry-app -n k8squest
+```
+
+Look at the **Events** section. You should see:
+```
+Warning  FailedScheduling  ... exceeded quota: compute-quota, requested: requests.cpu=2500m
+```
+
+This tells you the pod is trying to request more resources than the quota allows!
+
+## Step 3: Check the ResourceQuota
+
+```bash
+kubectl describe resourcequota compute-quota -n k8squest
+```
+
+You'll see something like:
+```
+Resource         Used  Hard
+--------         ----  ----
+limits.cpu       0     4
+limits.memory    0     4Gi
+pods             0     10
+requests.cpu     0     2        ← Only 2 CPUs available!
+requests.memory  0     2Gi
+```
+
+## Step 4: Check Pod's Resource Requests
+
+```bash
+kubectl get pod resource-hungry-app -n k8squest -o yaml | grep -A 4 requests
+```
+
+You'll see:
+```yaml
+requests:
+  cpu: "2500m"  # ← Requesting 2.5 CPUs!
+  memory: "1Gi"
+```
+
+## Understanding the Problem
+
+**The Math:**
+- Namespace quota allows: **2 CPUs total**
+- Pod is requesting: **2.5 CPUs** (2500 millicores)
+- 2.5 > 2 → **Quota exceeded!**
+
+**Why quotas exist:**
+- Prevent resource hogging
+- Fair share across teams
+- Protect cluster stability
+- Cost control
+
+## What You Need to Fix
+
+Option 1: **Reduce pod's resource requests** to fit within quota
+Option 2: **Increase quota** if justified (usually not your call)
+
+For this challenge: **Reduce the pod's resource requests**
+
+---
+
+**Next hint** explains ResourceQuota and resource management in detail.
+
+## Hint 2
+# 💡 HINT 2: Understanding ResourceQuota
+
+## What is ResourceQuota?
+
+ResourceQuota sets **hard limits** on resource consumption per namespace.
+
+**Purpose:**
+- **Multi-tenancy:** Fair resource sharing
+- **Cost control:** Prevent runaway spending
+- **Stability:** Prevent one app from starving others
+- **Planning:** Enforce capacity planning
+
+## ResourceQuota Types
+
+### 1. Compute Resources
+
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-quota
+spec:
+  hard:
+    requests.cpu: "2"  # Total CPU requests
+    requests.memory: "2Gi"  # Total memory requests
+    limits.cpu: "4"  # Total CPU limits
+    limits.memory: "4Gi"  # Total memory limits
+```
+
+**What this means:**
+- All pods combined can request max 2 CPUs
+- All pods combined can request max 2Gi memory
+- All pods combined can limit max 4 CPUs
+- All pods combined can limit max 4Gi memory
+
+### 2. Object Count Quotas
+
+```yaml
+spec:
+  hard:
+    pods: "10"  # Max 10 pods
+    services: "5"  # Max 5 services
+    persistentvolumeclaims: "4"  # Max 4 PVCs
+```
+
+### 3. Storage Quotas
+
+```yaml
+spec:
+  hard:
+    requests.storage: "100Gi"  # Total storage requests
+```
+
+## Requests vs Limits
+
+### Requests (Guaranteed)
+
+```yaml
+resources:
+  requests:
+    cpu: "500m"  # Guaranteed 0.5 CPU
+    memory: "512Mi"  # Guaranteed 512Mi memory
+```
+
+**Purpose:**
+- Minimum guaranteed resources
+- Used for pod scheduling
+- Node must have this available
+
+### Limits (Maximum)
+
+```yaml
+resources:
+  limits:
+    cpu: "1"  # Max 1 CPU (can burst up to this)
+    memory: "1Gi"  # Max 1Gi (killed if exceeded)
+```
+
+**Purpose:**
+- Maximum the container can use
+- Prevents resource hogging
+- CPU: throttled if exceeded
+- Memory: pod killed if exceeded (OOMKilled)
+
+## CPU Units
+
+```yaml
+cpu: "1"      # 1 full CPU core
+cpu: "500m"   # 500 millicores = 0.5 CPU
+cpu: "100m"   # 100 millicores = 0.1 CPU
+cpu: "2500m"  # 2.5 CPU cores
+```
+
+**1 CPU = 1000 millicores (m)**
+
+## Memory Units
+
+```yaml
+memory: "1Gi"    # 1 Gibibyte (1024^3 bytes)
+memory: "512Mi"  # 512 Mebibytes (1024^2 bytes)
+memory: "1G"     # 1 Gigabyte (1000^3 bytes)
+memory: "512M"   # 512 Megabytes (1000^2 bytes)
+```
+
+**Prefer:** Gi, Mi (binary units) over G, M
+
+## How Quotas Are Enforced
+
+1. **Pod creation:** Kubernetes checks if adding this pod exceeds quota
+2. **If within quota:** Pod created, quota usage updated
+3. **If exceeds quota:** Pod rejected with error
+
+## Checking Quota Status
+
+```bash
+kubectl describe resourcequota compute-quota -n k8squest
+```
+
+Output shows:
+```
+Resource         Used    Hard
+--------         ----    ----
+requests.cpu     2500m   2        ← PROBLEM: 2.5 > 2!
+requests.memory  1Gi     2Gi      ← OK: 1 < 2
+```
+
+## Your Current Situation
+
+**Quota allows:**
+- 2 CPUs total for all pods
+
+**Your pod wants:**
+- 2.5 CPUs
+
+**Math:** 2.5 > 2 = **REJECTED**
+
+## The Fix
+
+Reduce the pod's CPU request:
+
+```yaml
+resources:
+  requests:
+    cpu: "500m"  # ✅ 0.5 CPUs (well under 2 CPU quota)
+    memory: "512Mi"  # ✅ 512Mi (well under 2Gi quota)
+  limits:
+    cpu: "1"  # Can burst to 1 CPU
+    memory: "1Gi"
+```
+
+**Now:** 0.5 < 2 = **ACCEPTED** ✅
+
+---
+
+**Next hint** provides the complete solution.
+
+## Hint 3
+# 💡 HINT 3: Complete Solution
+
+## The Complete Fix
+
+Reduce the pod's resource requests to fit within the namespace quota:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: resource-hungry-app
+  namespace: k8squest
+spec:
+  containers:
+  - name: app
+    image: nginx:latest
+    resources:
+      requests:
+        cpu: "500m"  # ✅ Reduced from 2500m to 500m
+        memory: "512Mi"  # ✅ Reduced from 1Gi to 512Mi
+      limits:
+        cpu: "1"  # ✅ Reasonable limit
+        memory: "1Gi"  # ✅ Reasonable limit
+```
+
+## Why These Values?
+
+### CPU Request: 500m (0.5 cores)
+
+- **Quota allows:** 2 CPUs total
+- **We request:** 0.5 CPUs
+- **Leaves room for:** 1.5 more CPUs (3 more similar pods)
+- **Good for:** Web applications, typical workloads
+
+### Memory Request: 512Mi
+
+- **Quota allows:** 2Gi total
+- **We request:** 512Mi (0.5Gi)
+- **Leaves room for:** 1.5Gi more (3 more similar pods)
+- **Good for:** Most applications
+
+### Limits Higher Than Requests
+
+```yaml
+requests:
+  cpu: "500m"    # Guaranteed
+limits:
+  cpu: "1"       # Can burst to double when available
+```
+
+This allows:
+- **Guaranteed:** 0.5 CPU always available
+- **Burst:** Up to 1 CPU when node has spare capacity
+- **Efficient:** Better resource utilization
+
+## Applying the Fix
+
+```bash
+# Apply the corrected configuration
+kubectl apply -f solution.yaml
+
+# Watch pod status
+kubectl get pod resource-hungry-app -n k8squest --watch
+
+# Should transition: Pending → Running
+
+# Verify quota usage
+kubectl describe resourcequota compute-quota -n k8squest
+```
+
+You should see:
+```
+Resource         Used   Hard
+--------         ----   ----
+requests.cpu     500m   2       ← Within quota!
+requests.memory  512Mi  2Gi     ← Within quota!
+```
+
+## Best Practices for Resource Requests
+
+### 1. Set Realistic Requests
+
+```yaml
+# ❌ Too high: Wastes resources
+requests:
+  cpu: "4"  # Most apps don't need this!
+
+# ✅ Right-sized
+requests:
+  cpu: "100m"  # Start small, scale up if needed
+```
+
+### 2. Monitor Actual Usage
+
+```bash
+# Check what pod actually uses
+kubectl top pod resource-hungry-app -n k8squest
+```
+
+### 3. Set Limits Higher Than Requests
+
+```yaml
+requests:
+  cpu: "500m"  # Guaranteed
+limits:
+  cpu: "1"  # Can burst to 2x
+```
+
+### 4. Memory Limits = Requests for Stability
+
+```yaml
+resources:
+  requests:
+    memory: "512Mi"
+  limits:
+    memory: "512Mi"  # Same value prevents OOMKilled
+```
+
+### 5. Use LimitRange for Defaults
+
+```yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+spec:
+  limits:
+  - default:  # Default limits
+      cpu: "500m"
+      memory: "512Mi"
+    defaultRequest:  # Default requests
+      cpu: "100m"
+      memory: "128Mi"
+    type: Container
+```
+
+## Common Sizing Guide
+
+### Minimal (Sidecar, proxy)
+```yaml
+requests:
+  cpu: "10m"
+  memory: "32Mi"
+```
+
+### Small (Simple web app)
+```yaml
+requests:
+  cpu: "100m"
+  memory: "128Mi"
+```
+
+### Medium (Typical application)
+```yaml
+requests:
+  cpu: "500m"
+  memory: "512Mi"
+```
+
+### Large (Database, data processing)
+```yaml
+requests:
+  cpu: "2"
+  memory: "4Gi"
+```
+
+## Verification Commands
+
+```bash
+# Check pod is running
+kubectl get pod resource-hungry-app -n k8squest
+
+# Check resource requests
+kubectl describe pod resource-hungry-app -n k8squest | grep -A 6 "Requests"
+
+# Check quota usage
+kubectl describe resourcequota compute-quota -n k8squest
+
+# Check actual usage (requires metrics-server)
+kubectl top pod resource-hungry-app -n k8squest
+```
+
+---
+
+**Run the validation script** to verify everything is configured correctly!
+
+```bash
+./validate.sh
+```
+

@@ -1,0 +1,1795 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="On 2025-09-03, a Juniper QFX5120-32C core switch running firmware version 21.4R3-S4 triggered an STP (Spanning Tree Protocol) recalculation storm.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/sev-1/switch-firmware-network-partition/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Postmortem: Core Switch Firmware Bug Causes Cascading Network Partition - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Postmortem: Core Switch Firmware Bug Causes Cascading Network Partition - GrokDevOps Wiki" />
+<meta property="og:description" content="On 2025-09-03, a Juniper QFX5120-32C core switch running firmware version 21.4R3-S4 triggered an STP (Spanning Tree Protocol) recalculation storm." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/sev-1/switch-firmware-network-partition.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/sev-1/switch-firmware-network-partition/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Postmortem: Core Switch Firmware Bug Causes Cascading Network Partition - GrokDevOps Wiki" />
+<meta property="twitter:description" content="On 2025-09-03, a Juniper QFX5120-32C core switch running firmware version 21.4R3-S4 triggered an STP (Spanning Tree Protocol) recalculation storm." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/sev-1/switch-firmware-network-partition.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#postmortem-core-switch-firmware-bug-causes-cascading-network-partition" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Postmortem: Core Switch Firmware Bug Causes Cascading Network Partition
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-all-times-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline (All times UTC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Impact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customer-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customer Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root Cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happened-technical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happened (Technical)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contributing Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-we-got-lucky-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What We Got Lucky About
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-we-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How We Detected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-we-didnt-detect-sooner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why We Didn't Detect Sooner
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-went-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Well
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-went-poorly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Poorly
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lessons-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lessons Learned
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../portal/tags/#tag:postmortem" class="md-tag">postmortem</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="postmortem-core-switch-firmware-bug-causes-cascading-network-partition">Postmortem: Core Switch Firmware Bug Causes Cascading Network Partition<a class="headerlink" href="#postmortem-core-switch-firmware-bug-causes-cascading-network-partition" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ID</strong></td>
+<td>PM-004</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2025-09-03</td>
+</tr>
+<tr>
+<td><strong>Severity</strong></td>
+<td>SEV-1</td>
+</tr>
+<tr>
+<td><strong>Duration</strong></td>
+<td>3h 42m (detection to resolution)</td>
+</tr>
+<tr>
+<td><strong>Time to Detect</strong></td>
+<td>2m</td>
+</tr>
+<tr>
+<td><strong>Time to Mitigate</strong></td>
+<td>3h 42m</td>
+</tr>
+<tr>
+<td><strong>Customer Impact</strong></td>
+<td>61% of production services became unreachable for the full 3h 42m. Approximately 34,000 concurrent users lost access to all application features. Internal tooling (CI/CD, monitoring, VPN gateway) also partitioned for the duration.</td>
+</tr>
+<tr>
+<td><strong>Revenue Impact</strong></td>
+<td>~$248,000 estimated (3.7h × avg $67k/h for affected service slice)</td>
+</tr>
+<tr>
+<td><strong>Teams Involved</strong></td>
+<td>Network Operations (NetOps), Datacenter Engineering, SRE, Platform Engineering, Infrastructure Leadership</td>
+</tr>
+<tr>
+<td><strong>Postmortem Author</strong></td>
+<td>Owen Mackenzie (Senior Network Operations Engineer)</td>
+</tr>
+<tr>
+<td><strong>Postmortem Date</strong></td>
+<td>2025-09-07</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>On 2025-09-03, a Juniper QFX5120-32C core switch running firmware version 21.4R3-S4 triggered an STP (Spanning Tree Protocol) recalculation storm following a routine LACP flap on an uplink between <code>core-sw-01</code> and <code>agg-sw-03</code>. The firmware bug caused the switch to broadcast topology change notifications continuously rather than stabilizing after convergence, forcing all downstream switches to flush their MAC address tables in a loop. This created a cascading L2 forwarding disruption that took approximately 18% of traffic and grew to affect 61% of rack-to-rack connectivity within 4 minutes. Because the management plane was on the same L2 broadcast domain, SSH access to all affected switches was lost simultaneously. Physical console access to all six affected switches was required to diagnose and mitigate. Recovery required downgrading the firmware on three core switches to 21.4R3-S2 and manually restoring STP topology. Total outage duration was 3 hours 42 minutes.</p>
+<hr />
+<h2 id="timeline-all-times-utc">Timeline (All times UTC)<a class="headerlink" href="#timeline-all-times-utc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>18:04</td>
+<td>LACP PDU timeout on uplink between <code>core-sw-01</code> (Rack C2, Juniper QFX5120) and <code>agg-sw-03</code> (Rack F4, Juniper QFX5110). Uplink member port <code>et-0/0/28</code> experiences a 3-second signal loss. LACP marks the port inactive. This is a routine event that occurs 2–4 times per month due to transceiver heat cycling.</td>
+</tr>
+<tr>
+<td>18:04</td>
+<td><code>core-sw-01</code> generates an STP Topology Change Notification (TCN) for the topology change. Normal behavior.</td>
+</tr>
+<tr>
+<td>18:04</td>
+<td>Firmware bug triggers: <code>core-sw-01</code> enters a loop, rebroadcasting the TCN every 80ms rather than once per topology change event. Downstream switches begin flushing MAC tables continuously.</td>
+</tr>
+<tr>
+<td>18:05</td>
+<td>MAC table flush storm causes L2 forwarding to degrade as switches fall back to flooding for unknown destinations. Traffic levels spike 340% on all inter-switch trunks as flooded unicast saturates links.</td>
+</tr>
+<tr>
+<td>18:06</td>
+<td>Datadog synthetic checks begin failing across multiple services. PagerDuty fires: <code>[CRITICAL] 14 synthetic checks failing simultaneously</code>. SRE on-call (Yara Holst) acknowledges.</td>
+</tr>
+<tr>
+<td>18:06</td>
+<td>NetOps automated monitoring (<code>network-mon-01</code>) loses SNMP reachability to <code>core-sw-01</code>, <code>core-sw-02</code>, <code>agg-sw-01</code>, <code>agg-sw-02</code>, <code>agg-sw-03</code>. SSH to all management IPs unreachable — management plane is on the same broadcast domain.</td>
+</tr>
+<tr>
+<td>18:07</td>
+<td>Yara attempts to SSH to <code>core-sw-01</code> management IP (10.0.1.1). Connection times out. Attempts to SSH to <code>agg-sw-01</code> (10.0.2.1). Times out. Pages NetOps on-call (Owen Mackenzie) and Datacenter Engineering on-call (Sanjay Patel). SEV-1 declared.</td>
+</tr>
+<tr>
+<td>18:09</td>
+<td>Owen joins. First hypothesis: upstream ISP link failure causing BGP withdrawal. Checks BGP monitoring dashboard — BGP sessions to ISP peers (CenturyLink, Cogent) show <code>Established</code>. ISP hypothesis rejected.</td>
+</tr>
+<tr>
+<td>18:11</td>
+<td>Second hypothesis: DDoS causing link saturation. Checks Arbor NetScout — no anomalous inbound traffic patterns. DDoS hypothesis rejected.</td>
+</tr>
+<tr>
+<td>18:14</td>
+<td>Sanjay arrives at DC floor (onsite). Notes all switch panel LEDs are in a normal state — green, no amber or red on port LEDs. Begins physical console access to <code>core-sw-01</code> via serial console server (<code>console-srv-01</code>). Console server is on a separate management VLAN backed by cellular uplink — still reachable.</td>
+</tr>
+<tr>
+<td>18:19</td>
+<td>Sanjay connects to <code>core-sw-01</code> console. Runs <code>show spanning-tree</code>. Output shows STP state oscillating: bridge roles flipping between Root and Designated every few seconds.</td>
+</tr>
+<tr>
+<td>18:21</td>
+<td>Owen identifies the TCN storm pattern in the STP output. Cross-references with Juniper security advisories on NetOps laptop (not network-dependent). Finds <code>JSA-2025-0044</code>: known firmware bug in QFX5120 21.4R3-S4 causing STP TCN storm on LACP flap events. Advisory published 2025-08-14.</td>
+</tr>
+<tr>
+<td>18:23</td>
+<td>Firmware upgrade changelog review: <code>core-sw-01</code>, <code>core-sw-02</code>, and <code>core-sw-03</code> were upgraded to 21.4R3-S4 on 2025-07-29 during a scheduled maintenance window. The JSA advisory was published 16 days after the upgrade.</td>
+</tr>
+<tr>
+<td>18:25</td>
+<td>Decision: downgrade <code>core-sw-01</code> to 21.4R3-S2 (last known-good). Sanjay begins downgrade sequence from console. Estimated time: 12–15 minutes including reboot.</td>
+</tr>
+<tr>
+<td>18:26</td>
+<td>Platform Engineering on-call (Tamar Cohen) joins. Begins identifying which racks are affected (Racks C1–C4, F1–F4 = 47 of 78 production racks). Racks E1–E8 and G1–G8 are unaffected (connected to <code>agg-sw-04</code>, <code>agg-sw-05</code> which are on QFX5110 firmware, not affected).</td>
+</tr>
+<tr>
+<td>18:38</td>
+<td><code>core-sw-01</code> comes back online with 21.4R3-S2. TCN storm stops on C-row racks. STP reconverges in 28 seconds. C-row hosts begin recovering.</td>
+</tr>
+<tr>
+<td>18:41</td>
+<td>SSH access to <code>agg-sw-01</code> and <code>agg-sw-02</code> restored. Owen verifies STP topology stable on C-row.</td>
+</tr>
+<tr>
+<td>18:44</td>
+<td><code>core-sw-02</code> console access obtained by Sanjay (second serial port on console-srv-01). Downgrade initiated.</td>
+</tr>
+<tr>
+<td>18:58</td>
+<td><code>core-sw-02</code> back online with 21.4R3-S2. F1–F2 rows recovering.</td>
+</tr>
+<tr>
+<td>19:02</td>
+<td>Sanjay physically moves to console-srv-02 in Rack B1 to access <code>core-sw-03</code> console.</td>
+</tr>
+<tr>
+<td>19:09</td>
+<td><code>core-sw-03</code> downgrade initiated.</td>
+</tr>
+<tr>
+<td>19:22</td>
+<td><code>core-sw-03</code> back online. All C, E, and F row racks recovered. <code>agg-sw-03</code> and <code>agg-sw-04</code> reconnect.</td>
+</tr>
+<tr>
+<td>19:40</td>
+<td>Full network topology stable. All 78 production racks have L2 and L3 connectivity. Synthetic monitoring checks passing.</td>
+</tr>
+<tr>
+<td>21:46</td>
+<td>Extended monitoring watch completed. SNMP polling confirmed stable for 2h 6m. Incident formally closed.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="impact">Impact<a class="headerlink" href="#impact" title="Permanent link">&para;</a></h2>
+<h3 id="customer-impact">Customer Impact<a class="headerlink" href="#customer-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>34,000 concurrent users</strong> lost access to all application features for 3h 42m</li>
+<li>Affected services: API gateway, web frontend, authentication service, search, recommendations, order service (all on C/F row racks)</li>
+<li><strong>Unaffected services:</strong> Analytics pipeline, batch jobs, cold storage (E/G row racks) — no customer-visible functions</li>
+<li>All CI/CD pipelines paused automatically (Kubernetes control plane on C-row was unavailable); 7 active deployments were cancelled and required re-queue</li>
+<li>VPN gateway (C-row) unreachable for 3h 42m — remote engineers could not SSH to jump hosts; 4 on-call engineers required to use cellular hotspot fallback for tooling access</li>
+</ul>
+<h3 id="internal-impact">Internal Impact<a class="headerlink" href="#internal-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li>NetOps: 2 engineers × 5h = 10 engineer-hours</li>
+<li>Datacenter Engineering: 2 engineers × 4h = 8 engineer-hours (including physical on-site time)</li>
+<li>SRE: 3 engineers × 4h = 12 engineer-hours</li>
+<li>Platform Engineering: 2 engineers × 2h = 4 engineer-hours</li>
+<li>Leadership bridge call: ~8 attendees × 1.5h = 12 hours total</li>
+<li>Firmware downgrade deferred a scheduled <code>agg-sw-04</code> planned maintenance window (rescheduled to 2025-09-17)</li>
+</ul>
+<h3 id="data-impact">Data Impact<a class="headerlink" href="#data-impact" title="Permanent link">&para;</a></h3>
+<p>None. The network partition was a transport-layer event — no application state was modified, corrupted, or lost. All in-flight requests either completed before the partition or received TCP RST and were retried by clients. No database writes were interrupted mid-transaction (PostgreSQL's synchronous_commit ensured no partial commits); confirmed by DRE post-incident query.</p>
+<hr />
+<h2 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<h3 id="what-happened-technical">What Happened (Technical)<a class="headerlink" href="#what-happened-technical" title="Permanent link">&para;</a></h3>
+<p>The Juniper QFX5120-32C running firmware 21.4R3-S4 contains a defect in its spanning tree implementation (documented in Juniper advisory JSA-2025-0044, published 2025-08-14). When an LACP member port experiences a PDU timeout and is marked inactive, the STP subsystem on the affected switch generates a Topology Change Notification. Under normal firmware behavior, this TCN is sent once per topology change event, downstream switches flush their MAC tables, and STP reconverges within 30–60 seconds.</p>
+<p>The defect in 21.4R3-S4 causes the STP process to enter an internal loop condition where the TCN is rebroadcast every 80ms for as long as the triggering LACP event persists (in this case, until the port physically recovered). This continuous TCN storm caused all downstream switches (<code>agg-sw-01</code> through <code>agg-sw-05</code> and all ToR switches) to flush their MAC address tables every 80ms. With cleared MAC tables, switches have no forwarding entries for unicast traffic and must flood all unicast frames out all ports. This flooded unicast traffic saturated inter-switch trunks, which in turn delayed MAC table re-learning, creating a feedback loop.</p>
+<p>The management plane — specifically, all switch management IP addresses — were on VLAN 10, which is carried on the same trunk infrastructure as production traffic. When the MAC table storm caused trunk saturation, management VLAN traffic was indistinguishable from production traffic and was also disrupted. This meant that SSH to all affected switches was unavailable during the outage, and all network management operations required physical console access.</p>
+<p>The affected switches (<code>core-sw-01</code>, <code>core-sw-02</code>, <code>core-sw-03</code>) had been upgraded to 21.4R3-S4 on 2025-07-29. Juniper published the advisory for this defect on 2025-08-14 — 16 days after the upgrade. The NetOps team's process for applying vendor security advisories requires monthly review of active advisories; the next scheduled review was 2025-09-10, 7 days after the incident.</p>
+<p>The network topology had a known fragility: the C-row and F-row racks shared a single pair of core switches (<code>core-sw-01</code> and <code>core-sw-02</code>) with no independent L3 path for management traffic. This was documented in the 2025 Q1 infrastructure review as a topology risk, rated medium priority, with a remediation plan to install a dedicated out-of-band management network (target: Q3 2025). The project was deferred to Q4 due to hardware procurement delays.</p>
+<h3 id="contributing-factors">Contributing Factors<a class="headerlink" href="#contributing-factors" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Firmware advisory review was monthly rather than continuous:</strong> The NetOps team reviews Juniper security advisories on a monthly cadence. The JSA-2025-0044 advisory was published 16 days after the affected firmware was deployed, placing it squarely in the gap between review cycles. A continuous or weekly advisory review would have detected the advisory within days and triggered an emergency downgrade before any LACP flap event occurred.</p>
+</li>
+<li>
+<p><strong>No out-of-band management network:</strong> All switch management IPs were on VLAN 10, carried on the same trunks as production traffic. When production trunks became saturated and MAC tables thrashed, management traffic was equally disrupted. SSH access to all affected switches was lost simultaneously. Physical console access — requiring an engineer physically on the datacenter floor — became the only management path. An out-of-band management network (dedicated VLAN on a separate physical path, or cellular-backed OOB console servers) was planned but not yet implemented.</p>
+</li>
+<li>
+<p><strong>STP topology fragility was documented but not remediated:</strong> The Q1 2025 infrastructure review identified the single-pair core switch design as a topology risk for C/F-row racks. Remediation was deprioritized due to hardware procurement delays. The planned fix (adding a third core switch in an ECMP triangle topology) would have provided an alternate L2 path that the TCN storm could not have completely severed.</p>
+</li>
+</ol>
+<h3 id="what-we-got-lucky-about">What We Got Lucky About<a class="headerlink" href="#what-we-got-lucky-about" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The L2 partition split cleanly along rack-row boundaries: C/F-row racks (affected) vs E/G-row racks (unaffected). This meant the unaffected racks formed a coherent subset — analytics, batch processing, and cold storage continued running without interruption. Had the partition bisected individual service clusters (e.g., taking down 3 of 5 Kafka brokers), the blast radius would have been substantially larger and recovery more complex.</li>
+<li>The console server (<code>console-srv-01</code>) was backed by a separate cellular uplink that was completely unaffected by the L2 disruption. Without console server access, Sanjay would have needed to bring a physical laptop to each switch's serial port directly, adding approximately 45–60 minutes to recovery time.</li>
+</ol>
+<hr />
+<h2 id="detection">Detection<a class="headerlink" href="#detection" title="Permanent link">&para;</a></h2>
+<h3 id="how-we-detected">How We Detected<a class="headerlink" href="#how-we-detected" title="Permanent link">&para;</a></h3>
+<p>Synthetic monitoring checks (Datadog) began failing 1 minute after the LACP flap triggered the TCN storm. PagerDuty fired a critical alert at T+2m with 14 simultaneous synthetic check failures, which immediately indicated a network-level event rather than an application-level fault (isolated application failures would affect 1–3 checks, not 14 simultaneously). The SRE on-call acknowledged within 60 seconds.</p>
+<h3 id="why-we-didnt-detect-sooner">Why We Didn't Detect Sooner<a class="headerlink" href="#why-we-didnt-detect-sooner" title="Permanent link">&para;</a></h3>
+<p>Detection was fast (2 minutes). The primary gap is that detection came from service-level synthetic checks rather than from network-level SNMP/telemetry alerts. The SNMP monitoring tool (<code>network-mon-01</code>) lost reachability to all affected switches simultaneously, which caused all its alerts to fire as "unreachable" rather than providing diagnostic information about STP state. A network telemetry system (e.g., Junos Telemetry Interface streaming to an external collector on the OOB network) would have captured STP state data even during the management plane disruption.</p>
+<hr />
+<h2 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h2>
+<h3 id="what-went-well">What Went Well<a class="headerlink" href="#what-went-well" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The console server's cellular uplink provided a reliable management path when in-band SSH was completely unavailable. The value of this cellular-backed console server was demonstrated concretely — it was the sole management vector for all switch operations during the incident.</li>
+<li>The cross-reference to Juniper advisory JSA-2025-0044 was made within 17 minutes of gaining console access and confirmed root cause definitively. Owen's familiarity with Juniper advisory search was a key factor.</li>
+<li>The firmware downgrade procedure (QFX image staging, ISSU-style reboot) was well-documented in NetOps runbooks and executed correctly under pressure. Each core switch was downgraded in 12–15 minutes, close to the estimated time.</li>
+<li>The partition along rack-row boundaries was identified early (T+22m), which allowed Platform Engineering to accurately characterize which services were affected and communicate this to leadership and customers.</li>
+</ol>
+<h3 id="what-went-poorly">What Went Poorly<a class="headerlink" href="#what-went-poorly" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Only one engineer (Sanjay) was physically on-site. Console-srv-01 had two serial ports, but the third core switch (<code>core-sw-03</code>) required physical movement to console-srv-02 in a different rack. With two on-site engineers, all three switches could have been downgraded in parallel, potentially reducing recovery time by 40–50 minutes.</li>
+<li>The monthly firmware advisory review cadence was too slow to catch a critical advisory published mid-cycle. The 16-day gap between deployment and advisory publication, combined with the 30-day review cycle, created a situation where a critical bug was running in production for 36 days before it was triggered.</li>
+<li>There was no runbook for "SSH to all switches unreachable simultaneously" — a scenario that required pivoting to console access. The first 7 minutes of the response were spent attempting SSH and confirming it was completely unavailable, rather than immediately dispatching to console access. The runbook gap meant this was improvised rather than procedural.</li>
+</ol>
+<hr />
+<h2 id="action-items">Action Items<a class="headerlink" href="#action-items" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Action</th>
+<th>Priority</th>
+<th>Owner</th>
+<th>Status</th>
+<th>Due Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AI-001</td>
+<td>Implement dedicated out-of-band management network: dedicated VLAN on a physically separate switch pair, backed by cellular uplink; migrate all switch management IPs to OOB VLAN; complete hardware procurement</td>
+<td>P0</td>
+<td>Sanjay Patel (Datacenter Engineering)</td>
+<td>In Progress</td>
+<td>2025-11-14</td>
+</tr>
+<tr>
+<td>AI-002</td>
+<td>Switch Juniper advisory monitoring from monthly manual review to weekly automated scan: subscribe to Juniper Security Advisories RSS feed, route new advisories to NetOps Slack channel and create Jira tickets automatically for any advisory matching active firmware versions</td>
+<td>P0</td>
+<td>Owen Mackenzie (NetOps)</td>
+<td>Not Started</td>
+<td>2025-09-19</td>
+</tr>
+<tr>
+<td>AI-003</td>
+<td>Immediately downgrade <code>core-sw-01</code>, <code>core-sw-02</code>, <code>core-sw-03</code> to 21.4R3-S2 and freeze firmware upgrades until JSA-2025-0044 is resolved in a patched release; schedule firmware re-upgrade review for 2025-10-01</td>
+<td>P0</td>
+<td>Owen Mackenzie (NetOps)</td>
+<td>Complete</td>
+<td>2025-09-04</td>
+</tr>
+<tr>
+<td>AI-004</td>
+<td>Write and publish runbook for "in-band SSH to all switches unreachable": escalation path → console server access → physical console access; include console server IP, cellular APN credentials, and serial port map for all production switches</td>
+<td>P1</td>
+<td>Owen Mackenzie (NetOps)</td>
+<td>Not Started</td>
+<td>2025-09-19</td>
+</tr>
+<tr>
+<td>AI-005</td>
+<td>Resume Q4 core switch topology remediation project: add <code>core-sw-04</code> to form an ECMP triangle for C/F-row racks, eliminating the single-pair bottleneck; schedule for completion by 2025-12-15</td>
+<td>P1</td>
+<td>Datacenter Engineering + Infrastructure Leadership</td>
+<td>Not Started</td>
+<td>2025-12-15</td>
+</tr>
+<tr>
+<td>AI-006</td>
+<td>Add second on-call engineer to NetOps and Datacenter Engineering rotation for the 18:00–06:00 UTC window; current single-person on-call cannot parallelize multi-switch console remediation</td>
+<td>P2</td>
+<td>Infrastructure Leadership (Valentina Cruz)</td>
+<td>Not Started</td>
+<td>2025-10-01</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="lessons-learned">Lessons Learned<a class="headerlink" href="#lessons-learned" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>The management plane must be physically separated from the data plane.</strong> When management traffic runs on the same infrastructure as production traffic, any data plane failure that degrades the network will also take out the management plane. This is not a new principle — it is foundational to datacenter network design. The consequence of ignoring it is exactly what occurred: all switches became simultaneously unmanageable, turning a recoverable firmware issue into a multi-hour physical console operation. Out-of-band management networks are not optional infrastructure; they are a prerequisite for safe operations.</p>
+</li>
+<li>
+<p><strong>Firmware advisory cadence must match the blast radius of the affected systems.</strong> Core network infrastructure has a blast radius that is disproportionate to its software surface area. A firmware bug on a core switch can partition the entire datacenter. Advisory review for core network firmware should be weekly or continuous — not monthly. The asymmetry between the 16-day advisory publication lag and the 30-day review cycle created an unnecessary 36-day exposure window.</p>
+</li>
+<li>
+<p><strong>Documented risks that are not mitigated are accepted risks — make sure leadership accepts them explicitly.</strong> The STP topology fragility was documented in the Q1 infrastructure review and rated medium priority. It was then deferred. At the point of deferral, leadership implicitly accepted the risk of a TCN storm partition event. Making that acceptance explicit — "we are accepting the risk of a full C/F row partition until Q4 2025, estimated probability X, estimated impact $Y" — creates accountability and may change the prioritization decision.</p>
+</li>
+</ol>
+<hr />
+<h2 id="cross-references">Cross-References<a class="headerlink" href="#cross-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Failure Pattern:</strong> Infrastructure — Firmware Bug in Core Network Device; Design Flaw — Management Plane Co-Located with Data Plane; Process Gap — Vendor Advisory Review Cadence Too Slow</li>
+<li><strong>Topic Packs:</strong> spanning-tree-protocol, datacenter-networking, firmware-lifecycle-management, out-of-band-management</li>
+<li><strong>Runbook:</strong> <code>runbooks/network/core-switch-console-recovery.md</code> (to be created per AI-004)</li>
+<li><strong>Decision Tree:</strong> Triage path — "Multiple synthetic checks failing simultaneously, SSH to switches unreachable" → immediately dispatch physical on-site engineer to console server → do not spend &gt;5 min attempting in-band SSH → check STP state via console → if TCN storm, identify firmware version and cross-reference advisory database → initiate firmware downgrade</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="April 8, 2026 23:43:45 UTC">April 8, 2026 23:43:45</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 23:53:02 UTC">March 19, 2026 23:53:02</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

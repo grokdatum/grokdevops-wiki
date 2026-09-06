@@ -1,0 +1,61 @@
+## Objective
+Add a readiness probe to prevent traffic from hitting pods too early
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the pods:
+`kubectl get pods -n k8squest -l app=slow-app`
+
+Do you notice the READY column? Some pods might show "0/1" even though STATUS is "Running".
+
+Check the service endpoints:
+`kubectl get endpoints slow-app-service -n k8squest`
+
+Are unready pods being added to the service? This would send traffic to pods that aren't ready yet!
+
+Try describing a pod that's not ready:
+`kubectl describe pod <pod-name> -n k8squest`
+
+## Hint 2
+🧭 Direction Hint:
+
+The problem: Pods are Running, but they take 20 seconds to actually be ready to serve traffic (simulated with sleep 20 in postStart hook).
+
+Without a readiness probe, Kubernetes assumes "Running = Ready" and immediately adds the pod to the Service endpoints.
+
+This means users hit pods that are still starting up → 502 Bad Gateway errors!
+
+Check the deployment:
+`kubectl get deployment slow-startup-app -n k8squest -o yaml | grep -A 10 readinessProbe`
+
+You'll likely see nothing (or just livenessProbe). That's the problem!
+
+## Hint 3
+💡 Near-Solution Hint:
+
+You need to add a readiness probe that waits for the app to actually be ready.
+
+Steps:
+1. Edit the deployment:
+   `kubectl edit deployment slow-startup-app -n k8squest`
+
+2. Find the `livenessProbe` section, and add a `readinessProbe` right below it:
+
+```yaml
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 22  # Wait for the 20s sleep + 2s buffer
+          periodSeconds: 5
+          successThreshold: 1
+```
+
+3. Save and exit. Pods will be recreated.
+
+4. Watch the pods become ready:
+   `kubectl get pods -n k8squest -l app=slow-app -w`
+
+Now pods won't receive traffic until they're actually ready!
+

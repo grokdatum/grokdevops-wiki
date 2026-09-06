@@ -1,0 +1,124 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+🔍 HINT 1: Observing the Problem
+
+Let's investigate why the PVC is stuck in Pending:
+
+1️⃣ Check PVC status:
+   kubectl get pvc app-storage -n k8squest
+   kubectl describe pvc app-storage -n k8squest
+
+   What's the STATUS? Look at Events section!
+
+2️⃣ Check what StorageClass the PVC wants:
+   kubectl get pvc app-storage -n k8squest -o yaml | grep storageClassName
+
+   What storage class is it requesting?
+
+3️⃣ List available StorageClasses:
+   kubectl get storageclass
+   kubectl get sc
+
+   Does the requested StorageClass exist?
+
+4️⃣ Check pod status:
+   kubectl get pod data-processor -n k8squest
+   kubectl describe pod data-processor -n k8squest
+
+   Can the pod start without its PVC?
+
+📝 Key Observation:
+The PVC references a StorageClass that doesn't exist in the cluster!
+
+🤔 Questions:
+• What is a StorageClass?
+• How do you find available storage classes?
+• Can you create a new StorageClass or use an existing one?
+
+## Hint 2
+🎯 HINT 2: Understanding StorageClass
+
+The problem is the PVC references a non-existent StorageClass!
+
+📚 StorageClass Explained:
+
+StorageClass defines HOW storage is provisioned:
+- What storage backend to use (EBS, NFS, etc.)
+- What parameters (disk type, IOPS, etc.)
+- Reclaim policy defaults
+
+**Current (Broken):**
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+spec:
+  storageClassName: premium-ssd  # ❌ Doesn't exist!
+```
+
+Result: PVC stuck in Pending, waiting for storage that will never come
+
+**Solution Options:**
+
+Option 1: Use existing StorageClass
+```yaml
+storageClassName: standard  # ✅ Use what's available
+```
+
+Option 2: Create the missing StorageClass (advanced)
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: premium-ssd
+provisioner: <appropriate-provisioner>
+```
+
+🔍 Find available StorageClasses:
+```bash
+kubectl get sc
+# Look for (default) marker or any available classes
+```
+
+💡 Action: Change PVC to use an existing StorageClass (usually "standard")
+
+## Hint 3
+✅ HINT 3: Complete Solution
+
+Fix: Change storageClassName to an existing one
+
+📝 In PersistentVolumeClaim:
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard  # ✅ Changed from premium-ssd
+```
+
+🚀 Apply:
+```bash
+kubectl delete -f broken.yaml
+kubectl apply -f solution.yaml
+kubectl get pvc app-storage -n k8squest -w
+# Watch it transition from Pending → Bound
+```
+
+🔍 Verify:
+```bash
+kubectl get pvc app-storage -n k8squest
+# STATUS should be "Bound"
+
+kubectl get pod data-processor -n k8squest
+# Pod should start successfully now
+```
+
+💡 Remember: PVC can only be provisioned if the StorageClass exists and is properly configured!
+

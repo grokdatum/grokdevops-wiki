@@ -1,0 +1,1555 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Interviewer: 'Design a log aggregation pipeline for a Kubernetes cluster running 10,000 pods.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/interview-scenarios/gauntlet/system-design/log-aggregation-pipeline/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Interview Gauntlet: Log Aggregation Pipeline - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Interview Gauntlet: Log Aggregation Pipeline - GrokDevOps Wiki" />
+<meta property="og:description" content="Interviewer: 'Design a log aggregation pipeline for a Kubernetes cluster running 10,000 pods." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/interview-scenarios/gauntlet/system-design/log-aggregation-pipeline.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/interview-scenarios/gauntlet/system-design/log-aggregation-pipeline/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Interview Gauntlet: Log Aggregation Pipeline - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Interviewer: 'Design a log aggregation pipeline for a Kubernetes cluster running 10,000 pods." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/interview-scenarios/gauntlet/system-design/log-aggregation-pipeline.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#interview-gauntlet-log-aggregation-pipeline" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Interview Gauntlet: Log Aggregation Pipeline
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#round-1-the-opening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 1: The Opening
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 1: The Opening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-weak-answers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Weak Answers:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-2-the-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 2: The Probe
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 2: The Probe">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trap-alert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trap Alert:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-3-the-constraint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 3: The Constraint
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 3: The Constraint">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-senior-signal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Senior Signal:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-4-the-curveball" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 4: The Curveball
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 4: The Curveball">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trap-question-variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trap Question Variant:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-5-the-synthesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round 5: The Synthesis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round 5: The Synthesis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#strong-answer_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strong Answer:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-this-sequence-tested" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What This Sequence Tested:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisite-topic-packs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisite Topic Packs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-interview-scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Interview Scenarios
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../../portal/tags/#tag:interview" class="md-tag">interview</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="interview-gauntlet-log-aggregation-pipeline">Interview Gauntlet: Log Aggregation Pipeline<a class="headerlink" href="#interview-gauntlet-log-aggregation-pipeline" title="Permanent link">&para;</a></h1>
+<p><strong>Category:</strong> System Design
+<strong>Difficulty:</strong> L2-L3
+<strong>Duration:</strong> 15-20 minutes
+<strong>Domains:</strong> Observability, Kubernetes</p>
+<hr />
+<h2 id="round-1-the-opening">Round 1: The Opening<a class="headerlink" href="#round-1-the-opening" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "Design a log aggregation pipeline for a Kubernetes cluster running 10,000 pods. Walk me through your architecture."</p>
+<h3 id="strong-answer">Strong Answer:<a class="headerlink" href="#strong-answer" title="Permanent link">&para;</a></h3>
+<p>"I'd use a DaemonSet-based collector on every node — something like Fluent Bit for its low memory footprint. Each Fluent Bit instance tails container logs from <code>/var/log/containers/</code> and enriches them with Kubernetes metadata via the kubernetes filter. From there, I'd ship to a buffering layer — Kafka or a Fluentd aggregator tier — to decouple collection from storage. The storage backend depends on query patterns: Elasticsearch for full-text search, or Loki if we want something lighter that indexes only labels. I'd add a Grafana frontend for querying. At 10k pods, I'd estimate roughly 5-10 GB/day per thousand pods depending on log verbosity, so we're looking at 50-100 GB/day raw volume."</p>
+<h3 id="common-weak-answers">Common Weak Answers:<a class="headerlink" href="#common-weak-answers" title="Permanent link">&para;</a></h3>
+<ul>
+<li>"I'd install the ELK stack." — Too vague. Doesn't address how logs get from pods to Elasticsearch, or how to handle 10k pods' worth of throughput.</li>
+<li>"I'd use CloudWatch Logs." — Jumps to a managed service without discussing the architecture. Doesn't show understanding of the pipeline stages or trade-offs.</li>
+<li>Skipping the buffering layer entirely — At 10k pods, sending directly from collectors to storage will create backpressure and data loss during storage outages.</li>
+</ul>
+<hr />
+<h2 id="round-2-the-probe">Round 2: The Probe<a class="headerlink" href="#round-2-the-probe" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "You mentioned Fluent Bit as a DaemonSet. What happens when a node has 200 pods all writing logs at high rates? How do you prevent the Fluent Bit instance from falling behind or consuming too much node memory?"</p>
+<blockquote>
+<p><em>What the interviewer is testing:</em> Understanding of resource constraints on shared node-level infrastructure and backpressure handling in log pipelines.</p>
+</blockquote>
+<h3 id="strong-answer_1">Strong Answer:<a class="headerlink" href="#strong-answer_1" title="Permanent link">&para;</a></h3>
+<p>"Fluent Bit's memory footprint is controlled by the <code>Mem_Buf_Limit</code> setting on each input — I'd set that to something like 10MB per input to cap total memory. If the buffer fills, Fluent Bit pauses reading from that tail input, which means the kernel's ring buffer or file rotation handles the overflow. I'd also configure <code>storage.type filesystem</code> with <code>storage.total_limit_size</code> to spill to disk when memory buffers are full. For the DaemonSet resource requests, I'd start with 100Mi memory request, 256Mi limit, and 100m CPU request. On a node with 200 chatty pods, I'd watch the <code>fluentbit_output_retries_total</code> and <code>fluentbit_input_bytes_total</code> metrics to know if we're keeping up. If a specific pod is flooding, I'd use Fluent Bit's <code>grep</code> or <code>throttle</code> filter to rate-limit per namespace or pod label."</p>
+<h3 id="trap-alert">Trap Alert:<a class="headerlink" href="#trap-alert" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>If the candidate bluffs here:</strong> The interviewer will ask "What's the default Mem_Buf_Limit?" or "What metric tells you Fluent Bit is dropping logs?" Bluffing about specific settings is worse than saying "I'd need to check the docs for the exact default, but the principle is to cap memory per input and use filesystem buffering as overflow."</p>
+</blockquote>
+<hr />
+<h2 id="round-3-the-constraint">Round 3: The Constraint<a class="headerlink" href="#round-3-the-constraint" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "Now scale this to 100,000 pods across 50 clusters. Oh, and you need to comply with SOC 2 — logs must be retained for 1 year, immutable, and you need to prove chain of custody."</p>
+<h3 id="strong-answer_2">Strong Answer:<a class="headerlink" href="#strong-answer_2" title="Permanent link">&para;</a></h3>
+<p>"At 100k pods across 50 clusters, the architecture shifts significantly. Each cluster keeps its local Fluent Bit DaemonSets and Kafka buffer, but now I need a centralized aggregation tier. I'd have each cluster's Kafka ship to a central object store — S3 with versioning enabled and Object Lock for immutability. For the hot tier (last 30 days), I'd keep Elasticsearch or Loki for interactive queries. For the cold tier (30 days to 1 year), I'd use S3 + Athena or a tool like Grafana Loki with an S3 backend in single-store mode. For SOC 2 chain of custody, I'd add checksums at the Fluent Bit output stage, stored alongside the log batches in S3. S3 versioning plus Object Lock gives us immutability. Access to the log store goes through an IAM role with CloudTrail auditing every read. I'd also need to demonstrate that no one — including admins — can delete or modify logs within the retention window, which is what S3 Governance or Compliance mode Object Lock provides."</p>
+<h3 id="the-senior-signal">The Senior Signal:<a class="headerlink" href="#the-senior-signal" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><em>What separates a senior answer:</em> Recognizing that at multi-cluster scale, the storage tiering strategy matters more than the collection layer. Mentioning S3 Object Lock specifically (not just "write once") and understanding the difference between Governance mode (admin can override) and Compliance mode (nobody can override, including root). Also: estimating cost — "At 500GB-1TB/day with 1 year retention, we're looking at ~150-350TB in S3, which is roughly $3k-7k/month in storage alone, plus query costs."</p>
+</blockquote>
+<hr />
+<h2 id="round-4-the-curveball">Round 4: The Curveball<a class="headerlink" href="#round-4-the-curveball" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "A developer pushes code that accidentally logs customer PII — social security numbers in plaintext. You discover this 3 days later. The logs are immutable. What do you do?"</p>
+<h3 id="strong-answer_3">Strong Answer:<a class="headerlink" href="#strong-answer_3" title="Permanent link">&para;</a></h3>
+<p>"This is a compliance incident, not just a technical problem. First, I'd assess the blast radius: which clusters, which namespaces, which time range. I'd use the log query layer to identify every log entry containing the PII pattern — SSNs have a recognizable format. For the immutable logs in S3, I cannot delete them, but I can restrict access to a break-glass role and document the incident. If we're using S3 Object Lock in Governance mode, a privileged admin can delete with the <code>s3:BypassGovernanceRetention</code> permission — but that action gets logged in CloudTrail, which is actually what you want for the audit trail. If it's Compliance mode, the data stays until the retention period expires and we need to treat those S3 objects as quarantined. Going forward, I'd add a Fluent Bit filter or a Kafka Streams processor to scrub PII patterns before they reach long-term storage — a regex-based redaction filter that replaces SSN patterns with <code>[REDACTED]</code>. And we need to file this as a potential data breach per our incident response plan, notify the security team, and likely the privacy officer."</p>
+<h3 id="trap-question-variant">Trap Question Variant:<a class="headerlink" href="#trap-question-variant" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>The right answer involves saying "I'm not sure of the exact legal requirements."</strong> Candidates who confidently state breach notification timelines or GDPR specifics without qualifying that they'd involve legal counsel are over-reaching. The strong signal is: "I know this triggers our incident response process and likely requires legal and compliance involvement. I'd handle the technical containment and defer to legal on notification obligations."</p>
+</blockquote>
+<hr />
+<h2 id="round-5-the-synthesis">Round 5: The Synthesis<a class="headerlink" href="#round-5-the-synthesis" title="Permanent link">&para;</a></h2>
+<p><strong>Interviewer:</strong> "Looking back at this whole pipeline — from 10k pods to 100k, from basic aggregation to compliance and PII handling — what would you tell a CTO who asks 'why is logging so expensive and complicated?'"</p>
+<h3 id="strong-answer_4">Strong Answer:<a class="headerlink" href="#strong-answer_4" title="Permanent link">&para;</a></h3>
+<p>"I'd frame it around risk and cost of ignorance. Logging isn't expensive — not having logs when you need them is expensive. A 4-hour outage without logs to diagnose could cost more than a year of log storage. That said, the complexity is real and it comes from three forces: scale (more pods = more data = more infrastructure), compliance (immutability and retention are not optional in regulated industries), and data hygiene (PII in logs turns a technical system into a legal liability). The key is tiered investment: cheap, fast collection; smart retention policies that age data from hot to cold; and proactive data classification so PII never enters the pipeline in the first place. If the CTO wants to reduce cost, the highest-leverage move isn't cheaper storage — it's structured logging standards that reduce log volume by 40-60% by eliminating debug noise from production and using sampling for high-volume endpoints."</p>
+<h3 id="what-this-sequence-tested">What This Sequence Tested:<a class="headerlink" href="#what-this-sequence-tested" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Round</th>
+<th>Skill Tested</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Breadth of log pipeline architecture knowledge</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Depth of operational experience with Fluent Bit resource management</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Adaptability to scale and compliance constraints</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Incident response instincts and intellectual honesty about legal boundaries</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Ability to communicate technical complexity to executive leadership</td>
+</tr>
+</tbody>
+</table>
+<h2 id="prerequisite-topic-packs">Prerequisite Topic Packs<a class="headerlink" href="#prerequisite-topic-packs" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../../../topics/log-pipelines/">Log Pipelines</a></li>
+<li><a href="../../../../topics/observability-deep-dive/">Observability Deep Dive</a></li>
+<li><a href="../../../../topics/k8s-ops/">Kubernetes Ops</a></li>
+<li><a href="../../../../topics/compliance-automation/">Compliance Automation</a></li>
+</ul>
+<h2 id="related-interview-scenarios">Related Interview Scenarios<a class="headerlink" href="#related-interview-scenarios" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../../04-loki-logs-disappeared/">Logs disappeared from Grafana Loki</a></li>
+<li><a href="../../../20-cost-spike-investigation/">Cloud cost spike investigation</a></li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="August 19, 2026 13:40:59 UTC">August 19, 2026 13:40:59</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 13:58:35 UTC">March 19, 2026 13:58:35</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

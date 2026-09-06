@@ -1,0 +1,35 @@
+# Connection test results from API gateway (10.60.10.15)
+# Collected: 2026-02-28 16:15 UTC
+
+### Test 1: curl to notification-svc port 8443 (FAILS)
+$ curl -k -v --connect-timeout 5 https://10.60.5.30:8443/health
+*   Trying 10.60.5.30:8443...
+* connect to 10.60.5.30 port 8443 failed: Connection timed out
+* Failed to connect to 10.60.5.30 port 8443 after 5001 ms: Timeout was reached
+* Closing connection 0
+curl: (28) Connection timed out after 5001 milliseconds
+
+### Test 2: curl to same host port 443 (WORKS)
+$ curl -k -v --connect-timeout 5 https://10.60.5.30:443/status
+*   Trying 10.60.5.30:443...
+* Connected to 10.60.5.30 (10.60.5.30) port 443 (#0)
+< HTTP/1.1 200 OK
+{"status":"ok"}
+
+### Test 3: curl to same host port 8080 (WORKS)
+$ curl -v --connect-timeout 5 http://10.60.5.30:8080/health
+*   Trying 10.60.5.30:8080...
+* Connected to 10.60.5.30 (10.60.5.30) port 8080 (#0)
+< HTTP/1.1 200 OK
+{"status":"ok"}
+
+### Test 4: From localhost on 10.60.5.30 (WORKS -- bypasses INPUT chain via lo)
+$ curl -k https://127.0.0.1:8443/health
+{"status":"ok","service":"notification-svc","version":"2.1.0"}
+
+### Test 5: ss output confirming service is listening
+$ ss -tlnp | grep 8443
+LISTEN 0      128    0.0.0.0:8443    0.0.0.0:*    users:(("notification-sv",pid=28412,fd=8))
+
+# Service is listening on all interfaces (0.0.0.0:8443)
+# The problem is NOT the service -- it's the firewall blocking inbound traffic

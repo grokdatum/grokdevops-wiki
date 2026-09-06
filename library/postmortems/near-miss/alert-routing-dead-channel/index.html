@@ -1,0 +1,1749 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="On Friday 2025-10-17 at 17:02 UTC, an Alertmanager configuration migration from Slack webhooks to PagerDuty receivers was deployed by SRE engineer.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/near-miss/alert-routing-dead-channel/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Postmortem: Alert Routing Sends All Pages to Decommissioned Channel - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Postmortem: Alert Routing Sends All Pages to Decommissioned Channel - GrokDevOps Wiki" />
+<meta property="og:description" content="On Friday 2025-10-17 at 17:02 UTC, an Alertmanager configuration migration from Slack webhooks to PagerDuty receivers was deployed by SRE engineer." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/near-miss/alert-routing-dead-channel.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/near-miss/alert-routing-dead-channel/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Postmortem: Alert Routing Sends All Pages to Decommissioned Channel - GrokDevOps Wiki" />
+<meta property="twitter:description" content="On Friday 2025-10-17 at 17:02 UTC, an Alertmanager configuration migration from Slack webhooks to PagerDuty receivers was deployed by SRE engineer." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/near-miss/alert-routing-dead-channel.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#postmortem-alert-routing-sends-all-pages-to-decommissioned-channel" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Postmortem: Alert Routing Sends All Pages to Decommissioned Channel
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-all-times-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline (All times UTC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Impact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customer-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customer Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-would-have-happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Would Have Happened
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root Cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happened-technical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happened (Technical)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contributing Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-we-got-lucky-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What We Got Lucky About
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-we-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How We Detected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-this-almost-wasnt-caught" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why This Almost Wasn't Caught
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-went-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Well
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-could-have-gone-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Could Have Gone Better
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lessons-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lessons Learned
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../portal/tags/#tag:postmortem" class="md-tag">postmortem</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="postmortem-alert-routing-sends-all-pages-to-decommissioned-channel">Postmortem: Alert Routing Sends All Pages to Decommissioned Channel<a class="headerlink" href="#postmortem-alert-routing-sends-all-pages-to-decommissioned-channel" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ID</strong></td>
+<td>PM-030</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2025-10-17</td>
+</tr>
+<tr>
+<td><strong>Severity</strong></td>
+<td>Near-Miss</td>
+</tr>
+<tr>
+<td><strong>Duration</strong></td>
+<td>0m (no customer impact)</td>
+</tr>
+<tr>
+<td><strong>Time to Detect</strong></td>
+<td>63h (Monday morning; discovery by manual check)</td>
+</tr>
+<tr>
+<td><strong>Time to Mitigate</strong></td>
+<td>47m (Alertmanager config corrected and reloaded)</td>
+</tr>
+<tr>
+<td><strong>Customer Impact</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Revenue Impact</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Teams Involved</strong></td>
+<td>SRE, Observability, On-Call Engineering</td>
+</tr>
+<tr>
+<td><strong>Postmortem Author</strong></td>
+<td>Cassandra Njoku</td>
+</tr>
+<tr>
+<td><strong>Postmortem Date</strong></td>
+<td>2025-10-20</td>
+</tr>
+</tbody>
+</table>
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>On Friday 2025-10-17 at 17:02 UTC, an Alertmanager configuration migration from Slack webhooks to PagerDuty receivers was deployed by SRE engineer Tomás Guerrero. The Slack receiver was removed correctly, but the PagerDuty receiver was defined in the <code>receivers</code> block without being wired into the <code>route</code> tree — the routing rules still referenced the old Slack receiver name, which now resolved to the implicit <code>null</code> receiver. All alerts fired from 17:02 Friday to 09:14 Monday were silently dropped: 47 alerts over 63 hours, zero delivered. The blackout was discovered Monday morning when SRE team lead Cassandra Njoku noticed the PagerDuty incident timeline was empty for the weekend and checked the Alertmanager status UI. No real incidents occurred during the blackout window; all 47 alerts were transient and self-resolved. If a SEV-1 had occurred over the weekend, there would have been no automated notification to the on-call engineer.</p>
+<h2 id="timeline-all-times-utc">Timeline (All times UTC)<a class="headerlink" href="#timeline-all-times-utc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2025-10-17 16:45</td>
+<td>Tomás Guerrero begins applying Alertmanager config migration: removes Slack receiver <code>slack-ops-alerts</code>, adds PagerDuty receiver <code>pagerduty-prod</code>; config passes <code>amtool check-config</code> validation</td>
+</tr>
+<tr>
+<td>2025-10-17 17:02</td>
+<td>Alertmanager config reloaded via HTTP POST to <code>/-/reload</code>; Alertmanager returns HTTP 200</td>
+</tr>
+<tr>
+<td>2025-10-17 17:05</td>
+<td>Tomás sends test alert using <code>amtool alert add</code> with severity=critical; observes alert appears in Alertmanager's "Alerts" UI; does not check PagerDuty to confirm receipt</td>
+</tr>
+<tr>
+<td>2025-10-17 17:08</td>
+<td>Tomás marks the migration task complete in Jira (OBS-441); signs off for the weekend</td>
+</tr>
+<tr>
+<td>2025-10-17 17:22</td>
+<td>First alert fires post-migration: <code>DiskPressureWarning</code> on node <code>worker-14</code>; routed to <code>null</code>; dropped</td>
+</tr>
+<tr>
+<td>2025-10-17 18:41</td>
+<td><code>HighMemoryUtilization</code> alert fires and self-resolves; dropped</td>
+</tr>
+<tr>
+<td>2025-10-18 (Saturday)</td>
+<td>19 alerts fire over the day (disk pressure, GC pauses, health check flaps); all dropped</td>
+</tr>
+<tr>
+<td>2025-10-19 (Sunday)</td>
+<td>26 alerts fire; all dropped</td>
+</tr>
+<tr>
+<td>2025-10-20 09:02</td>
+<td>Cassandra Njoku starts Monday shift; reviews PagerDuty for weekend incident summary; finds zero incidents</td>
+</tr>
+<tr>
+<td>2025-10-20 09:07</td>
+<td>Cassandra checks Alertmanager status UI (<code>/api/v2/alerts</code>) directly; sees 3 active alerts with status <code>suppressed</code>, receiver <code>null</code></td>
+</tr>
+<tr>
+<td>2025-10-20 09:09</td>
+<td>Cassandra inspects Alertmanager config: routing tree references <code>slack-ops-alerts</code> receiver (does not exist); <code>pagerduty-prod</code> receiver defined but not referenced in any route</td>
+</tr>
+<tr>
+<td>2025-10-20 09:11</td>
+<td>Cassandra pages Tomás and Observability team lead Ingrid Holm; opens <code>#sre-incidents</code> thread</td>
+</tr>
+<tr>
+<td>2025-10-20 09:14</td>
+<td>Alertmanager config updated: routing tree <code>receiver</code> field changed to <code>pagerduty-prod</code></td>
+</tr>
+<tr>
+<td>2025-10-20 09:17</td>
+<td>Config reloaded; test alert sent and confirmed received in PagerDuty within 45 seconds</td>
+</tr>
+<tr>
+<td>2025-10-20 09:35</td>
+<td>Retrospective call begins; historical alert review determines all 47 alerts were transient</td>
+</tr>
+<tr>
+<td>2025-10-20 10:01</td>
+<td>Incident closed; postmortem scheduled</td>
+</tr>
+<tr>
+<td>2025-10-20 14:30</td>
+<td>Cassandra begins postmortem authorship; Observability team opens OBS-449 (alerting end-to-end test)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="impact">Impact<a class="headerlink" href="#impact" title="Permanent link">&para;</a></h2>
+<h3 id="customer-impact">Customer Impact<a class="headerlink" href="#customer-impact" title="Permanent link">&para;</a></h3>
+<p>None — the 47 alerts that fired during the blackout were all transient, self-resolving conditions (disk pressure warnings, GC pause spikes, health check flaps caused by a scheduled rolling restart Saturday morning). None crossed the threshold that would have triggered a user-visible incident.</p>
+<h3 id="internal-impact">Internal Impact<a class="headerlink" href="#internal-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Tomás Guerrero (SRE): ~2 hours (Monday remediation, postmortem participation, root cause review)</li>
+<li>Cassandra Njoku (SRE lead): ~3 hours (discovery, incident coordination, postmortem authorship, process review)</li>
+<li>Ingrid Holm (Observability lead): ~2 hours (config investigation, process redesign discussion)</li>
+<li>On-call engineers (Friday-Monday): unaware of blackout during the weekend; no active hours lost, but the risk they carried was uncompensated and unknown to them</li>
+<li>Total: approximately 7 engineering-hours</li>
+</ul>
+<h3 id="data-impact">Data Impact<a class="headerlink" href="#data-impact" title="Permanent link">&para;</a></h3>
+<p>None.</p>
+<h2 id="what-would-have-happened">What Would Have Happened<a class="headerlink" href="#what-would-have-happened" title="Permanent link">&para;</a></h2>
+<p>Meridian Cloud's on-call rotation covers the weekend with a single engineer per tier (Tier-1 and Tier-2). The mean time to detect for weekend incidents is already approximately 3x the weekday rate, because engineers are not actively monitoring dashboards and rely exclusively on PagerDuty pages to learn of problems. Without any alerting, the only detection paths for a weekend incident would have been: a customer support ticket escalation (typical lag: 20-90 minutes after customers notice, plus ticket routing delay); an engineer proactively checking dashboards on their own initiative (rare and unreliable on weekends); or automated external uptime monitoring (which exists but only monitors HTTP 200 on the public health check endpoint — it does not detect partial failures or internal service degradation).</p>
+<p>Based on Meridian Cloud's historical incident frequency — approximately 2.3 SEV-1/2 incidents per month — there is a roughly 15% probability that a qualifying incident would occur on any given weekend. This is not a low probability; over the course of a year, a 15% weekly probability implies approximately 7-8 weekends per year where a real incident fires. The 63-hour blackout encompassed one full weekend. Historical data from 3 real weekend SEV-1s over the past 18 months shows a median time-to-detect (from incident start to first engineer acknowledgment) of 47 minutes without alerting failures. Extrapolating to a zero-alerting scenario using the support-ticket detection path suggests a median time-to-detect of 3-5 hours — a 4-6x degradation.</p>
+<p>For Meridian Cloud's most critical service (the API gateway), 3-5 hours of undetected downtime would represent approximately $180K-$300K in SLA credits (based on committed uptime SLAs of 99.9% monthly) and potential customer churn from enterprise accounts whose own operations depend on the API. Additionally, Meridian's enterprise MSA with three customers includes a contractual 30-minute maximum notification requirement for SEV-1 incidents. A 3-5 hour detection gap would have been a material breach of those contracts.</p>
+<h2 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<h3 id="what-happened-technical">What Happened (Technical)<a class="headerlink" href="#what-happened-technical" title="Permanent link">&para;</a></h3>
+<p>Alertmanager's configuration has two distinct sections that must be kept in sync: the <code>receivers</code> block (which defines how to send notifications — Slack webhook URL, PagerDuty routing key, etc.) and the <code>route</code> tree (which defines which alerts go to which receiver, by name). A receiver defined in the <code>receivers</code> block but not referenced in any <code>route</code> rule is inert. A <code>route</code> rule referencing a receiver name that does not exist in the <code>receivers</code> block falls through to the <code>null</code> receiver, which discards the alert silently.</p>
+<p>Tomás's migration correctly added the <code>pagerduty-prod</code> entry to the <code>receivers</code> block. However, the routing tree's <code>receiver</code> field at the top level — which acts as the default catch-all for any unmatched alert — still referenced <code>slack-ops-alerts</code>. Because <code>slack-ops-alerts</code> had been deleted from the <code>receivers</code> block, the routing tree had a dangling reference. Alertmanager's <code>amtool check-config</code> validation confirmed that the YAML was syntactically valid — it does not validate that receiver names in <code>route</code> are present in <code>receivers</code>. The configuration loaded without error.</p>
+<p>The test Tomás ran after reloading (<code>amtool alert add</code> followed by checking the Alertmanager UI) confirmed that alerts appeared in Alertmanager's internal queue — which they do correctly, regardless of whether the routing destination is valid. He did not check the PagerDuty service to confirm an incident had been created. The Alertmanager UI shows alerts in the "active" or "suppressed" states, and the receiver name shown in the UI is <code>null</code> for misconfigured routes — but this is not visually alarming if the engineer does not know to look for it.</p>
+<h3 id="contributing-factors">Contributing Factors<a class="headerlink" href="#contributing-factors" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong><code>amtool check-config</code> does not validate routing tree receiver references:</strong> The standard validation tool for Alertmanager configurations checks YAML syntax and schema but does not cross-reference receiver names in routes against the defined receivers list. This is a known gap in the tooling. The validation step gave false confidence that the configuration was correct.</li>
+<li><strong>Smoke test stopped at the Alertmanager UI, not the downstream receiver:</strong> Tomás verified that the test alert appeared in Alertmanager's UI — a necessary but not sufficient condition. The correct smoke test is to verify that an alert fired in Alertmanager results in a delivered PagerDuty incident. The additional 30-60 seconds this check would have taken was the difference between catching and missing this misconfiguration.</li>
+<li><strong>Friday 5pm deploy for an alerting infrastructure change:</strong> The migration was executed at the start of a weekend, the highest-risk window for undetected alerting failures. A weekend alerting blackout is worse than a weekday one by approximately 3x (detection lag) and there are no engineers actively watching dashboards to notice that pages aren't arriving.</li>
+</ol>
+<h3 id="what-we-got-lucky-about">What We Got Lucky About<a class="headerlink" href="#what-we-got-lucky-about" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>No real incident occurred during the 63-hour window.</strong> This is the central lucky fact. Based on historical incident frequency (2.3 SEV-1/2 per month), the probability of a qualifying incident during any 63-hour window is approximately 20%. The weekend happened to be quiet: a scheduled rolling restart on Saturday morning caused a cluster of health check flaps (26 of the 47 alerts), but this was planned and operators had verified stability before signing off Friday. All other alerts were transient noise.</li>
+<li><strong>All 47 alerts during the blackout were self-resolving.</strong> None of the alerts that fired represented a developing incident — they were all spikes that resolved within minutes. Had any of them been the leading indicator of a real incident (e.g., disk pressure progressing to disk-full, or a GC pause spike preceding a memory leak), the blackout would have delayed detection significantly. The alerts that fired happened to be the low-signal, high-frequency noise that typically would not have paged anyone anyway — but that distinction was invisible during the blackout.</li>
+</ol>
+<h2 id="detection">Detection<a class="headerlink" href="#detection" title="Permanent link">&para;</a></h2>
+<h3 id="how-we-detected">How We Detected<a class="headerlink" href="#how-we-detected" title="Permanent link">&para;</a></h3>
+<p>Cassandra Njoku noticed on Monday morning that the PagerDuty incident timeline was empty for the entire weekend — an absence that is anomalous because at least a few alert firings are typical during any 48-hour window. She then directly queried the Alertmanager API and identified active alerts with <code>receiver: null</code>. Inspection of the routing configuration revealed the dangling receiver reference.</p>
+<h3 id="why-this-almost-wasnt-caught">Why This Almost Wasn't Caught<a class="headerlink" href="#why-this-almost-wasnt-caught" title="Permanent link">&para;</a></h3>
+<p>There was no automated test that validated the full alerting pipeline end-to-end (Alertmanager → PagerDuty incident creation). The <code>amtool check-config</code> validation passed, giving the false impression that the configuration was correct. Tomás's smoke test stopped at the Alertmanager UI rather than checking PagerDuty. Without Cassandra's Monday morning anomaly detection (noticing the absence of incidents), the blackout might have persisted indefinitely — or until a real incident revealed it.</p>
+<h2 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h2>
+<h3 id="what-went-well">What Went Well<a class="headerlink" href="#what-went-well" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Once Cassandra identified the problem (09:07 UTC), diagnosis was fast: reading the Alertmanager config file and identifying the dangling receiver reference took 2 minutes. The fix (changing one field in the routing tree) took 3 minutes. The simplicity of the fix reflects the clarity of the root cause.</li>
+<li>Cassandra's Monday morning habit of reviewing the PagerDuty weekend summary is what caught this. This is an informal practice — not a documented process step — but it was the only detection mechanism that worked. It should become a formal check.</li>
+</ol>
+<h3 id="what-could-have-gone-better">What Could Have Gone Better<a class="headerlink" href="#what-could-have-gone-better" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The smoke test after deploying the config change should have included verifying that a test alert reached PagerDuty — not just that it appeared in the Alertmanager UI. This is a 60-second check that would have caught the misconfiguration before Tomás signed off.</li>
+<li>An alerting infrastructure change should not be deployed on a Friday afternoon without a verified end-to-end test. The timing amplified the blast radius: a Monday deploy with the same bug would have been caught within hours by engineers who notice their pages aren't arriving.</li>
+</ol>
+<h2 id="action-items">Action Items<a class="headerlink" href="#action-items" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Action</th>
+<th>Priority</th>
+<th>Owner</th>
+<th>Status</th>
+<th>Due Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PM030-01</td>
+<td>Write and deploy an Alertmanager configuration linter (pre-deploy hook) that validates all <code>route.receiver</code> references exist in the <code>receivers</code> block; fail the deployment if any reference is dangling</td>
+<td>P0</td>
+<td>Ingrid Holm</td>
+<td>In Progress</td>
+<td>2025-10-24</td>
+</tr>
+<tr>
+<td>PM030-02</td>
+<td>Add end-to-end alerting pipeline smoke test to the Alertmanager deploy playbook: fire a synthetic test alert and assert a PagerDuty incident is created within 2 minutes; block deploy sign-off until verified</td>
+<td>P0</td>
+<td>Tomás Guerrero</td>
+<td>In Progress</td>
+<td>2025-10-24</td>
+</tr>
+<tr>
+<td>PM030-03</td>
+<td>Implement a scheduled "dead man's switch" alert: a synthetic alert that fires every 15 minutes and must be received by PagerDuty; if PagerDuty does not see it within 20 minutes, a secondary channel (email to all SREs) triggers</td>
+<td>P0</td>
+<td>Observability</td>
+<td>Open</td>
+<td>2025-10-31</td>
+</tr>
+<tr>
+<td>PM030-04</td>
+<td>Add change freeze policy for alerting infrastructure: no alertmanager config changes after 15:00 UTC on Fridays, or any day before a holiday weekend; changes must be deployed and verified during business hours</td>
+<td>P1</td>
+<td>Cassandra Njoku</td>
+<td>Open</td>
+<td>2025-10-27</td>
+</tr>
+<tr>
+<td>PM030-05</td>
+<td>Document "Alertmanager smoke test checklist" in the runbook (OBS-RB-003); make end-to-end PagerDuty verification a mandatory checklist item for all receiver config changes</td>
+<td>P1</td>
+<td>Tomás Guerrero</td>
+<td>Open</td>
+<td>2025-10-27</td>
+</tr>
+<tr>
+<td>PM030-06</td>
+<td>Add Monday morning "weekend alert health check" to SRE team lead checklist: verify PagerDuty received at least N alerts over the weekend; investigate absence if below threshold</td>
+<td>P2</td>
+<td>Cassandra Njoku</td>
+<td>Open</td>
+<td>2025-10-31</td>
+</tr>
+</tbody>
+</table>
+<h2 id="lessons-learned">Lessons Learned<a class="headerlink" href="#lessons-learned" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Validation tools that pass do not mean the system is correct.</strong> <code>amtool check-config</code> validated the YAML structure but not the semantic correctness of the configuration — specifically, that routing rules reference receivers that actually exist. A green check from a linter or validator is only as good as what the tool actually checks. Understanding the scope of your validation tooling is as important as running it.</li>
+<li><strong>Smoke tests must cover the full path, not just the first hop.</strong> Verifying that Alertmanager accepted an alert is not the same as verifying that the alert reached the engineer's phone. End-to-end validation — from alert firing to PagerDuty incident creation — is the only test that proves the alerting pipeline works. Any shorter test path can pass while the pipeline is broken downstream.</li>
+<li><strong>Alert silence can be a symptom, not just an absence.</strong> The absence of pages during a 63-hour window was the detection signal. Building proactive checks for anomalous silence — either via dead man's switch alerts or periodic review of alert volume against historical baselines — is as important as building alerts for anomalous noise. The system was failing silently, and only a human noticing the silence caught it.</li>
+</ol>
+<h2 id="cross-references">Cross-References<a class="headerlink" href="#cross-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Failure Pattern:</strong> Alerting Pipeline Silent Failure / Configuration Drift / Dangling Reference</li>
+<li><strong>Topic Packs:</strong> Alertmanager Configuration, PagerDuty Integration, Observability Reliability, On-Call Engineering</li>
+<li><strong>Runbook:</strong> OBS-RB-003 — Alertmanager Configuration Change Procedure; OBS-RB-007 — Alert Pipeline Debugging</li>
+<li><strong>Decision Tree:</strong> Observability Triage → No pages received → Check Alertmanager UI receiver column → <code>null</code>? → Inspect routing tree for dangling receiver references</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="April 8, 2026 23:43:45 UTC">April 8, 2026 23:43:45</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 23:53:02 UTC">March 19, 2026 23:53:02</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

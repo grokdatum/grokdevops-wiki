@@ -1,0 +1,52 @@
+## Objective
+Fix the init container so the main container can start
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the pod status: `kubectl get pod web-with-init -n k8squest`
+
+The STATUS column shows "Init:0/1" meaning the init container hasn't completed.
+
+Run `kubectl describe pod web-with-init -n k8squest` and look at the Init Containers section.
+Check the logs: `kubectl logs web-with-init -c wait-for-service -n k8squest`
+
+## Hint 2
+🧭 Direction Hint:
+
+The init container is trying to lookup "nonexistent-service" using `nslookup`, but that service doesn't exist. The container will loop forever waiting for it.
+
+Init containers must complete successfully before the main container starts. This one never will!
+
+You need to either:
+1. Change the command to something that will complete, or
+2. Create the service it's looking for
+
+## Hint 3
+💡 Near-Solution Hint:
+
+The proper fix is to create the service that the init container is waiting for!
+
+Steps to fix:
+1. Create a service named "backend-service":
+   ```yaml
+   apiVersion: v1
+   kind: Service
+   metadata:
+     name: backend-service
+     namespace: k8squest
+   spec:
+     selector:
+       app: backend
+     ports:
+     - protocol: TCP
+       port: 80
+       targetPort: 8080
+   ```
+
+2. Apply the service: `kubectl apply -f <your-service-file.yaml>`
+
+3. Once the service exists, the init container's nslookup will succeed and complete!
+
+The pod will automatically proceed to the main container once the init container completes.
+

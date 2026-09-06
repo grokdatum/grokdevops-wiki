@@ -1,0 +1,1787 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="On 2025-11-12, the company's payment gateway operator (Clearpath Payments) performed a planned 20-minute maintenance window.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/sev-1/unbounded-retry-storm-payments/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Postmortem: Unbounded Retry Storm Takes Down Payment Processing - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Postmortem: Unbounded Retry Storm Takes Down Payment Processing - GrokDevOps Wiki" />
+<meta property="og:description" content="On 2025-11-12, the company's payment gateway operator (Clearpath Payments) performed a planned 20-minute maintenance window." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/sev-1/unbounded-retry-storm-payments.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/sev-1/unbounded-retry-storm-payments/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Postmortem: Unbounded Retry Storm Takes Down Payment Processing - GrokDevOps Wiki" />
+<meta property="twitter:description" content="On 2025-11-12, the company's payment gateway operator (Clearpath Payments) performed a planned 20-minute maintenance window." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/sev-1/unbounded-retry-storm-payments.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#postmortem-unbounded-retry-storm-takes-down-payment-processing" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Postmortem: Unbounded Retry Storm Takes Down Payment Processing
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-all-times-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline (All times UTC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Impact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customer-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customer Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root Cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happened-technical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happened (Technical)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contributing Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-we-got-lucky-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What We Got Lucky About
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-we-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How We Detected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-we-didnt-detect-sooner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why We Didn't Detect Sooner
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-went-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Well
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-went-poorly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Poorly
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lessons-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lessons Learned
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../portal/tags/#tag:postmortem" class="md-tag">postmortem</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="postmortem-unbounded-retry-storm-takes-down-payment-processing">Postmortem: Unbounded Retry Storm Takes Down Payment Processing<a class="headerlink" href="#postmortem-unbounded-retry-storm-takes-down-payment-processing" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ID</strong></td>
+<td>PM-005</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2025-11-12</td>
+</tr>
+<tr>
+<td><strong>Severity</strong></td>
+<td>SEV-1</td>
+</tr>
+<tr>
+<td><strong>Duration</strong></td>
+<td>1h 54m (detection to resolution)</td>
+</tr>
+<tr>
+<td><strong>Time to Detect</strong></td>
+<td>8m</td>
+</tr>
+<tr>
+<td><strong>Time to Mitigate</strong></td>
+<td>1h 54m</td>
+</tr>
+<tr>
+<td><strong>Customer Impact</strong></td>
+<td>100% of payment attempts failed for 1h 54m. Approximately 22,000 customers were unable to complete purchases. All checkout flows displayed error pages or spinner timeouts.</td>
+</tr>
+<tr>
+<td><strong>Revenue Impact</strong></td>
+<td>~$163,000 estimated (1.9h × avg $86k/h payment transaction volume)</td>
+</tr>
+<tr>
+<td><strong>Teams Involved</strong></td>
+<td>Payments Engineering, Platform Engineering, Service Mesh Team, SRE, Customer Success, Finance</td>
+</tr>
+<tr>
+<td><strong>Postmortem Author</strong></td>
+<td>Marcus Truong (Staff SRE)</td>
+</tr>
+<tr>
+<td><strong>Postmortem Date</strong></td>
+<td>2025-11-16</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>On 2025-11-12, the company's payment gateway operator (Clearpath Payments) performed a planned 20-minute maintenance window. All 14 internal services that call the payment gateway API began retrying failed requests immediately and aggressively, using the company's shared HTTP client library defaults of 3 retries with no backoff and no jitter. The combined retry behavior amplified traffic to the payment gateway by approximately 10× at the moment Clearpath's maintenance completed and the gateway came back online, preventing recovery. The gateway remained overloaded and continued returning 503s for 1 hour 34 minutes after maintenance was supposed to have ended. Manual intervention — rate-limiting all 14 callers at the API gateway layer — was required to allow the payment gateway to drain its backlog and recover. No payment data was corrupted; all requests were rejected cleanly at the transport layer before any transaction was initiated.</p>
+<hr />
+<h2 id="timeline-all-times-utc">Timeline (All times UTC)<a class="headerlink" href="#timeline-all-times-utc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>14:00</td>
+<td>Clearpath Payments begins planned maintenance on payment gateway API (api.clearpathpay.io). Returns HTTP 503 with <code>Retry-After: 1200</code> header on all requests. Clearpath had filed a maintenance notice via email to <code>vendor-notifications@company.com</code> 48h prior.</td>
+</tr>
+<tr>
+<td>14:00</td>
+<td>All 14 internal services begin receiving 503 responses. HTTP client library (<code>http-client-go v2.3.1</code>, shared across all services) interprets 503 as a transient error and immediately begins retry sequence: attempt 1 at T+0, attempt 2 at T+1s, attempt 3 at T+2s. No exponential backoff. No jitter. <code>Retry-After</code> header is not parsed.</td>
+</tr>
+<tr>
+<td>14:01</td>
+<td>Retry storm is already at full amplitude: 14 services × avg 210 requests/min × 3 retries = approximately 8,820 retry attempts/min against a gateway returning 503.</td>
+</tr>
+<tr>
+<td>14:02</td>
+<td>Payment gateway request rate (measured at Clearpath, per post-incident communication): 9,100 requests/min, 10× above the normal 910 requests/min baseline. Clearpath's maintenance window had expected 0 traffic during the window.</td>
+</tr>
+<tr>
+<td>14:07</td>
+<td>SRE on-call (Marcus Truong) notices checkout conversion drop on Datadog dashboard. Payment success rate at 0%. Pages Payments Engineering on-call (Adaeze Okonkwo).</td>
+</tr>
+<tr>
+<td>14:08</td>
+<td>Payments Engineering on-call acknowledges. PagerDuty alert for payment gateway 503 rate fires.</td>
+</tr>
+<tr>
+<td>14:09</td>
+<td>Adaeze checks Clearpath status page (status.clearpathpay.io). Shows "Scheduled Maintenance in Progress. Expected completion: 14:20 UTC." Payments Engineering team was not aware of this maintenance window — the notification email went to <code>vendor-notifications@company.com</code>, a distribution list with no subscribers.</td>
+</tr>
+<tr>
+<td>14:11</td>
+<td>SEV-1 declared. War room opened. Initial assessment: maintenance will complete at 14:20 UTC; retry storm should resolve naturally at that point. Decision: monitor and wait.</td>
+</tr>
+<tr>
+<td>14:20</td>
+<td>Clearpath maintenance completes. Payment gateway comes back online. However, the 10× request rate immediately overwhelms the freshly started gateway. Clearpath's gateway has a connection queue limit of 1,200 concurrent requests; incoming rate at 14:20 is approximately 9,100 requests/min. Queue saturates within 4 seconds. Gateway continues returning 503.</td>
+</tr>
+<tr>
+<td>14:22</td>
+<td>It becomes clear the gateway is not recovering. War room reassesses. Service Mesh on-call (Priya Sundaram) joins.</td>
+</tr>
+<tr>
+<td>14:24</td>
+<td>Hypothesis: Clearpath's maintenance is running long. Checked against status page — maintenance marked complete at 14:20. Hypothesis updated: retry storm is preventing gateway recovery.</td>
+</tr>
+<tr>
+<td>14:27</td>
+<td>Service Mesh Team identifies that Istio service mesh has no circuit breaker configured for <code>clearpathpay.io</code> external service entry. Circuit breaker would have opened the circuit after the first wave of 503s, shedding retry load.</td>
+</tr>
+<tr>
+<td>14:29</td>
+<td>Platform Engineering on-call (James Kowalczyk) joins. Proposes implementing Istio circuit breaker on the Clearpath service entry immediately. Estimated time to implement and deploy: 20–25 minutes.</td>
+</tr>
+<tr>
+<td>14:31</td>
+<td>Alternative proposed: rate-limit all 14 callers at the API gateway (Kong) by reducing their upstream request rate to 5% of normal. Estimated time: 10–12 minutes. Selected as faster mitigation.</td>
+</tr>
+<tr>
+<td>14:33</td>
+<td>James begins applying Kong rate-limiting plugin to all 14 service routes pointing at the payment gateway integration service.</td>
+</tr>
+<tr>
+<td>14:41</td>
+<td>Rate limiting applied to 11 of 14 services. Clearpath gateway request rate drops from 9,100 to 1,200 requests/min. Clearpath gateway begins returning 200s intermittently.</td>
+</tr>
+<tr>
+<td>14:44</td>
+<td>Rate limiting applied to remaining 3 services. Clearpath request rate at 890 requests/min (below normal baseline).</td>
+</tr>
+<tr>
+<td>14:46</td>
+<td>Clearpath payment gateway fully recovered. Processing normally. Adaeze begins gradually lifting rate limits.</td>
+</tr>
+<tr>
+<td>14:54</td>
+<td>Rate limits removed from all services. Payment success rate returns to 99.4% (normal baseline: 99.6%; small gap from in-flight abandoned sessions).</td>
+</tr>
+<tr>
+<td>15:00</td>
+<td>Marcus sends incident update to war room: "Payment processing restored. Monitoring for 30m before standing down."</td>
+</tr>
+<tr>
+<td>15:54</td>
+<td>Extended monitoring complete. All payment metrics nominal. Incident closed.</td>
+</tr>
+<tr>
+<td>16:10</td>
+<td>Finance confirms no payment records show partial or duplicate transactions during the incident window.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="impact">Impact<a class="headerlink" href="#impact" title="Permanent link">&para;</a></h2>
+<h3 id="customer-impact">Customer Impact<a class="headerlink" href="#customer-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>22,000 customers</strong> unable to complete payment for 1h 54m (14:00–15:54 UTC, including recovery monitoring window)</li>
+<li>100% of checkout flows failed during active retry storm (14:00–14:54 UTC, 54 minutes)</li>
+<li><strong>No partial or duplicate payments recorded.</strong> Clearpath returned 503 before any transaction was initiated; all failures were clean transport-layer rejections</li>
+<li>Approximately 3,400 customers who were mid-checkout at 14:00 UTC encountered spinner timeouts and abandoned their sessions; Customer Success estimated ~40% of these completed checkout after recovery</li>
+<li>1 enterprise B2B customer (Holloway Industrial) had a scheduled invoice batch payment at 14:15 UTC that failed entirely; Finance issued manual payment instructions</li>
+</ul>
+<h3 id="internal-impact">Internal Impact<a class="headerlink" href="#internal-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li>SRE: 2 engineers × 2.5h = 5 engineer-hours</li>
+<li>Payments Engineering: 2 engineers × 2.5h = 5 engineer-hours</li>
+<li>Platform Engineering: 1 engineer × 2h = 2 engineer-hours</li>
+<li>Service Mesh Team: 1 engineer × 1.5h = 1.5 engineer-hours</li>
+<li>Customer Success: 6 agents × 1.5h = 9 engineer-hours on checkout-failure ticket triage</li>
+<li>Finance: 1 analyst × 1h = 1 engineer-hour on payment reconciliation review</li>
+<li><code>vendor-notifications@company.com</code> distribution list audit initiated — revealed 23 additional vendor notification addresses with no active subscribers</li>
+</ul>
+<h3 id="data-impact">Data Impact<a class="headerlink" href="#data-impact" title="Permanent link">&para;</a></h3>
+<p>None. All payment gateway requests during the incident were rejected at the HTTP layer with 503 before any payment data was written to Clearpath's systems. Finance confirmed via Clearpath's transaction API that no transactions were initiated, partially committed, or duplicated during the window. Order records in the internal database show all payment attempts with status <code>PAYMENT_GATEWAY_UNAVAILABLE</code>, which is a clean terminal state with no downstream side effects.</p>
+<hr />
+<h2 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<h3 id="what-happened-technical">What Happened (Technical)<a class="headerlink" href="#what-happened-technical" title="Permanent link">&para;</a></h3>
+<p>The <code>http-client-go</code> library (version 2.3.1) is a shared HTTP client wrapper used by all 14 services that call external payment APIs. Its default retry policy is: <code>MaxRetries=3</code>, <code>RetryDelay=0</code> (immediate), no exponential backoff, no jitter, and no handling of the <code>Retry-After</code> response header. This policy was appropriate for idempotent GET requests against internal high-availability services, which it was originally designed for. Over time, it was adopted by all service teams as the standard HTTP client, including for non-idempotent calls to external payment APIs, without the defaults being reviewed or adjusted.</p>
+<p>When Clearpath began returning 503 at 14:00 UTC, each of the 14 calling services immediately exhausted their retry budget (3 retries in 2 seconds) and then re-enqueued the original request at the application layer, repeating the cycle. The net effect was that each incoming payment attempt generated approximately 4 total requests to the Clearpath gateway within a 2-second window (original + 3 retries). With a baseline of approximately 210 payment requests per minute across all services, the retry storm generated approximately 840 gateway requests per minute per service slot, or approximately 9,100 requests per minute in aggregate — 10× the normal baseline.</p>
+<p>When Clearpath's maintenance completed at 14:20 UTC and the gateway came back online, it resumed accepting connections with a cold connection pool and an empty queue. Within 4 seconds, the 10× retry load saturated its connection queue (capacity: 1,200 concurrent connections). The gateway's circuit protection reacted by continuing to return 503, trapping the system in an amplification loop: retries caused overload, overload caused 503s, 503s caused more retries.</p>
+<p>The Istio service mesh was deployed in all service namespaces but had no <code>DestinationRule</code> configured for the <code>clearpathpay.io</code> external service entry. A circuit breaker with an <code>outlierDetection</code> policy would have ejected the Clearpath host from the load balancing pool after the first N consecutive 5xx responses, causing the service mesh to fast-fail subsequent requests without reaching the gateway. This would have reduced the load amplification to essentially zero. The service mesh team had configured circuit breakers for internal service-to-service calls but had not extended the configuration to external service entries.</p>
+<p>The fundamental design flaw is that there is no global invariant preventing a calling service from amplifying load against a downstream dependency that is already saturated. Exponential backoff with jitter is the standard mitigation; it ensures that retry storms decay over time rather than sustaining constant load. A properly configured backoff (e.g., base 1s, max 60s, jitter ±50%) would have reduced the retry load to near-zero within 2–3 minutes.</p>
+<h3 id="contributing-factors">Contributing Factors<a class="headerlink" href="#contributing-factors" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong><code>http-client-go</code> retry defaults designed for internal HA calls, applied to external payment API:</strong> The library was initially designed for internal service-to-service calls against load-balanced, always-available endpoints. Its aggressive defaults (immediate retry, no backoff) are appropriate for that use case. When adopted for external payment gateway calls — where the downstream has maintenance windows, rate limits, and no internal redundancy from the caller's perspective — the defaults became dangerous. No review or override was mandated when teams adopted the library for payment calls.</p>
+</li>
+<li>
+<p><strong>No circuit breaker on external service mesh entries:</strong> Istio circuit breakers were configured for internal services but the configuration was never extended to external service entries (<code>ServiceEntry</code> objects in Istio). The service mesh team was aware of the gap but had not prioritized it, as no previous incident had made the risk visible.</p>
+</li>
+<li>
+<p><strong>Vendor maintenance notification distribution list had no subscribers:</strong> Clearpath sent a maintenance notification 48h in advance to <code>vendor-notifications@company.com</code> per their standard process. This distribution list was created 18 months ago during a vendor onboarding and was never maintained. At the time of the incident, it had zero subscribers. No human or system received the notification. If Payments Engineering had received the notice, they would have either coordinated with Clearpath to schedule maintenance outside business hours or implemented a temporary circuit break before the window.</p>
+</li>
+</ol>
+<h3 id="what-we-got-lucky-about">What We Got Lucky About<a class="headerlink" href="#what-we-got-lucky-about" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Clearpath's payment gateway rejected all requests with a clean 503 before any transaction was initiated. A 503 response is returned at the point of connection acceptance, before any payment data is transmitted or processed. There were no partial transactions, no duplicate charges, and no orphaned payment states requiring reconciliation. If Clearpath's gateway had failed in a way that accepted the connection and then errored mid-transaction, the outcome would have included potential duplicate charges requiring customer contact and bank coordination.</li>
+<li>The rate-limiting mitigation (Kong plugin application across 14 services) was implementable in approximately 11 minutes. If the 14 callers had each had unique API gateway configurations or had not been behind a common gateway layer, manual throttling would have required deploying configuration changes to each service individually — a process that could have taken 1–2 hours per service.</li>
+</ol>
+<hr />
+<h2 id="detection">Detection<a class="headerlink" href="#detection" title="Permanent link">&para;</a></h2>
+<h3 id="how-we-detected">How We Detected<a class="headerlink" href="#how-we-detected" title="Permanent link">&para;</a></h3>
+<p>The SRE on-call detected the incident through a Datadog dashboard showing checkout conversion rate drop to 0% at T+7m. A PagerDuty alert for payment gateway 503 rate &gt;10% for 5 consecutive minutes fired at T+8m. The 8-minute detection lag was due to the alert threshold requiring 5 consecutive minutes of elevated 503 rate before firing.</p>
+<h3 id="why-we-didnt-detect-sooner">Why We Didn't Detect Sooner<a class="headerlink" href="#why-we-didnt-detect-sooner" title="Permanent link">&para;</a></h3>
+<p>The primary gap was that there was no monitoring on the <code>vendor-notifications@company.com</code> inbox — if there had been, the Clearpath maintenance notice would have been routed to Payments Engineering 48 hours before the incident. With advance notice, the team could have implemented a pre-emptive circuit break or coordinated with Clearpath to reschedule. The alert threshold (5 consecutive minutes of elevated 503 rate) was designed to avoid alert fatigue from transient errors; a shorter threshold (1–2 minutes) would have reduced detection time but potentially increased false positives.</p>
+<hr />
+<h2 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h2>
+<h3 id="what-went-well">What Went Well<a class="headerlink" href="#what-went-well" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The identification that the retry storm was preventing Clearpath recovery (rather than Clearpath maintenance simply running long) was made within 4 minutes of maintenance completing at 14:20 UTC. This required connecting two pieces of information — the maintenance completion time from the status page and the sustained request rate from Datadog — which the war room did quickly.</li>
+<li>The Kong rate-limiting approach was selected over the Istio circuit breaker approach specifically because it was faster (11 minutes vs 20–25 minutes) and had lower implementation risk under time pressure. Picking the faster, lower-risk mitigation was the correct call.</li>
+<li>Finance's post-incident confirmation that no payment records were corrupted was completed within 2 hours of incident close. Having a clear payment reconciliation procedure and executing it promptly prevented any ambiguity about customer impact.</li>
+</ol>
+<h3 id="what-went-poorly">What Went Poorly<a class="headerlink" href="#what-went-poorly" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The initial decision at T+11m to "monitor and wait" for Clearpath maintenance to complete was incorrect and cost approximately 9 minutes of additional outage. The retry storm was already at full amplitude — waiting for maintenance to complete would not have resolved the overload condition. The war room did not model what would happen when the gateway came back online under 10× load.</li>
+<li>The 14-service manual rate-limiting operation took 11 minutes because each service's Kong configuration required a separate plugin application command. A single global rate-limiting policy applied at the gateway's upstream-cluster level would have taken 1–2 minutes. The absence of a global upstream rate-limit for external payment APIs reflects a gap in the API gateway configuration architecture.</li>
+<li>Payments Engineering's lack of awareness of the Clearpath maintenance window meant the team spent 9 minutes diagnosing a situation that could have been avoided entirely with proper vendor notification routing.</li>
+</ol>
+<hr />
+<h2 id="action-items">Action Items<a class="headerlink" href="#action-items" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Action</th>
+<th>Priority</th>
+<th>Owner</th>
+<th>Status</th>
+<th>Due Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AI-001</td>
+<td>Update <code>http-client-go</code> v2.3.1 defaults for external (non-internal) calls: set <code>RetryDelay</code> to exponential backoff (base 1s, multiplier 2, max 60s), add ±30% jitter, parse and honor <code>Retry-After</code> header; cut v2.4.0 and mandate adoption by all services calling external APIs</td>
+<td>P0</td>
+<td>Platform Engineering (James Kowalczyk)</td>
+<td>In Progress</td>
+<td>2025-11-26</td>
+</tr>
+<tr>
+<td>AI-002</td>
+<td>Configure Istio <code>DestinationRule</code> with <code>outlierDetection</code> circuit breaker for all external <code>ServiceEntry</code> objects including <code>clearpathpay.io</code>; eject host after 5 consecutive 503s within 10s, eject for 30s with multiplier</td>
+<td>P0</td>
+<td>Service Mesh Team (Priya Sundaram)</td>
+<td>In Progress</td>
+<td>2025-11-22</td>
+</tr>
+<tr>
+<td>AI-003</td>
+<td>Audit all vendor notification distribution lists; assign a human owner and a monitoring alias to each; route <code>vendor-notifications@company.com</code> to Payments Engineering and SRE Slack channels with a 15-minute acknowledgment SLA</td>
+<td>P0</td>
+<td>Adaeze Okonkwo (Payments Engineering)</td>
+<td>Not Started</td>
+<td>2025-11-19</td>
+</tr>
+<tr>
+<td>AI-004</td>
+<td>Implement global Kong rate-limiting policy for the <code>clearpath-payments</code> upstream cluster at 110% of normal peak request rate; apply as a cluster-level policy so it does not require per-service configuration during incidents</td>
+<td>P1</td>
+<td>Platform Engineering</td>
+<td>Not Started</td>
+<td>2025-11-26</td>
+</tr>
+<tr>
+<td>AI-005</td>
+<td>Add payment gateway availability alert with 1-minute threshold (down from 5 minutes) and route to Payments Engineering primary as well as SRE on-call to ensure faster detection and domain-expert involvement</td>
+<td>P1</td>
+<td>Marcus Truong (SRE)</td>
+<td>Not Started</td>
+<td>2025-11-22</td>
+</tr>
+<tr>
+<td>AI-006</td>
+<td>Establish a quarterly vendor maintenance coordination review: Payments Engineering reviews upcoming Clearpath, Stripe, and Adyen maintenance windows and coordinates scheduling or pre-emptive circuit breaks</td>
+<td>P2</td>
+<td>Adaeze Okonkwo (Payments Engineering)</td>
+<td>Not Started</td>
+<td>2025-12-05</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="lessons-learned">Lessons Learned<a class="headerlink" href="#lessons-learned" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>Retry policies designed for one context are dangerous when applied to a different context without review.</strong> The <code>http-client-go</code> library's aggressive defaults were appropriate for internal HA calls. They were catastrophically inappropriate for external payment API calls during a maintenance window. Libraries that encode operational behavior (retry, timeout, backoff) must be designed with the understanding that callers operate in different contexts. Defaults should be conservative (favor backoff and jitter over immediacy), and any deviation toward aggressiveness should require explicit opt-in with documented rationale.</p>
+</li>
+<li>
+<p><strong>A downstream going offline does not mean the load disappears — it means the load accumulates.</strong> The team's initial reaction to "Clearpath maintenance expected to complete at 14:20" was to wait for 14:20. This mental model assumes that retry traffic is held in check during maintenance and resumes normally after. The reality is the opposite: retry storms accumulate traffic that is then delivered in a burst at the moment the downstream recovers, potentially overwhelming it. Recovery from a dependency outage is not automatic; the caller-side traffic shape must be managed explicitly, either through circuit breakers, exponential backoff, or manual throttling.</p>
+</li>
+<li>
+<p><strong>Vendor operational communications must have verified, active subscribers.</strong> A vendor sending advance maintenance notice is performing a service. That service has zero value if the notification goes unread. Distribution lists for vendor communications should be treated with the same operational rigor as PagerDuty schedules: regular audits, verified subscribers, and an acknowledged receipt mechanism. The 48-hour notice that Clearpath sent could have prevented this incident entirely — it reached no one.</p>
+</li>
+</ol>
+<hr />
+<h2 id="cross-references">Cross-References<a class="headerlink" href="#cross-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Failure Pattern:</strong> Design Flaw — Unbounded Retry with No Backoff (Thundering Herd); Process Gap — Vendor Notification Not Reaching Responsible Team</li>
+<li><strong>Topic Packs:</strong> retry-patterns, circuit-breakers, exponential-backoff-jitter, service-mesh-istio, api-gateway-rate-limiting</li>
+<li><strong>Runbook:</strong> <code>runbooks/payments/payment-gateway-unavailable.md</code> (to be created); must include step for immediate circuit break and Kong rate-limit as first response</li>
+<li><strong>Decision Tree:</strong> Triage path — "Payment gateway returning 503, maintenance window active or recently ended" → do NOT wait for maintenance to complete → immediately apply Kong rate-limiting to all callers → confirm Clearpath request rate drops to &lt;110% normal baseline → only then gradually lift rate limits as gateway stabilizes</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="April 8, 2026 23:43:45 UTC">April 8, 2026 23:43:45</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 23:53:02 UTC">March 19, 2026 23:53:02</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

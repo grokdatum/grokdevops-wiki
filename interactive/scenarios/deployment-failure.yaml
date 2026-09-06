@@ -1,0 +1,155 @@
+# Deployment Failure Scenario Drills
+# Structured scenarios for practicing deployment rollback, fix-forward, and recovery.
+# Schema: id, topic, difficulty, scenario, expected_actions, pitfalls, source_path
+
+scenarios:
+
+  - id: df-scenario-001
+    topic: deployment
+    difficulty: medium
+    scenario: >
+      A Helm upgrade to production completes successfully according to Helm status,
+      but the new pods are stuck in ImagePullBackOff. The previous version was running
+      fine. The CI pipeline built and pushed the image 20 minutes ago. The deployment
+      uses a private ECR registry. Other deployments in the same namespace pulled
+      images recently without issues.
+    expected_actions:
+      - Check pod events for the exact ImagePullBackOff error message (kubectl describe pod)
+      - Verify the image tag exists in the registry (aws ecr describe-images)
+      - Check if the image was pushed to the correct registry and repository
+      - Verify the imagePullSecret is present and valid in the namespace
+      - Check if the ECR token has expired (tokens expire every 12 hours)
+      - If the image tag is wrong, roll back with helm rollback and fix the tag
+      - Verify node-level docker/containerd credentials if using instance roles
+      - After fixing, confirm pods transition to Running and pass health checks
+    pitfalls:
+      - Assuming the image exists because CI said it was pushed successfully
+      - Rolling back without understanding the root cause (will fail again on next deploy)
+      - Recreating the imagePullSecret without checking token expiration
+      - Not verifying the image architecture matches the node architecture (amd64 vs arm64)
+    source_path: training/interactive/scenarios/deployment-failure.yaml
+
+  - id: df-scenario-002
+    topic: deployment
+    difficulty: hard
+    scenario: >
+      A canary deployment is routing 10% of traffic to the new version. Monitoring
+      shows the canary has a 5% error rate compared to 0.1% on the stable version.
+      The errors are all HTTP 500s on a specific API endpoint. The canary passed all
+      pre-deployment tests in staging. The product team is pushing to proceed with
+      the full rollout because the feature has a deadline.
+    expected_actions:
+      - Do NOT proceed with the full rollout while error rate is elevated
+      - Capture sample 500 errors from the canary (logs, traces, response bodies)
+      - Compare the failing endpoint's behavior between canary and stable versions
+      - Check if the endpoint depends on a resource that differs between staging and production
+      - Investigate if the errors correlate with specific request patterns or user segments
+      - Hold the canary at 10% while investigating — do not increase or fully rollback yet
+      - If root cause is found quickly, fix and redeploy the canary
+      - If root cause is not found within the agreed SLO window, rollback the canary
+      - Communicate the delay and reasoning to the product team with data
+    pitfalls:
+      - Proceeding with full rollout under deadline pressure despite elevated errors
+      - Rolling back immediately without capturing diagnostic data from the canary
+      - Assuming staging parity means the code is correct — production has different data and traffic patterns
+      - Not having a pre-agreed error rate threshold that triggers automatic rollback
+    source_path: training/interactive/scenarios/deployment-failure.yaml
+
+  - id: df-scenario-003
+    topic: deployment
+    difficulty: easy
+    scenario: >
+      A deployment rollout is progressing but extremely slowly. Only 1 of 10 new
+      pods has started in 15 minutes. The new pod is Running and healthy. kubectl
+      rollout status shows the deployment is waiting. The cluster has 5 nodes, each
+      with 16GB RAM and 4 CPUs. The new pod requests 8GB RAM.
+    expected_actions:
+      - Check pending pods for scheduling failures (kubectl describe pod — look at Events)
+      - Identify that the pod's resource request (8GB) limits how many can fit per node
+      - Check node resource availability (kubectl describe nodes — look at Allocated resources)
+      - Check maxUnavailable and maxSurge settings on the deployment strategy
+      - If maxSurge is 1, only one new pod is created at a time while old pods still consume resources
+      - Consider temporarily increasing maxSurge or reducing resource requests
+      - Check if a cluster autoscaler is configured and if it is responding to pending pods
+      - Verify the resource requests are appropriate — 8GB may be over-provisioned
+    pitfalls:
+      - Assuming the rollout is broken when it is actually working within constraints
+      - Increasing maxSurge without checking if nodes have capacity for surge pods
+      - Reducing resource requests without load testing to verify the app runs with less
+      - Not considering that old pods must terminate before new ones can schedule
+    source_path: training/interactive/scenarios/deployment-failure.yaml
+
+  - id: df-scenario-004
+    topic: deployment
+    difficulty: hard
+    scenario: >
+      A blue-green deployment switches traffic from blue (v2.3) to green (v2.4) via
+      a load balancer target group swap. Immediately after the swap, users report
+      that their shopping carts are empty. The application stores session data in
+      memory. The green environment has no session data because it just started.
+      Revenue impact is estimated at $50K per hour.
+    expected_actions:
+      - Immediately switch traffic back to the blue environment to restore sessions
+      - Assess whether any sessions were permanently lost during the brief green window
+      - Identify the root cause — in-memory session storage is not compatible with blue-green
+      - Plan remediation to externalize session storage (Redis, DynamoDB, database-backed sessions)
+      - Until session storage is externalized, use rolling deployments instead of blue-green
+      - Test the session externalization fix with a simulated blue-green swap in staging
+      - Update the deployment runbook to include session handling verification
+      - Add a pre-deployment checklist item for stateful resource compatibility
+    pitfalls:
+      - Leaving traffic on green while trying to fix the session issue in real-time
+      - Trying to copy sessions from blue to green instead of switching back
+      - Blaming the deployment process when the root cause is architectural
+      - Not updating the deployment strategy to prevent recurrence
+    source_path: training/interactive/scenarios/deployment-failure.yaml
+
+  - id: df-scenario-005
+    topic: deployment
+    difficulty: medium
+    scenario: >
+      A Kubernetes deployment with a database migration init container fails
+      repeatedly. The init container logs show "connection refused" to the
+      database endpoint. The database is a managed RDS instance that is running
+      and accessible from other pods. The deployment was working yesterday.
+      A NetworkPolicy was added to the namespace this morning.
+    expected_actions:
+      - Check the NetworkPolicy rules for the namespace (kubectl get networkpolicy -o yaml)
+      - Identify that the new NetworkPolicy may be blocking egress to the RDS endpoint
+      - Verify the init container can resolve the database hostname (DNS egress)
+      - Check if the NetworkPolicy allows egress to the RDS security group or IP range
+      - Test connectivity from a debug pod in the same namespace (kubectl run --rm -it debug --image=busybox)
+      - Fix the NetworkPolicy to allow egress on port 5432 to the database CIDR
+      - Also ensure DNS egress (port 53) is allowed for name resolution
+      - Verify the init container succeeds after the NetworkPolicy fix
+    pitfalls:
+      - Not connecting the NetworkPolicy change to the connectivity failure
+      - Deleting the NetworkPolicy entirely instead of fixing the rules
+      - Forgetting that init containers are subject to the same NetworkPolicy as regular containers
+      - Not allowing DNS egress, which causes a different failure mode (resolution timeout)
+    source_path: training/interactive/scenarios/deployment-failure.yaml
+
+  - id: df-scenario-006
+    topic: deployment
+    difficulty: medium
+    scenario: >
+      An ArgoCD application shows "OutOfSync" and "Degraded" after a git push.
+      The sync operation fails with "resource already exists" for a ConfigMap.
+      Investigation shows someone manually created the ConfigMap with kubectl
+      apply two weeks ago. ArgoCD does not have ownership of the resource.
+      The manually-created ConfigMap has different data than the git version.
+    expected_actions:
+      - Compare the manually-created ConfigMap with the git version (diff the data)
+      - Determine which version has the correct data (ask the team who created it manually)
+      - If the git version is correct, delete the manual ConfigMap and let ArgoCD recreate it
+      - If the manual version is correct, update the git source to match before syncing
+      - Use ArgoCD's resource tracking annotation to take ownership of the resource
+      - After resolving, verify ArgoCD shows "Synced" and "Healthy"
+      - Establish a policy that all resources must go through git — no manual kubectl apply
+      - Add a pre-commit or CI check that flags resources not tracked by ArgoCD
+    pitfalls:
+      - Force-syncing ArgoCD without checking which ConfigMap version is correct (may overwrite good data)
+      - Deleting the manual ConfigMap without verifying the git version matches the intended state
+      - Not addressing the cultural issue of manual changes bypassing GitOps
+      - Ignoring the two-week gap — other manual resources may exist
+    source_path: training/interactive/scenarios/deployment-failure.yaml

@@ -1,0 +1,7725 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Covers operational DNS debugging beyond nslookup, including Route 53, CoreDNS in Kubernetes, DNSSEC, TTL propagation, and cross-region resolution issues.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/lessons/dns-ops-when-nslookup-isnt-enough/">
+      
+      
+        <link rel="prev" href="../kubernetes-debugging-when-pods-wont-behave/">
+      
+      
+        <link rel="next" href="../api-gateways-the-front-door-to-your-microservices/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>DNS Operations: When nslookup Isn't Enough - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="DNS Operations: When nslookup Isn't Enough - GrokDevOps Wiki" />
+<meta property="og:description" content="Covers operational DNS debugging beyond nslookup, including Route 53, CoreDNS in Kubernetes, DNSSEC, TTL propagation, and cross-region resolution issues." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/dns-ops-when-nslookup-isnt-enough.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/lessons/dns-ops-when-nslookup-isnt-enough/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="DNS Operations: When nslookup Isn't Enough - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Covers operational DNS debugging beyond nslookup, including Route 53, CoreDNS in Kubernetes, DNSSEC, TTL propagation, and cross-region resolution issues." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/dns-ops-when-nslookup-isnt-enough.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#dns-operations-when-nslookup-isnt-enough" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              DNS Operations: When nslookup Isn't Enough
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-End Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    End-to-End Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-click-a-link/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Click a Link
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-press-power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Press Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-docker-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `docker build`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-kubectl-apply/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `kubectl apply`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-helm-install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `helm install`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-git-push-to-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `git push` to CI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pxe-boot-from-network-to-running-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE Boot: From Network to Running Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh-is-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SSH Is More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strace-reading-the-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    strace: Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-type-a-regex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Type a Regex
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ebpf-the-linux-superpower/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    eBPF: The Linux Superpower
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-inside-a-linux-pipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens Inside a Linux Pipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-proc-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The /proc Filesystem: Linux's Hidden API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-to-read-a-flame-graph/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to Read a Flame Graph
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../iptables-following-a-packet-through-the-chains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    iptables: Following a Packet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-subnet-calculator-in-your-head/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Subnet Calculator in Your Head
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-kubernetes-evicts-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Kubernetes Evicts Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tmux-and-the-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tmux and the Terminal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../opentelemetry-following-a-request-across-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenTelemetry: Following a Request Across Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-services-how-traffic-finds-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Services: How Traffic Finds Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../log-pipelines-from-printf-to-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Pipelines: From printf to Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../container-registries-where-your-images-actually-live/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container Registries: Where Your Images Actually Live
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../envoy-the-proxy-thats-everywhere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Envoy: The Proxy That's Everywhere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-node-lifecycle-from-provision-to-decommission/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Node Lifecycle: From Provision to Decommission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-from-scratch-to-production-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes: From Scratch to Production Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Incident-Driven
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Incident-Driven
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-hanging-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Hanging Deploy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-disk-that-filled-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Disk That Filled Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-database-that-wouldnt-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Database That Wouldn't Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-mysterious-latency-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Mysterious Latency Spike
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-terraform-state-disaster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Terraform State Disaster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cascading-timeout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cascading Timeout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-rollback-that-wasnt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Rollback That Wasn't
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../when-the-queue-backs-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When the Queue Backs Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-split-brain-nightmare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Split-Brain Nightmare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cloud-bill-surprise/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cloud Bill Surprise
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-backup-nobody-tested/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Backup Nobody Tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-your-certificate-expires/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Your Certificate Expires
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-load-balancer-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Load Balancer Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-monitoring-that-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Monitoring That Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../redis-in-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis in Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elasticsearch-for-people-who-didnt-choose-it/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Elasticsearch Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mysql-operations-the-database-you-inherited/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MySQL Operations: The Database You Inherited
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mongodb-the-document-database-that-surprised-everyone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MongoDB: The Document Database That Surprised Everyone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server-hardware-when-the-blinky-lights-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Hardware: When the Blinky Lights Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../etcd-the-database-that-runs-kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    etcd: The Database That Runs Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-lambda-the-function-that-runs-itself/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS Lambda: The Function That Runs Itself
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-rds-the-managed-database-tradeoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS RDS: The Managed Database Tradeoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-ec2-the-virtual-server-you-never-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS EC2: The Virtual Server You Never See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kafka-the-log-that-runs-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kafka: The Log That Runs Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differential Diagnosis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Differential Diagnosis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connection-refused/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connection Refused
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permission-denied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permission Denied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../out-of-memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Out of Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-vs-ansible-vs-helm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform vs Ansible vs Helm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-nginx-config-that-broke-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Nginx Config That Broke Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-playbook-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible Playbook Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-iam-the-permissions-puzzle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS IAM: The Permissions Puzzle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-debugging-when-pods-wont-behave/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Debugging: When Pods Won't Behave
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DNS Operations: When nslookup Isn't Enough
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DNS Operations: When nslookup Isn't Enough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-your-first-move-dig-vs-nslookup-vs-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1: Your First Move — dig vs nslookup vs host
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1: Your First Move — dig vs nslookup vs host">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-dig-flags-youll-use-every-week" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dig flags you'll use every week
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#back-to-the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Back to the mission
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-the-dns-record-types-that-break-things" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2: The DNS Record Types That Break Things
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2: The DNS Record Types That Break Things">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-core-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The core records
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cname-the-record-that-causes-the-most-grief" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CNAME: the record that causes the most grief
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soa-the-record-nobody-reads-until-secondaries-stop-updating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SOA: the record nobody reads until secondaries stop updating
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ptr-the-invisible-record-that-breaks-email" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PTR: the invisible record that breaks email
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-ttl-caching-and-the-works-for-me-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3: TTL, Caching, and the "Works for Me" Problem
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3: TTL, Caching, and the &#34;Works for Me&#34; Problem">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-caching-happens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where caching happens
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-ttl-tradeoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The TTL tradeoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-migration-ttl-dance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The migration TTL dance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-dig-trace-following-the-resolution-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 4: dig +trace — Following the Resolution Chain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 4: dig +trace — Following the Resolution Chain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-trace-reveals-that-short-cant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What +trace reveals that +short can't
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-route-53-routing-policies-health-checks-and-silent-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 5: Route 53 — Routing Policies, Health Checks, and Silent Failures
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5: Route 53 — Routing Policies, Health Checks, and Silent Failures">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-routing-policies-ranked-by-how-often-youll-use-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The routing policies, ranked by how often you'll use them
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#failover-health-checks-the-missions-root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failover + health checks: the mission's root cause
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-fix-two-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fix: two steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-split-horizon-dns-same-name-different-answers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 6: Split-Horizon DNS — Same Name, Different Answers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6: Split-Horizon DNS — Same Name, Different Answers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-split-horizon-debugging-trap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The split-horizon debugging trap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-7-coredns-in-kubernetes-the-ndots5-trap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 7: CoreDNS in Kubernetes — The ndots:5 Trap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 7: CoreDNS in Kubernetes — The ndots:5 Trap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#kubernetes-dns-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kubernetes DNS names
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-ndots5-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The ndots:5 problem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-fix-three-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fix: three options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quick-coredns-debugging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick CoreDNS debugging
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-8-dnssec-trust-but-verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 8: DNSSEC — Trust but Verify
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 8: DNSSEC — Trust but Verify">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-chain-of-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The chain of trust
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checking-dnssec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking DNSSEC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dns-over-https-and-dns-over-tls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DNS over HTTPS and DNS over TLS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-9-the-3-am-debugging-ladder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 9: The 3 AM Debugging Ladder
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-dig-triage-and-trace-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: dig triage and trace (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-find-the-ndots-problem-10-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Find the ndots problem (10 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-design-a-failover-architecture-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Design a failover architecture (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cheat Sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dig-quick-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dig Quick Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dns-record-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DNS Record Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-53-routing-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route 53 Routing Policies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ttl-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TTL Strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-gateways-the-front-door-to-your-microservices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateways: The Front Door to Your Microservices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Archaeological
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Archaeological
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-init-scripts-to-systemd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    From Init Scripts to systemd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-dns-is-always-the-problem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why DNS Is Always the Problem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-everything-uses-json-now/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why Everything Uses JSON Now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-yaml-keeps-breaking-your-deploys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why YAML Keeps Breaking Your Deploys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-and-the-art-of-not-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus and the Art of Not Alerting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../understanding-distributed-systems-without-a-phd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Understanding Distributed Systems Without a PhD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-service-mesh-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Service Mesh Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-ntp-matters-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why NTP Matters More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../raid-why-your-disks-will-fail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAID: Why Your Disks Will Fail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../make-and-makefiles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Make and Makefiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-kubernetes-migration-that-took-a-year/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Kubernetes Migration That Took a Year
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gitops-the-repo-is-the-truth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitOps: The Repo Is the Truth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../s3-the-object-store-that-runs-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    S3: The Object Store That Runs the Internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bgp-how-the-internet-routes-your-packets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BGP: How the Internet Routes Your Packets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slos-when-good-enough-is-a-number/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SLOs: When Good Enough Is a Number
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-internals-the-content-addressable-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Git Internals: The Content-Addressable Filesystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-under-the-hood/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus: Under the Hood
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adversarial
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Adversarial
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-container-escape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Container Escape
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-git-disaster-recovery-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Git Disaster Recovery Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-engineering-breaking-things-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Engineering: Breaking Things on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../supply-chain-security-trusting-your-dependencies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply Chain Security: Trusting Your Dependencies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cgroups-and-namespaces-containers-are-a-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cgroups and Namespaces: Containers Are a Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-hardening-closing-the-doors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Hardening: Closing the Doors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bash-the-patterns-that-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bash: The Patterns That Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build-Up
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Build-Up
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deploy-a-web-app-from-nothing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy a Web App From Nothing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../secrets-management-without-tears/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets Management Without Tears
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-incident-response-actually-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Incident Response Actually Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-postmortem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Postmortem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-runbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-vpc-the-network-you-cant-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS VPC: The Network You Can't See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../load-testing-finding-the-breaking-point/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load Testing: Finding the Breaking Point
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packer-building-machine-images-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packer: Building Machine Images That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-networking-bridges-bonds-and-vlans/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Networking: Bridges, Bonds, and VLANs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kustomize-kubernetes-config-without-templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kustomize: Kubernetes Config Without Templates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vault-secrets-that-expire-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vault: Secrets That Expire on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../github-actions-ci-cd-that-lives-in-your-repo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Actions: CI/CD That Lives in Your Repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grafana-dashboards-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grafana: Dashboards That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compliance-as-code-automating-the-auditor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compliance as Code: Automating the Auditor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-modules-building-infrastructure-legos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform Modules: Building Infrastructure LEGOs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-compose-the-local-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Compose: The Local Cluster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../systemd-the-init-system-you-cant-avoid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    systemd: The Init System You Can't Avoid
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nginx-the-swiss-army-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nginx: The Swiss Army Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-from-playbook-to-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible: From Playbook to Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capacity-planning-math-before-midnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capacity Planning: Math Before Midnight
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-storage-lvm-filesystems-and-beyond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Storage: LVM, Filesystems, and Beyond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parallel
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Parallel
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../text-processing-jq-awk-sed-in-the-trenches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing: jq, awk, and sed in the Trenches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_9" id="__nav_5_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Learning Path
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python Learning Path
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-zero-to-script-for-the-terminal-native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Zero to Script for the Terminal Native
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-data-wrangling-for-ops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Data Wrangling for Ops
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-automating-everything-apis-and-infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Automating Everything — APIs and Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_10" id="__nav_5_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    More Lessons
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    More Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-ansible/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Ansible
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-system-automation-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python System Automation Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-your-first-move-dig-vs-nslookup-vs-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1: Your First Move — dig vs nslookup vs host
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1: Your First Move — dig vs nslookup vs host">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-dig-flags-youll-use-every-week" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dig flags you'll use every week
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#back-to-the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Back to the mission
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-the-dns-record-types-that-break-things" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2: The DNS Record Types That Break Things
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2: The DNS Record Types That Break Things">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-core-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The core records
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cname-the-record-that-causes-the-most-grief" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CNAME: the record that causes the most grief
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soa-the-record-nobody-reads-until-secondaries-stop-updating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SOA: the record nobody reads until secondaries stop updating
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ptr-the-invisible-record-that-breaks-email" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PTR: the invisible record that breaks email
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-ttl-caching-and-the-works-for-me-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3: TTL, Caching, and the "Works for Me" Problem
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3: TTL, Caching, and the &#34;Works for Me&#34; Problem">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-caching-happens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where caching happens
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-ttl-tradeoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The TTL tradeoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-migration-ttl-dance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The migration TTL dance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-dig-trace-following-the-resolution-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 4: dig +trace — Following the Resolution Chain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 4: dig +trace — Following the Resolution Chain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-trace-reveals-that-short-cant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What +trace reveals that +short can't
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-route-53-routing-policies-health-checks-and-silent-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 5: Route 53 — Routing Policies, Health Checks, and Silent Failures
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5: Route 53 — Routing Policies, Health Checks, and Silent Failures">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-routing-policies-ranked-by-how-often-youll-use-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The routing policies, ranked by how often you'll use them
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#failover-health-checks-the-missions-root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failover + health checks: the mission's root cause
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-fix-two-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fix: two steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-split-horizon-dns-same-name-different-answers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 6: Split-Horizon DNS — Same Name, Different Answers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6: Split-Horizon DNS — Same Name, Different Answers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-split-horizon-debugging-trap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The split-horizon debugging trap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-7-coredns-in-kubernetes-the-ndots5-trap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 7: CoreDNS in Kubernetes — The ndots:5 Trap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 7: CoreDNS in Kubernetes — The ndots:5 Trap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#kubernetes-dns-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kubernetes DNS names
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-ndots5-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The ndots:5 problem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-fix-three-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fix: three options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quick-coredns-debugging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick CoreDNS debugging
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-8-dnssec-trust-but-verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 8: DNSSEC — Trust but Verify
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 8: DNSSEC — Trust but Verify">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-chain-of-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The chain of trust
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checking-dnssec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking DNSSEC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dns-over-https-and-dns-over-tls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DNS over HTTPS and DNS over TLS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-9-the-3-am-debugging-ladder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 9: The 3 AM Debugging Ladder
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-dig-triage-and-trace-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: dig triage and trace (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-find-the-ndots-problem-10-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Find the ndots problem (10 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-design-a-failover-architecture-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Design a failover architecture (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cheat Sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dig-quick-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dig Quick Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dns-record-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DNS Record Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#route-53-routing-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route 53 Routing Policies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ttl-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TTL Strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Lessons
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../connection-refused/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Differential Diagnosis
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:coredns" class="md-tag">coredns</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:debugging" class="md-tag">debugging</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:dns" class="md-tag">dns</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:dnssec" class="md-tag">dnssec</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:kubernetes" class="md-tag">kubernetes</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:lesson" class="md-tag">lesson</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:networking" class="md-tag">networking</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:route-53" class="md-tag">route-53</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="dns-operations-when-nslookup-isnt-enough">DNS Operations — When nslookup Isn't Enough<a class="headerlink" href="#dns-operations-when-nslookup-isnt-enough" title="Permanent link">&para;</a></h1>
+<p><strong>Topics:</strong> DNS, networking, Route 53, Kubernetes, CoreDNS, DNSSEC, debugging
+<strong>Level:</strong> L1–L2 (Foundations → Operations)
+<strong>Time:</strong> 60–90 minutes
+<strong>Prerequisites:</strong> None (everything is explained from scratch)</p>
+<hr />
+<h2 id="the-mission">The Mission<a class="headerlink" href="#the-mission" title="Permanent link">&para;</a></h2>
+<p>A developer on your team pings you at 10:15 AM: "The website loads fine for me but three
+customers in Europe say they get a 'server not found' error. Can you check if the site is
+down?"</p>
+<p>You open the site. It loads instantly. You check the status page — all green. You ping the
+server — it responds. But the customers are sending screenshots of browser errors, and
+they're not making it up.</p>
+<p>This is a DNS problem. Specifically, it's the <em>kind</em> of DNS problem that nslookup can't
+diagnose, that "flush your cache" won't fix, and that makes experienced engineers mutter
+"it's always DNS" while reaching for <code>dig</code>.</p>
+<p>We'll diagnose this incident step by step. Each section peels back another layer of how DNS
+actually works — from <code>dig</code> basics through TTL caching, Route 53 health checks, Kubernetes
+CoreDNS traps, and DNSSEC.</p>
+<hr />
+<h2 id="part-1-your-first-move-dig-vs-nslookup-vs-host">Part 1: Your First Move — dig vs nslookup vs host<a class="headerlink" href="#part-1-your-first-move-dig-vs-nslookup-vs-host" title="Permanent link">&para;</a></h2>
+<p>Three tools, wildly different usefulness.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># nslookup — the one everyone knows</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>nslookup<span class="w"> </span>app.example.com
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Server:    127.0.0.53</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Address:   127.0.0.53#53</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Non-authoritative answer:</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Name:  app.example.com</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Address: 203.0.113.10</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># host — slightly better, same limitations</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>host<span class="w"> </span>app.example.com
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># app.example.com has address 203.0.113.10</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># dig — the one that actually helps</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>dig<span class="w"> </span>app.example.com
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># ;; ANSWER SECTION:</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># app.example.com.    247  IN  A  203.0.113.10</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1">#</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># ;; Query time: 12 msec</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="c1"># ;; SERVER: 127.0.0.53#53(127.0.0.53)</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="c1"># ;; WHEN: Tue Mar 23 10:17:32 UTC 2026</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="c1"># ;; MSG SIZE  rcvd: 62</span>
+</code></pre></div>
+<p>The <code>dig</code> output shows the TTL remaining (247 seconds), the record type (A), the server
+that answered, and the query time. nslookup shows almost none of this.</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>nslookup</th>
+<th>host</th>
+<th>dig</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shows TTL</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Shows authoritative vs cached</td>
+<td>Vaguely</td>
+<td>No</td>
+<td>Yes (AA flag)</td>
+</tr>
+<tr>
+<td>Query specific server</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Trace full resolution path</td>
+<td>No</td>
+<td>No</td>
+<td>Yes (<code>+trace</code>)</td>
+</tr>
+<tr>
+<td>Show DNSSEC info</td>
+<td>No</td>
+<td>No</td>
+<td>Yes (<code>+dnssec</code>)</td>
+</tr>
+<tr>
+<td>Query specific record type</td>
+<td>Clunky</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Scriptable output</td>
+<td>No</td>
+<td>Somewhat</td>
+<td>Yes (<code>+short</code>)</td>
+</tr>
+<tr>
+<td>Available everywhere</td>
+<td>Yes</td>
+<td>Usually</td>
+<td>Usually</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Name Origin:</strong> <code>dig</code> stands for Domain Information Groper. It was written as part of
+BIND (Berkeley Internet Name Domain) — the DNS server software that has run the majority
+of the internet's DNS since the 1980s. BIND itself was written by four UC Berkeley
+graduate students in the early 1980s as part of a DARPA grant. The daemon is called
+<code>named</code> — literally "name daemon."</p>
+</blockquote>
+<h3 id="the-dig-flags-youll-use-every-week">The dig flags you'll use every week<a class="headerlink" href="#the-dig-flags-youll-use-every-week" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>+short<span class="w">          </span><span class="c1"># Just the IP, nothing else</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>@8.8.8.8<span class="w">       </span><span class="c1"># Ask Google's resolver instead of yours</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>+trace<span class="w">          </span><span class="c1"># Walk the entire resolution chain</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>dig<span class="w"> </span>-x<span class="w"> </span><span class="m">203</span>.0.113.10<span class="w">                </span><span class="c1"># Reverse lookup (IP → name)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>dig<span class="w"> </span>example.com<span class="w"> </span>MX<span class="w"> </span>+short<span class="w">          </span><span class="c1"># Mail servers</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>dig<span class="w"> </span>example.com<span class="w"> </span>NS<span class="w"> </span>+short<span class="w">          </span><span class="c1"># Nameservers</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>dig<span class="w"> </span>example.com<span class="w"> </span>SOA<span class="w">                </span><span class="c1"># Zone metadata (serial number, TTLs)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>dig<span class="w"> </span>example.com<span class="w"> </span>ANY<span class="w"> </span>+noall<span class="w"> </span>+answer<span class="w"> </span><span class="c1"># All record types</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>+dnssec<span class="w">        </span><span class="c1"># Show DNSSEC signatures</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>dig<span class="w"> </span>@ns1.example.com<span class="w"> </span>example.com<span class="w"> </span>AXFR<span class="w">  </span><span class="c1"># Zone transfer (if allowed)</span>
+</code></pre></div>
+<h3 id="back-to-the-mission">Back to the mission<a class="headerlink" href="#back-to-the-mission" title="Permanent link">&para;</a></h3>
+<p>Your first diagnostic move:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># What do YOU see?</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>+short
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># 203.0.113.10</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># What does Google's resolver see?</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>@8.8.8.8<span class="w"> </span>+short
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># 203.0.113.10</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1"># What does Cloudflare's resolver see?</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>@1.1.1.1<span class="w"> </span>+short
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># 203.0.113.10</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="c1"># What do the authoritative nameservers say?</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>NS<span class="w"> </span>+short
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="c1"># ns-1234.awsdns-56.org.</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="c1"># ns-789.awsdns-01.co.uk.</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="c1"># ns-456.awsdns-23.com.</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="c1"># ns-012.awsdns-78.net.</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="c1"># Query each one directly</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>@ns-1234.awsdns-56.org<span class="w"> </span>+short
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="c1"># 203.0.113.10</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>@ns-789.awsdns-01.co.uk<span class="w"> </span>+short
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="c1"># SERVFAIL</span>
+</code></pre></div>
+<p>There it is. One of the four authoritative nameservers is returning SERVFAIL. Three work,
+one doesn't. If you're lucky, your resolver picks a working one. If you're not, you get
+"server not found."</p>
+<blockquote>
+<p><strong>Mental Model:</strong> DNS failure is probabilistic. With four nameservers and one broken, roughly
+25% of queries fail. But it's not a clean 25% — resolvers often stick with a nameserver that
+worked recently, so some users are fine for hours while others fail repeatedly. This is why
+"it works for me" is the most dangerous sentence in DNS debugging.</p>
+</blockquote>
+<hr />
+<h2 id="flashcard-check-1">Flashcard Check #1<a class="headerlink" href="#flashcard-check-1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What does <code>dig +short</code> do?</td>
+<td>Returns only the answer (IP address), no headers or metadata</td>
+</tr>
+<tr>
+<td>Why is nslookup insufficient for production debugging?</td>
+<td>It hides TTL, doesn't trace resolution paths, can't show DNSSEC info</td>
+</tr>
+<tr>
+<td>If 1 of 4 authoritative nameservers is broken, what percentage of users are affected?</td>
+<td>Roughly 25%, but it's probabilistic — some users may be stuck on the broken NS</td>
+</tr>
+<tr>
+<td>What flag asks dig to use a specific resolver?</td>
+<td><code>@</code> followed by the resolver IP: <code>dig @8.8.8.8 example.com</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-2-the-dns-record-types-that-break-things">Part 2: The DNS Record Types That Break Things<a class="headerlink" href="#part-2-the-dns-record-types-that-break-things" title="Permanent link">&para;</a></h2>
+<p>Every DNS record type exists because someone needed to solve a specific problem. Here's
+every type you'll encounter in production, what it does, and what breaks when it's wrong.</p>
+<h3 id="the-core-records">The core records<a class="headerlink" href="#the-core-records" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>What it does</th>
+<th>Example</th>
+<th>What breaks when it's wrong</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A</strong></td>
+<td>Maps name to IPv4</td>
+<td><code>app.example.com. 300 IN A 203.0.113.10</code></td>
+<td>Site unreachable, wrong server</td>
+</tr>
+<tr>
+<td><strong>AAAA</strong></td>
+<td>Maps name to IPv6</td>
+<td><code>app.example.com. 300 IN AAAA 2001:db8::1</code></td>
+<td>IPv6 users fail, happy eyeballs delays</td>
+</tr>
+<tr>
+<td><strong>CNAME</strong></td>
+<td>Alias to another name</td>
+<td><code>www.example.com. 300 IN CNAME app.example.com.</code></td>
+<td>Broken chains, apex violations</td>
+</tr>
+<tr>
+<td><strong>MX</strong></td>
+<td>Mail exchange server</td>
+<td><code>example.com. 3600 IN MX 10 mail.example.com.</code></td>
+<td>All email delivery fails</td>
+</tr>
+<tr>
+<td><strong>TXT</strong></td>
+<td>Arbitrary text</td>
+<td><code>"v=spf1 mx -all"</code></td>
+<td>SPF/DKIM/domain verification fails</td>
+</tr>
+<tr>
+<td><strong>NS</strong></td>
+<td>Nameserver delegation</td>
+<td><code>example.com. 86400 IN NS ns1.example.com.</code></td>
+<td>Entire zone unreachable</td>
+</tr>
+<tr>
+<td><strong>SOA</strong></td>
+<td>Start of authority</td>
+<td>Serial, refresh, retry, expire, min TTL</td>
+<td>Secondaries out of sync</td>
+</tr>
+<tr>
+<td><strong>PTR</strong></td>
+<td>Reverse lookup (IP→name)</td>
+<td><code>10.113.0.203.in-addr.arpa. PTR app.example.com.</code></td>
+<td>Email rejected, SSH warnings</td>
+</tr>
+<tr>
+<td><strong>SRV</strong></td>
+<td>Service location</td>
+<td><code>_http._tcp.example.com. SRV 10 60 8080 app1.example.com.</code></td>
+<td>Service discovery breaks</td>
+</tr>
+<tr>
+<td><strong>CAA</strong></td>
+<td>Certificate authority auth</td>
+<td><code>example.com. CAA 0 issue "letsencrypt.org"</code></td>
+<td>TLS cert issuance blocked</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cname-the-record-that-causes-the-most-grief">CNAME: the record that causes the most grief<a class="headerlink" href="#cname-the-record-that-causes-the-most-grief" title="Permanent link">&para;</a></h3>
+<p>A CNAME says "this name is an alias for that name." Simple concept, three sharp edges:</p>
+<p><strong>Edge 1: CNAME can't coexist with other records.</strong>
+If <code>app.example.com</code> has a CNAME, it cannot also have an A, MX, TXT, or any other record.
+This is per RFC 1034. Some DNS servers enforce it; others silently do unpredictable things.</p>
+<p><strong>Edge 2: CNAME at the zone apex is illegal.</strong>
+You can't do <code>example.com. IN CNAME mycdn.cloudfront.net.</code> because the apex must have SOA
+and NS records, and CNAME can't coexist with those. Route 53 invented "alias records" to
+solve this. Cloudflare calls it "CNAME flattening." Neither is standard DNS.</p>
+<p><strong>Edge 3: CNAME chains slow resolution.</strong>
+<code>www</code> → <code>app</code> → <code>lb</code> → actual IP means three lookups. Some resolvers follow chains poorly.</p>
+<blockquote>
+<p><strong>Gotcha:</strong> If you create a CNAME for <code>app.example.com</code> but forget to remove the existing
+A record, BIND rejects the zone file. But some cloud DNS providers silently accept the
+conflict and return unpredictable results — sometimes the A, sometimes the CNAME target.</p>
+</blockquote>
+<h3 id="soa-the-record-nobody-reads-until-secondaries-stop-updating">SOA: the record nobody reads until secondaries stop updating<a class="headerlink" href="#soa-the-record-nobody-reads-until-secondaries-stop-updating" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>example.com. IN SOA ns1.example.com. admin.example.com. (
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    2026032301  ; Serial — MUST increment on every change
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    3600        ; Refresh — how often secondaries check for updates (1h)
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    900         ; Retry — retry interval if refresh fails (15m)
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    604800      ; Expire — secondaries stop serving after this (7d)
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    300         ; Minimum TTL — negative caching duration (5m)
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>)
+</code></pre></div>
+<p>The serial number is the most operationally important field. If you edit a zone file and
+forget to increment it, secondary nameservers think they already have the latest version
+and ignore the update.</p>
+<blockquote>
+<p><strong>Remember:</strong> Use the date-based serial format <strong>YYYYMMDDNN</strong> (e.g., <code>2026032301</code> for the
+first change on March 23, 2026). The NN suffix allows 99 changes per day. Never use
+arbitrary numbers — you can't go backward, and if you accidentally set the serial to
+<code>9999999999</code>, recovering requires manual intervention on every secondary.</p>
+</blockquote>
+<h3 id="ptr-the-invisible-record-that-breaks-email">PTR: the invisible record that breaks email<a class="headerlink" href="#ptr-the-invisible-record-that-breaks-email" title="Permanent link">&para;</a></h3>
+<p>PTR records map IPs back to names (the reverse of A records). Email servers check: does the
+connecting IP have a PTR? Does it match the sending domain? If not, your email is spam.
+Check with <code>dig -x 203.0.113.10</code>.</p>
+<hr />
+<h2 id="part-3-ttl-caching-and-the-works-for-me-problem">Part 3: TTL, Caching, and the "Works for Me" Problem<a class="headerlink" href="#part-3-ttl-caching-and-the-works-for-me-problem" title="Permanent link">&para;</a></h2>
+<p>TTL (Time-To-Live) is the number of seconds a resolver is allowed to cache a DNS answer.
+It's the single most important operational parameter in DNS, and it's the reason your
+website works for you but not for customers in Europe.</p>
+<h3 id="where-caching-happens">Where caching happens<a class="headerlink" href="#where-caching-happens" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Your browser        → has its own DNS cache (Chrome: chrome://net-internals/#dns)
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Your OS             → has a stub resolver cache (systemd-resolved, macOS mDNSResponder)
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>Your local resolver → has a recursive resolver cache (your ISP, corporate DNS, 8.8.8.8)
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>The TLD servers     → cache delegation answers
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>Each layer          → respects TTL independently
+</code></pre></div>
+<p>When you change a DNS record, every cached copy at every layer has to expire before all
+users see the new answer. This is what people call "DNS propagation" — but that term is
+misleading.</p>
+<blockquote>
+<p><strong>Mental Model:</strong> DNS doesn't "propagate" like a wave spreading outward. There's no push
+mechanism. Each cache independently expires and re-fetches. "Propagation time" is really
+"maximum TTL across all caching layers." A record with TTL 3600 doesn't reach every user
+in 3600 seconds — it reaches users <em>up to</em> 3600 seconds after the change, depending on
+when their resolver last cached it.</p>
+</blockquote>
+<h3 id="the-ttl-tradeoff">The TTL tradeoff<a class="headerlink" href="#the-ttl-tradeoff" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>High TTL (3600–86400 seconds):
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  + Less load on authoritative servers
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  + Faster resolution for clients (cached)
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  - Changes take hours to reach all users
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  - Can't fail over quickly during incidents
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>Low TTL (30–300 seconds):
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>  + Changes take effect within minutes
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>  + Fast failover during incidents
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>  - More load on authoritative servers
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>  - Some ISP resolvers ignore low TTLs and enforce a minimum (30–60s)
+</code></pre></div>
+<blockquote>
+<p><strong>Trivia:</strong> Studies have shown that many ISP resolvers cheat on TTL. Some enforce a
+minimum cache time of 30 seconds regardless of what the authoritative server specifies.
+A few older ISP resolvers have been observed caching for up to 5 minutes even when TTL is
+0. This means "instant failover via low TTL" is a myth for a small but painful tail of
+users.</p>
+</blockquote>
+<h3 id="the-migration-ttl-dance">The migration TTL dance<a class="headerlink" href="#the-migration-ttl-dance" title="Permanent link">&para;</a></h3>
+<p>This is a procedure you'll execute dozens of times in your career:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Normal state:       TTL 3600 (1 hour)
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>48 hours before:    Lower TTL to 60 seconds
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>                    (wait for all old cached entries to expire)
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>Migration time:     Change the record to the new IP
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>                    (with TTL still at 60, propagation takes ~1 minute)
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>Post-migration:     Monitor for 24–48 hours
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>                    Raise TTL back to 3600
+</code></pre></div>
+<p>The 48-hour lead time is critical. If your current TTL is 86400 (24 hours), lowering it to
+60 only helps <em>after</em> existing cached entries expire — up to 24 hours later. If you lower
+the TTL and immediately change the IP, some resolvers still have the old answer cached with
+the old TTL.</p>
+<blockquote>
+<p><strong>War Story:</strong> A team migrating from one cloud provider to another forgot to lower their
+TTL before switching IP addresses. Their A record had a TTL of 86400 — 24 hours. They
+switched the IP at 9 AM Monday. By noon, internal testing showed success. They declared
+the migration complete. But ISP resolvers that had cached the old IP at 8:59 AM held onto
+it until 8:59 AM Tuesday. For 24 hours, approximately 30% of their users reached the old
+provider's IP, which returned connection refused. The fix was to wait. There is no way to
+force remote caches to expire early. The lesson: lower TTL <em>before</em> you need it, not
+during the emergency.</p>
+</blockquote>
+<hr />
+<h2 id="flashcard-check-2">Flashcard Check #2<a class="headerlink" href="#flashcard-check-2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What does "DNS propagation" actually mean?</td>
+<td>Independent cache expiration across resolvers — not a push mechanism</td>
+</tr>
+<tr>
+<td>Why should you lower TTL 48 hours before a migration?</td>
+<td>Existing caches hold the old TTL; you need that time for them to expire</td>
+</tr>
+<tr>
+<td>Can you force a remote resolver to flush its cache?</td>
+<td>No. You can only wait for TTL expiration.</td>
+</tr>
+<tr>
+<td>What is negative caching?</td>
+<td>Resolvers cache NXDOMAIN (name not found) responses, controlled by SOA minimum TTL</td>
+</tr>
+<tr>
+<td>Why can't CNAME exist at the zone apex?</td>
+<td>The apex requires SOA and NS records, and CNAME can't coexist with other record types</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-4-dig-trace-following-the-resolution-chain">Part 4: dig +trace — Following the Resolution Chain<a class="headerlink" href="#part-4-dig-trace-following-the-resolution-chain" title="Permanent link">&para;</a></h2>
+<p>Back to our mission. We know one nameserver is returning SERVFAIL. Let's trace the full
+resolution path to understand what's happening.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>+trace
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>; &lt;&lt;&gt;&gt; DiG 9.18.28 &lt;&lt;&gt;&gt; app.example.com +trace
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>;; global options: +cmd
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>.                   483012  IN  NS  a.root-servers.net.
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>.                   483012  IN  NS  b.root-servers.net.
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>;; (13 root servers)
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>;; Received 525 bytes from 127.0.0.53#53 in 0 ms
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>com.                172800  IN  NS  a.gtld-servers.net.
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>com.                172800  IN  NS  b.gtld-servers.net.
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>;; (13 TLD servers)
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>;; Received 1170 bytes from 198.41.0.4#53(a.root-servers.net) in 23 ms
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>example.com.        172800  IN  NS  ns-1234.awsdns-56.org.
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>example.com.        172800  IN  NS  ns-789.awsdns-01.co.uk.
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>example.com.        172800  IN  NS  ns-456.awsdns-23.com.
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>example.com.        172800  IN  NS  ns-012.awsdns-78.net.
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>;; Received 662 bytes from 192.5.6.30#53(a.gtld-servers.net) in 31 ms
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>app.example.com.    60      IN  A   203.0.113.10
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>;; Received 78 bytes from 205.251.195.234#53(ns-1234.awsdns-56.org) in 15 ms
+</code></pre></div>
+<p>Read it bottom to top: root servers pointed us to <code>.com</code> TLD servers, which pointed us to
+four Route 53 nameservers, one of which returned the actual A record with TTL 60.</p>
+<blockquote>
+<p><strong>Trivia:</strong> There are exactly 13 root server <em>identities</em> (A through M) because all 13
+addresses had to fit in a single 512-byte DNS UDP response — a protocol constraint from
+1987. In reality, those 13 identities are served by over 1,700 physical servers worldwide
+using anycast routing.</p>
+</blockquote>
+<h3 id="what-trace-reveals-that-short-cant">What +trace reveals that +short can't<a class="headerlink" href="#what-trace-reveals-that-short-cant" title="Permanent link">&para;</a></h3>
+<p>The trace shows you <em>which</em> nameserver answered at each level. If the problem is at the TLD
+level (wrong NS delegation), or at the authoritative level (one NS returning errors), the
+trace pinpoints exactly where the chain breaks.</p>
+<p>For our mission, the trace succeeded because <code>dig +trace</code> happened to pick a working
+nameserver. Let's explicitly test the broken one:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>@ns-789.awsdns-01.co.uk
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># ;; Got answer:</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># ;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: SERVFAIL, id: 41285</span>
+</code></pre></div>
+<p>SERVFAIL from one specific Route 53 nameserver. Time to investigate Route 53.</p>
+<hr />
+<h2 id="part-5-route-53-routing-policies-health-checks-and-silent-failures">Part 5: Route 53 — Routing Policies, Health Checks, and Silent Failures<a class="headerlink" href="#part-5-route-53-routing-policies-health-checks-and-silent-failures" title="Permanent link">&para;</a></h2>
+<p>Route 53 isn't just a DNS host — it's a traffic router. It supports seven routing policies
+that control <em>which</em> answer a query gets.</p>
+<h3 id="the-routing-policies-ranked-by-how-often-youll-use-them">The routing policies, ranked by how often you'll use them<a class="headerlink" href="#the-routing-policies-ranked-by-how-often-youll-use-them" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>What it does</th>
+<th>When to use it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Simple</strong></td>
+<td>One record, one or more values</td>
+<td>Static sites, simple setups</td>
+</tr>
+<tr>
+<td><strong>Failover</strong></td>
+<td>Primary until health check fails, then secondary</td>
+<td>Active-passive DR</td>
+</tr>
+<tr>
+<td><strong>Weighted</strong></td>
+<td>Distribute by percentage (90/10, 50/50)</td>
+<td>Canary deploys, gradual migrations</td>
+</tr>
+<tr>
+<td><strong>Latency</strong></td>
+<td>Route to lowest-latency region</td>
+<td>Multi-region active-active</td>
+</tr>
+<tr>
+<td><strong>Geolocation</strong></td>
+<td>Route by user's country/continent</td>
+<td>Compliance, localized content</td>
+</tr>
+<tr>
+<td><strong>Multivalue</strong></td>
+<td>Up to 8 healthy records, random</td>
+<td>Poor man's load balancer with health checks</td>
+</tr>
+<tr>
+<td><strong>Geoproximity</strong></td>
+<td>Geographic + adjustable bias</td>
+<td>Fine-grained traffic shaping</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Gotcha:</strong> Route 53 alias records are an AWS proprietary extension — they don't exist in
+standard DNS. AWS invented them to solve the zone apex CNAME problem. An alias looks like
+an A record to resolvers but internally points to an AWS resource (ALB, CloudFront, S3).
+Alias queries to AWS resources are free. CNAME queries are not.</p>
+</blockquote>
+<h3 id="failover-health-checks-the-missions-root-cause">Failover + health checks: the mission's root cause<a class="headerlink" href="#failover-health-checks-the-missions-root-cause" title="Permanent link">&para;</a></h3>
+<p>Let's look at what happened in our incident. The record uses failover routing with health
+checks:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>aws<span class="w"> </span>route53<span class="w"> </span>get-health-check-status<span class="w"> </span>--health-check-id<span class="w"> </span>hc-primary-789<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span>--query<span class="w"> </span><span class="s1">'HealthCheckObservations[].{Region:Region,Status:StatusReport.Status}'</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># us-east-1: Success, us-west-1: Success, eu-west-1: Failure, ap-southeast-1: Success</span>
+</code></pre></div>
+<p>The EU health checker is failing. Route 53 health checkers run from multiple regions. When
+enough checkers report failure, Route 53 stops returning that record to resolvers whose
+queries arrive via the affected nameserver.</p>
+<blockquote>
+<p><strong>Mental Model:</strong> Route 53 health checks are the <em>brain</em> behind routing policies. Without
+them, failover and weighted routing are just static configurations. With them, Route 53
+actively removes unhealthy endpoints from DNS responses. But the health check failing
+doesn't necessarily mean the endpoint is down — it means the health <em>checker</em> can't reach
+the endpoint. A firewall, WAF, or rate limiter blocking the health checker IP range causes
+the same result.</p>
+</blockquote>
+<p>The EU health checker was being blocked by a WAF rate-limiting rule. The service was
+healthy. The health check was not. Route 53 removed the endpoint from responses to EU
+resolvers, and European customers got SERVFAIL.</p>
+<h3 id="the-fix-two-steps">The fix: two steps<a class="headerlink" href="#the-fix-two-steps" title="Permanent link">&para;</a></h3>
+<p><strong>Step 1:</strong> Restore DNS immediately — UPSERT the failover record without the <code>HealthCheckId</code>
+field. Route 53 will return the record regardless of health check status.</p>
+<p><strong>Step 2:</strong> Fix the root cause — allowlist Route 53 health checker IPs in the WAF:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>https://ip-ranges.amazonaws.com/ip-ranges.json<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span>jq<span class="w"> </span><span class="s1">'[.prefixes[] | select(.service=="ROUTE53_HEALTHCHECKS") | .ip_prefix]'</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># Add these CIDRs to your WAF allowlist, then re-attach the health check</span>
+</code></pre></div>
+<p>One more tool: <code>aws route53 test-dns-answer --hosted-zone-id Z123 --record-name app.example.com --record-type A</code> shows exactly what Route 53 would return, including routing policy evaluation and health check status. It bypasses all caching. Use it first when debugging Route 53.</p>
+<hr />
+<h2 id="part-6-split-horizon-dns-same-name-different-answers">Part 6: Split-Horizon DNS — Same Name, Different Answers<a class="headerlink" href="#part-6-split-horizon-dns-same-name-different-answers" title="Permanent link">&para;</a></h2>
+<p>Split-horizon DNS returns different answers depending on who's asking. Internal clients get
+private IPs; external clients get public IPs. It's essential for hybrid environments and
+it makes debugging twice as hard.</p>
+<p>In BIND, you implement this with "views" — <code>match-clients</code> directives that serve different
+zone files based on source IP. In Route 53, you create two hosted zones with the same name
+(one public, one private). The private zone is associated with your VPCs. Queries from
+inside the VPC hit the private zone; queries from the internet hit the public zone.</p>
+<h3 id="the-split-horizon-debugging-trap">The split-horizon debugging trap<a class="headerlink" href="#the-split-horizon-debugging-trap" title="Permanent link">&para;</a></h3>
+<p>When someone reports "I can't reach app.example.com," you must ask: <em>from where?</em> The
+answer depends on which side of the split they're on.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Test from inside the network</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>@internal-dns<span class="w"> </span>+short<span class="w">   </span><span class="c1"># Should be 10.0.1.50</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># Test from outside</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>dig<span class="w"> </span>app.example.com<span class="w"> </span>@8.8.8.8<span class="w"> </span>+short<span class="w">       </span><span class="c1"># Should be 203.0.113.50</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> If internal clients get the external IP, they hit the firewall's public
+interface instead of the private IP. Traffic hairpins through the firewall — slower at
+best, blocked at worst. Check the BIND view's <code>match-clients</code> list: if the client's
+subnet isn't included, they fall through to the external view.</p>
+</blockquote>
+<hr />
+<h2 id="part-7-coredns-in-kubernetes-the-ndots5-trap">Part 7: CoreDNS in Kubernetes — The ndots:5 Trap<a class="headerlink" href="#part-7-coredns-in-kubernetes-the-ndots5-trap" title="Permanent link">&para;</a></h2>
+<p>CoreDNS is the default DNS server in Kubernetes. It resolves service names, pod names, and
+external names for all cluster traffic. And it has one default setting that catches almost
+everyone.</p>
+<h3 id="kubernetes-dns-names">Kubernetes DNS names<a class="headerlink" href="#kubernetes-dns-names" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Service:     my-service.default.svc.cluster.local
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>Pod:         10-0-2-100.default.pod.cluster.local
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>StatefulSet: web-0.my-service.default.svc.cluster.local
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>Short form:  my-service  (within the same namespace)
+</code></pre></div>
+<h3 id="the-ndots5-problem">The ndots:5 problem<a class="headerlink" href="#the-ndots5-problem" title="Permanent link">&para;</a></h3>
+<p>Every pod's <code>/etc/resolv.conf</code> looks like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>nameserver 10.96.0.10
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>search default.svc.cluster.local svc.cluster.local cluster.local
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>options ndots:5
+</code></pre></div>
+<p>The <code>ndots:5</code> setting means: if a name has fewer than 5 dots, try the search domains first
+before querying the name as-is. Watch what happens when your pod tries to resolve
+<code>api.github.com</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>api.github.com has 2 dots (&lt; 5), so Kubernetes tries:
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>1. api.github.com.default.svc.cluster.local   → NXDOMAIN
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>2. api.github.com.svc.cluster.local           → NXDOMAIN
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>3. api.github.com.cluster.local               → NXDOMAIN
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>4. api.github.com                             → SUCCESS (finally!)
+</code></pre></div>
+<p>That's 3 wasted queries before the real one. And each query generates <em>two</em> DNS lookups (A
+and AAAA records), so it's actually 6 wasted queries plus 2 real ones = 8 total DNS
+queries for one hostname resolution.</p>
+<blockquote>
+<p><strong>Under the Hood:</strong> At 1ms per CoreDNS query, that's 8ms overhead per external lookup.
+Tolerable. But if CoreDNS is under load or upstream resolution is slow, it compounds to
+seconds. A microservice making 1,000 external API calls per second generates 8,000
+DNS queries per second instead of 2,000. That's the difference between CoreDNS running
+fine and CoreDNS falling over.</p>
+</blockquote>
+<h3 id="the-fix-three-options">The fix: three options<a class="headerlink" href="#the-fix-three-options" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># Option 1: Override ndots per pod</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Pod</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">external-api-caller</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">  </span><span class="nt">dnsConfig</span><span class="p">:</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">    </span><span class="nt">options</span><span class="p">:</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ndots</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="w">        </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">"2"</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="w">  </span><span class="nt">containers</span><span class="p">:</span>
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">app</span>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-app:latest</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Option 2: Append trailing dot in your code</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="c1"># Instead of: requests.get("https://api.github.com/repos")</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="c1"># Use:        requests.get("https://api.github.com./repos")</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># The trailing dot makes it a FQDN — skips search domains entirely</span>
+</code></pre></div>
+<p><strong>Option 3:</strong> Add the <code>autopath</code> plugin to the CoreDNS Corefile (resolves all search
+suffixes in a single roundtrip — edit the <code>coredns</code> ConfigMap in <code>kube-system</code> and add
+<code>autopath @kubernetes</code> after the <code>kubernetes</code> block).</p>
+<h3 id="quick-coredns-debugging">Quick CoreDNS debugging<a class="headerlink" href="#quick-coredns-debugging" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># Are CoreDNS pods running?</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>-l<span class="w"> </span>k8s-app<span class="o">=</span>kube-dns
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="c1"># Check CoreDNS logs</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>kube-system<span class="w"> </span>-l<span class="w"> </span>k8s-app<span class="o">=</span>kube-dns<span class="w"> </span>--tail<span class="o">=</span><span class="m">30</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1"># Test DNS from inside the cluster</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>kubectl<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>--rm<span class="w"> </span>dnstest<span class="w"> </span>--image<span class="o">=</span>busybox:1.36<span class="w"> </span>--<span class="w"> </span>nslookup<span class="w"> </span>kubernetes.default
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="c1"># Check a pod's resolv.conf</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>my-pod<span class="w"> </span>--<span class="w"> </span>cat<span class="w"> </span>/etc/resolv.conf
+</code></pre></div>
+<hr />
+<h2 id="flashcard-check-3">Flashcard Check #3<a class="headerlink" href="#flashcard-check-3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What does Kubernetes <code>ndots:5</code> do?</td>
+<td>Names with fewer than 5 dots try all search domain suffixes before the real lookup</td>
+</tr>
+<tr>
+<td>How many DNS queries does <code>api.github.com</code> generate with ndots:5?</td>
+<td>8 (4 suffixes x 2 for A + AAAA records)</td>
+</tr>
+<tr>
+<td>What are two fixes for the ndots problem?</td>
+<td>Set <code>ndots: 2</code> in pod dnsConfig, or append a trailing dot to FQDNs</td>
+</tr>
+<tr>
+<td>What is the CoreDNS ConfigMap called and where does it live?</td>
+<td><code>coredns</code> in the <code>kube-system</code> namespace</td>
+</tr>
+<tr>
+<td>What does <code>dnsPolicy: ClusterFirst</code> mean?</td>
+<td>Use CoreDNS for resolution (the default for pods)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-8-dnssec-trust-but-verify">Part 8: DNSSEC — Trust but Verify<a class="headerlink" href="#part-8-dnssec-trust-but-verify" title="Permanent link">&para;</a></h2>
+<p>Standard DNS has no authentication. When your resolver asks "what is bank.example.com?" it
+has no way to verify the answer actually came from the authoritative server. The Kaminsky
+attack (2008) demonstrated that an attacker could poison a resolver's cache in seconds.</p>
+<p>DNSSEC adds cryptographic signatures to DNS responses.</p>
+<h3 id="the-chain-of-trust">The chain of trust<a class="headerlink" href="#the-chain-of-trust" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>Root Zone (.)
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>  │  KSK signs → DNSKEY RRset
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>  │  ZSK signs → .com DS record (hash of .com's KSK)
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>  ▼
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>.com TLD
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>  │  KSK signs → DNSKEY RRset
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>  │  ZSK signs → example.com DS record (hash of example.com's KSK)
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>  ▼
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>example.com
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>  │  KSK signs → DNSKEY RRset
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>  │  ZSK signs → all other records (A, MX, etc.)
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>  ▼
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>app.example.com A 203.0.113.10  ← verified authentic by RRSIG
+</code></pre></div>
+<p><strong>KSK (Key Signing Key):</strong> Signs only the DNSKEY record set. Its hash (DS record) lives in
+the parent zone. Changed rarely because rollover requires parent coordination.</p>
+<p><strong>ZSK (Zone Signing Key):</strong> Signs all actual data records. Rotated more frequently
+(monthly to yearly). Doesn't require parent zone update.</p>
+<blockquote>
+<p><strong>Remember:</strong> "KSK = King Signs Keys, ZSK = Zone Signs Everything." The KSK only signs
+the keys themselves. The ZSK signs the data.</p>
+</blockquote>
+<h3 id="checking-dnssec">Checking DNSSEC<a class="headerlink" href="#checking-dnssec" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># Does this domain have DNSSEC?</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>dig<span class="w"> </span>+dnssec<span class="w"> </span>example.com<span class="w"> </span>A
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="c1"># Look for the AD flag (Authenticated Data) in the response</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="c1"># ;; flags: qr rd ra ad;   ← AD means your resolver validated the signature</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="c1"># Full DNSSEC trace</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>dig<span class="w"> </span>+trace<span class="w"> </span>+dnssec<span class="w"> </span>example.com
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="c1"># Check DS record at the parent (the link between parent and child)</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>dig<span class="w"> </span>DS<span class="w"> </span>example.com<span class="w"> </span>@a.gtld-servers.net<span class="w"> </span>+short
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> DNSSEC adds operational risk. If the KMS key backing your Route 53 signing is
+deleted, or the DS record at your registrar expires, your domain becomes unresolvable for
+DNSSEC-validating resolvers. That's worse than not having DNSSEC at all. Enable it, but
+monitor signature expiry aggressively.</p>
+</blockquote>
+<h3 id="dns-over-https-and-dns-over-tls">DNS over HTTPS and DNS over TLS<a class="headerlink" href="#dns-over-https-and-dns-over-tls" title="Permanent link">&para;</a></h3>
+<p>DNSSEC authenticates answers (they're genuine). DoH/DoT encrypt the <em>query</em> (nobody can see
+what you looked up). They're complementary, not competing.</p>
+<table>
+<thead>
+<tr>
+<th>Protocol</th>
+<th>Port</th>
+<th>Blocks easily?</th>
+<th>Who uses it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DNS (plain)</td>
+<td>53 (UDP/TCP)</td>
+<td>Yes</td>
+<td>Everything by default</td>
+</tr>
+<tr>
+<td>DoT</td>
+<td>853 (TCP+TLS)</td>
+<td>Yes (dedicated port)</td>
+<td>systemd-resolved, Android 9+</td>
+</tr>
+<tr>
+<td>DoH</td>
+<td>443 (HTTPS)</td>
+<td>Hard (same as web traffic)</td>
+<td>Firefox, Chrome, Cloudflare</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Interview tip:</strong> If asked about DNSSEC vs DoH/DoT: DNSSEC provides <strong>authentication</strong>
+(the answer is genuine), DoH/DoT provide <strong>privacy</strong> (nobody sees your query). They're
+complementary. Test DoH yourself: <code>curl -s -H 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=example.com&amp;type=A' | jq</code></p>
+</blockquote>
+<hr />
+<h2 id="part-9-the-3-am-debugging-ladder">Part 9: The 3 AM Debugging Ladder<a class="headerlink" href="#part-9-the-3-am-debugging-ladder" title="Permanent link">&para;</a></h2>
+<p>When DNS is broken, work through this sequence. Each step rules out one layer:</p>
+<ol>
+<li><strong>Can you resolve it?</strong> <code>dig app.example.com +short</code></li>
+<li><strong>Can public resolvers?</strong> <code>dig @8.8.8.8</code> and <code>dig @1.1.1.1</code> — if yes, your local resolver is the problem</li>
+<li><strong>What do the authoritative NSes say?</strong> Query each one individually: <code>dig @ns1.example.com +short</code></li>
+<li><strong>Are secondaries in sync?</strong> Compare SOA serial: <code>dig SOA example.com @ns1</code> vs <code>@ns2</code></li>
+<li><strong>Where does the chain break?</strong> <code>dig +trace</code> walks root → TLD → authoritative</li>
+<li><strong>What does Route 53 think?</strong> <code>aws route53 test-dns-answer</code> bypasses all caching</li>
+<li><strong>Are health checks healthy?</strong> <code>aws route53 get-health-check-status</code></li>
+<li><strong>What's on the wire?</strong> <code>tcpdump -n -i any port 53 -c 50</code></li>
+</ol>
+<blockquote>
+<p><strong>Remember:</strong> DNS uses UDP port 53 for queries under 512 bytes and TCP port 53 for zone
+transfers and large responses (DNSSEC, large TXT records). If your firewall only allows
+UDP 53, DNSSEC validation and zone transfers will silently fail.</p>
+</blockquote>
+<hr />
+<h2 id="exercises">Exercises<a class="headerlink" href="#exercises" title="Permanent link">&para;</a></h2>
+<h3 id="exercise-1-dig-triage-and-trace-5-minutes">Exercise 1: dig triage and trace (5 minutes)<a class="headerlink" href="#exercise-1-dig-triage-and-trace-5-minutes" title="Permanent link">&para;</a></h3>
+<p>Pick any domain and run the full diagnostic sequence:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>dig<span class="w"> </span>example.com<span class="w"> </span>+short<span class="w">                  </span><span class="c1"># What IP?</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>dig<span class="w"> </span>example.com<span class="w"> </span>@8.8.8.8<span class="w"> </span>+short<span class="w">        </span><span class="c1"># Same from Google's resolver?</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>dig<span class="w"> </span>example.com<span class="w"> </span>NS<span class="w"> </span>+short<span class="w">              </span><span class="c1"># How many nameservers?</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>dig<span class="w"> </span>example.com<span class="w"> </span>SOA<span class="w"> </span>+short<span class="w">             </span><span class="c1"># Serial format?</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>dig<span class="w"> </span>example.com<span class="w"> </span>+trace<span class="w">                 </span><span class="c1"># Walk the full chain</span>
+</code></pre></div>
+<details>
+<summary>What to look for</summary>
+
+- Does your local resolver and 8.8.8.8 return the same IP? If not, caching or split-horizon.
+- How many NS records? (Should be at least 2.)
+- Is the SOA serial date-based (YYYYMMDDNN) or arbitrary?
+- In the trace: how many root servers listed? Which TLD server answered? What's the final TTL?
+
+</details>
+
+<h3 id="exercise-2-find-the-ndots-problem-10-minutes">Exercise 2: Find the ndots problem (10 minutes)<a class="headerlink" href="#exercise-2-find-the-ndots-problem-10-minutes" title="Permanent link">&para;</a></h3>
+<p>If you have access to a Kubernetes cluster:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>kubectl<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>--rm<span class="w"> </span>dnstest<span class="w"> </span>--image<span class="o">=</span>busybox:1.36<span class="w"> </span>--<span class="w"> </span>sh
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="c1"># Inside the pod:</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>cat<span class="w"> </span>/etc/resolv.conf
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>nslookup<span class="w"> </span>api.github.com
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="c1"># Note the time</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="c1"># Now try:</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>nslookup<span class="w"> </span>api.github.com.
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="c1"># Note the time difference (with trailing dot should be faster)</span>
+</code></pre></div>
+<details>
+<summary>What you should see</summary>
+
+The trailing-dot version should resolve noticeably faster because it skips the search domain
+suffix attempts. The `resolv.conf` should show `ndots:5` and several search domains.
+
+</details>
+
+<h3 id="exercise-3-design-a-failover-architecture-15-minutes">Exercise 3: Design a failover architecture (15 minutes)<a class="headerlink" href="#exercise-3-design-a-failover-architecture-15-minutes" title="Permanent link">&para;</a></h3>
+<p>You have a web application in us-east-1 (primary) and us-west-2 (DR). Design the Route 53
+configuration:</p>
+<ol>
+<li>What routing policy do you use?</li>
+<li>What health check configuration?</li>
+<li>What TTL on the DNS records?</li>
+<li>What happens if the health checker itself is blocked by a firewall?</li>
+</ol>
+<details>
+<summary>Solution</summary>
+
+1. Failover routing with PRIMARY (us-east-1) and SECONDARY (us-west-2)
+2. HTTPS health check on `/health`, 10-second interval, failure threshold of 3
+3. TTL 60 seconds (low enough for fast failover, high enough to not overwhelm Route 53)
+4. Route 53 removes the primary from DNS responses, causing all traffic to hit the
+   secondary — even if the primary is actually healthy. Always allowlist Route 53 health
+   checker IPs in your firewall/WAF.
+
+</details>
+
+<hr />
+<h2 id="cheat-sheet">Cheat Sheet<a class="headerlink" href="#cheat-sheet" title="Permanent link">&para;</a></h2>
+<h3 id="dig-quick-reference">dig Quick Reference<a class="headerlink" href="#dig-quick-reference" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dig example.com</code></td>
+<td>Full query with all sections</td>
+</tr>
+<tr>
+<td><code>dig +short example.com</code></td>
+<td>Just the answer</td>
+</tr>
+<tr>
+<td><code>dig @8.8.8.8 example.com</code></td>
+<td>Query a specific resolver</td>
+</tr>
+<tr>
+<td><code>dig +trace example.com</code></td>
+<td>Walk the full resolution chain</td>
+</tr>
+<tr>
+<td><code>dig -x 203.0.113.10</code></td>
+<td>Reverse lookup</td>
+</tr>
+<tr>
+<td><code>dig example.com MX</code></td>
+<td>Query specific record type</td>
+</tr>
+<tr>
+<td><code>dig +dnssec example.com</code></td>
+<td>Show DNSSEC signatures</td>
+</tr>
+<tr>
+<td><code>dig example.com SOA +short</code></td>
+<td>Check serial number</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dns-record-types">DNS Record Types<a class="headerlink" href="#dns-record-types" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Maps</th>
+<th>Key fact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>name → IPv4</td>
+<td>Most common record</td>
+</tr>
+<tr>
+<td>AAAA</td>
+<td>name → IPv6</td>
+<td>Needed for dual-stack</td>
+</tr>
+<tr>
+<td>CNAME</td>
+<td>name → name</td>
+<td>Can't be at zone apex, can't coexist with other types</td>
+</tr>
+<tr>
+<td>MX</td>
+<td>domain → mail server</td>
+<td>Priority number: lower = preferred</td>
+</tr>
+<tr>
+<td>NS</td>
+<td>domain → nameserver</td>
+<td>Delegation chain</td>
+</tr>
+<tr>
+<td>SOA</td>
+<td>zone metadata</td>
+<td>Serial must increment on every change</td>
+</tr>
+<tr>
+<td>TXT</td>
+<td>arbitrary text</td>
+<td>SPF, DKIM, domain verification</td>
+</tr>
+<tr>
+<td>PTR</td>
+<td>IP → name</td>
+<td>Required for email, reverse DNS</td>
+</tr>
+<tr>
+<td>SRV</td>
+<td>service location</td>
+<td>Used by Consul, Kubernetes headless services</td>
+</tr>
+<tr>
+<td>CAA</td>
+<td>authorized CAs</td>
+<td>Controls who can issue TLS certs</td>
+</tr>
+</tbody>
+</table>
+<h3 id="route-53-routing-policies">Route 53 Routing Policies<a class="headerlink" href="#route-53-routing-policies" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Behavior</th>
+<th>Health check?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Simple</td>
+<td>Return all values, random order</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Failover</td>
+<td>Primary until unhealthy, then secondary</td>
+<td>Required</td>
+</tr>
+<tr>
+<td>Weighted</td>
+<td>Percentage-based distribution</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>Latency</td>
+<td>Lowest latency region</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>Geolocation</td>
+<td>User's country/continent</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>Multivalue</td>
+<td>Up to 8 healthy records</td>
+<td>Required</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ttl-strategy">TTL Strategy<a class="headerlink" href="#ttl-strategy" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>TTL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Normal operations</td>
+<td>300–3600s</td>
+</tr>
+<tr>
+<td>48h before migration</td>
+<td>60s</td>
+</tr>
+<tr>
+<td>During migration</td>
+<td>60s</td>
+</tr>
+<tr>
+<td>After migration verified</td>
+<td>Raise to 300–3600s</td>
+</tr>
+<tr>
+<td>Static records (MX, NS)</td>
+<td>3600–86400s</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="takeaways">Takeaways<a class="headerlink" href="#takeaways" title="Permanent link">&para;</a></h2>
+<ul>
+<li>
+<p><strong>dig is the DNS debugging tool.</strong> nslookup hides the information you need most: TTL,
+  authoritative flags, and the full resolution chain. Reach for <code>dig</code> first, always.</p>
+</li>
+<li>
+<p><strong>DNS doesn't propagate — caches expire.</strong> There's no push mechanism. "Propagation time"
+  is the maximum TTL across all caching layers. Lower TTL <em>before</em> you need fast changes.</p>
+</li>
+<li>
+<p><strong>Test every authoritative nameserver individually.</strong> One broken NS out of four means 25%
+  of users fail intermittently — the hardest kind of failure to reproduce.</p>
+</li>
+<li>
+<p><strong>Health checks can cause the outages they're designed to prevent.</strong> If a firewall or WAF
+  blocks the health checker IPs, Route 53 removes a healthy endpoint from DNS. Always
+  allowlist health checker IP ranges.</p>
+</li>
+<li>
+<p><strong>Kubernetes ndots:5 multiplies external DNS queries by 4x.</strong> Set <code>ndots: 2</code> or use
+  trailing dots for pods that primarily call external services.</p>
+</li>
+<li>
+<p><strong>DNSSEC authenticates, DoH/DoT encrypts.</strong> They solve different problems and are
+  complementary. DNSSEC proves the answer is genuine; DoH/DoT hide what you asked.</p>
+</li>
+</ul>
+<hr />
+<h2 id="related-lessons">Related Lessons<a class="headerlink" href="#related-lessons" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../what-happens-when-you-click-a-link/">What Happens When You Click a Link</a> — follows a
+  request end-to-end from DNS through TCP, TLS, HTTP, and back</li>
+<li><a href="../connection-refused/">Connection Refused</a> — differential diagnosis where DNS is one of
+  many possible causes</li>
+<li><a href="../the-load-balancer-lied/">The Load Balancer Lied</a> — health checks and routing gone wrong
+  at the infrastructure layer</li>
+<li><a href="../kubernetes-services-how-traffic-finds-your-pod/">Kubernetes Services: How Traffic Finds Your Pod</a> —
+  how CoreDNS fits into the Kubernetes networking model</li>
+<li><a href="../what-happens-when-your-certificate-expires/">What Happens When Your Certificate Expires</a> —
+  TLS and DNS (CAA records) intersect</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="August 19, 2026 13:40:59 UTC">August 19, 2026 13:40:59</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 23, 2026 02:50:03 UTC">March 23, 2026 02:50:03</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../kubernetes-debugging-when-pods-wont-behave/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Kubernetes Debugging: When Pods Won&#39;t Behave">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Kubernetes Debugging: When Pods Won't Behave
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../api-gateways-the-front-door-to-your-microservices/" class="md-footer__link md-footer__link--next" aria-label="Next: API Gateways: The Front Door to Your Microservices">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                API Gateways: The Front Door to Your Microservices
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../portal/js/random-content.js"></script>
+      
+        <script src="../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../portal/js/graph.js"></script>
+      
+        <script src="../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

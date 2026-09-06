@@ -1,0 +1,27 @@
+=== /etc/dhcp/dhcpd.conf (relevant section on pxe-srv-01) ===
+subnet 10.20.0.0 netmask 255.255.255.0 {
+    range 10.20.0.100 10.20.0.200;
+    option routers 10.20.0.1;
+    option domain-name-servers 10.10.0.53;
+    next-server 10.20.0.5;
+    filename "pxelinux.0";
+}
+
+=== DHCP server log (/var/log/syslog on pxe-srv-01) ===
+Mar  5 09:12:01 pxe-srv-01 dhcpd: DHCPDISCOVER from f4:ee:08:12:aa:b0 via eth1
+Mar  5 09:12:01 pxe-srv-01 dhcpd: DHCPOFFER on 10.20.0.142 to f4:ee:08:12:aa:b0 via eth1
+Mar  5 09:12:01 pxe-srv-01 dhcpd: DHCPREQUEST for 10.20.0.142 from f4:ee:08:12:aa:b0 via eth1
+Mar  5 09:12:01 pxe-srv-01 dhcpd: DHCPACK on 10.20.0.142 to f4:ee:08:12:aa:b0 via eth1
+
+=== tcpdump excerpt (PXE exchange from new R750) ===
+09:12:01.442 IP 0.0.0.0.68 > 255.255.255.255.67: BOOTP/DHCP, Request, length 548
+  Vendor-Class: PXEClient:Arch:00007:UNDI:003016
+  Option 93 (Client System Architecture): 0x0007 (EFI x64)
+09:12:01.445 IP 10.20.0.5.67 > 10.20.0.142.68: BOOTP/DHCP, Reply, length 300
+  file: "pxelinux.0"
+  next-server: 10.20.0.5
+09:12:01.812 IP 10.20.0.142 > 10.20.0.5: TFTP Read Request, file "pxelinux.0", octet, blksize 1468, tsize 0
+09:12:01.813 IP 10.20.0.5 > 10.20.0.142: TFTP Data, block 1, 512 bytes
+09:12:01.900 [UEFI PXE Client] Error: Image type not supported. Not a valid EFI application.
+
+Note: Client requests Arch:00007 (UEFI x64) but server offers pxelinux.0 (BIOS bootloader).

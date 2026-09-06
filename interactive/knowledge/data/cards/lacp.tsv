@@ -1,0 +1,38 @@
+---
+tags:
+- networking
+- l1
+- flashcard-deck
+- lacp
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [LACP / Link Aggregation](../../../../library/portal/topics.md) | **Domain:** Networking
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+lacp/c520b3ab6547	lacp	easy	lacp, bonding, basics	What is link aggregation and what two benefits does it provide?	Link aggregation combines multiple physical links into one logical channel, providing bandwidth aggregation (N links = up to Nx bandwidth for concurrent flows) and redundancy (traffic shifts to surviving links if one fails).\n\nRemember: LACP bundles physical links. Benefits: more bandwidth + automatic failover.	training/library/topics/lacp/primer.md
+lacp/d6fc0606ece5	lacp	easy	lacp, 802.3ad, modes	What is the difference between LACP active and passive modes?	Active mode sends LACP PDUs and actively initiates bond formation. Passive mode only responds to LACP PDUs from the partner. At least one side must be active; both sides passive means no bond forms.\n\nRemember: LACP = Link Aggregation Control Protocol (802.3ad). Bundles links for BW+redundancy.\n\nFun fact: LACP PDUs exchanged every 1s (fast) or 30s (slow) to detect failures.	training/library/topics/lacp/primer.md
+lacp/90101bd9aa31	lacp	easy	lacp, bonding, linux	What Linux bonding mode provides simple failover without requiring switch configuration?	Mode 1 (active-backup). One interface is active, the rest are standby. If the active fails, a standby takes over. No special switch configuration is needed because only one link is active at a time.\n\nRemember: Active=initiates, Passive=responds. Both passive=nothing. "At least one Active."\n\nGotcha: Mismatched modes (static vs LACP) = no aggregation.	training/library/topics/lacp/primer.md
+lacp/970e6020a612	lacp	medium	lacp, bonding-modes, switch	Which Linux bonding modes require switch-side LAG configuration?	Modes 0 (balance-rr), 2 (balance-xor), 3 (broadcast), and 4 (802.3ad/LACP) require the switch to be configured for link aggregation. Modes 1 (active-backup), 5 (balance-tlb), and 6 (balance-alb) do not.\n\nRemember: Active=initiates, Passive=responds. Both passive=nothing. "At least one Active."\n\nGotcha: Mismatched modes (static vs LACP) = no aggregation.	training/library/topics/lacp/primer.md
+lacp/a889e5c85054	lacp	medium	lacp, hash-policy, traffic	What does the xmit_hash_policy control and which is best for IP traffic?	xmit_hash_policy determines how outbound traffic is distributed across bonded links. layer3+4 (hashes on source/destination IP and port) is best for IP traffic as it distributes individual TCP flows across links. A single flow still uses one link.\n\nUnder the hood: LACP hashes (MAC/IP/port) to pick link per flow. Single flow = one link.\n\nGotcha: Single TCP connection stays on one link. Aggregate BW needs multiple flows.	training/library/topics/lacp/primer.md
+lacp/eb3c7418c5d2	lacp	medium	lacp, monitoring, miimon	How does link monitoring work in Linux bonding?	miimon polls link status at a configurable interval (e.g., 100ms). If a link goes down, traffic shifts to remaining links. Alternative: ARP monitoring (arp_interval + arp_ip_target) verifies end-to-end reachability by sending ARP probes to a gateway.\n\nRemember: Linux bonding mode 4 = 802.3ad (LACP). Modes 0-6: rr,ab,xor,bcast,802.3ad,tlb,alb.	training/library/topics/lacp/primer.md
+lacp/1587d4900626	lacp	medium	lacp, status, troubleshooting	How do you check the status of a Linux bond and its member interfaces?	Read /proc/net/bonding/bond0 for full details including LACP partner info, member interface status, and bond parameters. Quick check: ip link show bond0. Member interfaces show "master bond0" in their ip link output.\n\nRemember: Linux bonding mode 4 = 802.3ad (LACP). Modes 0-6: rr,ab,xor,bcast,802.3ad,tlb,alb.	training/library/topics/lacp/primer.md
+lacp/adc9d9a42bbb	lacp	hard	lacp, asymmetric, debugging	Why might a bonded link show asymmetric traffic distribution and how do you fix it?	Hash-based distribution means a single TCP flow uses one link. With few concurrent flows, most traffic goes through one link. This is normal, not a fault. Fix by switching to layer3+4 hash policy for better distribution. True round-robin (mode 0) distributes evenly but can cause out-of-order packets.\n\nRemember: Linux bonding mode 4 = 802.3ad (LACP). Modes 0-6: rr,ab,xor,bcast,802.3ad,tlb,alb.	training/library/topics/lacp/primer.md
+lacp/cc4746654bb1	lacp	hard	lacp, failover, detection	What happens when LACP PDU exchange fails and how quickly is a link removed?	LACP partners exchange PDUs at fast (1s) or slow (30s) intervals. If 3 consecutive PDUs are missed, the link is removed from the aggregate. With fast rate, detection takes ~3 seconds. With slow rate, ~90 seconds. Both sides should use the same rate to avoid mismatches.\n\nRemember: LACP = Link Aggregation Control Protocol (802.3ad). Bundles links for BW+redundancy.\n\nFun fact: LACP PDUs exchanged every 1s (fast) or 30s (slow) to detect failures.	training/library/topics/lacp/primer.md
+lacp/926eccaab027	lacp	hard	lacp, nmcli, configuration	How do you create an 802.3ad LACP bond using nmcli with optimal settings?	nmcli con add type bond con-name bond0 ifname bond0 bond.options "mode=802.3ad,lacp_rate=fast,xmit_hash_policy=layer3+4,miimon=100"; then add members: nmcli con add type ethernet con-name bond0-eth0 ifname eth0 master bond0. Fast LACP rate gives 3-second failover, layer3+4 hashing distributes IP flows.\n\nRemember: Linux bonding mode 4 = 802.3ad (LACP). Modes 0-6: rr,ab,xor,bcast,802.3ad,tlb,alb.	training/library/topics/lacp/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [Case Study: Bonding Failover Not Working](../../../../library/case-studies/datacenter_ops/bonding-failover-not-working/README.md) (Case Study, L1) — LACP / Link Aggregation
+- [Case Study: LACP Mismatch One Link Hot](../../../../library/case-studies/networking/lacp-mismatch-one-link-hot/README.md) (Case Study, L2) — LACP / Link Aggregation
+- [Cisco Fundamentals for DevOps](../../../../library/topics/cisco-fundamentals-for-devops/index.md) (Topic Pack, L1) — LACP / Link Aggregation
+- [LACP](../../../../library/topics/lacp/index.md) (Topic Pack, L1) — LACP / Link Aggregation
+- [Networking Deep Dive](../../../../library/topics/networking/index.md) (Topic Pack, L1) — LACP / Link Aggregation
+- [Scenario: NIC Flapping / LACP Mismatch](../../../../library/scenarios/datacenter/nic-flapping.md) (Scenario, L2) — LACP / Link Aggregation
+
+<!-- wiki:related:end -->

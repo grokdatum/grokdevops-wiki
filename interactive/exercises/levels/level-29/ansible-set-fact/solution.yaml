@@ -1,0 +1,24 @@
+---
+- name: Compute and use dynamic configuration
+  hosts: webservers
+  become: true
+  vars:
+    base_port: 8000
+    instance_count: 3
+  tasks:
+    - name: Calculate port range
+      ansible.builtin.set_fact:
+        port_range: "{{ base_port }}-{{ base_port | int + instance_count | int }}"
+        max_port: "{{ base_port | int + instance_count | int }}"
+
+    - name: Display configuration
+      ansible.builtin.debug:
+        msg: "Application will use ports {{ port_range }} (max: {{ max_port }})"
+
+    - name: Configure firewall
+      ansible.builtin.copy:
+        content: |
+          # Allow application ports
+          ALLOW_PORTS={{ port_range }}
+          MAX_PORT={{ max_port }}
+        dest: /etc/myapp/firewall.conf

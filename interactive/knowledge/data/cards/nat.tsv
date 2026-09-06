@@ -1,0 +1,33 @@
+---
+tags:
+- networking
+- l1
+- flashcard-deck
+- nat
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [NAT](../../../../library/portal/topics.md) | **Domain:** Networking
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+nat/08f151b124a9	nat	easy	nat, networking, basics	What is the difference between SNAT and DNAT?	"SNAT (Source NAT) changes the source IP of outgoing packets, used when private hosts access the internet via a shared public IP. DNAT (Destination NAT) changes the destination IP of incoming packets, used for port forwarding and load balancing.\n\nRemember: NAT = Network Address Translation. Private→public. ""IP disguise.""\n\nFun fact: NAT was ""temporary"" in the 1990s. Still everywhere 30+ years later."	training/library/topics/nat/primer.md
+nat/169a7f1f4788	nat	easy	nat, iptables, masquerade	What is the difference between SNAT and MASQUERADE in iptables?	"SNAT uses a fixed public IP (--to-source), while MASQUERADE dynamically uses the outgoing interface's current IP. SNAT is more efficient; use MASQUERADE only when the public IP is assigned via DHCP and may change.\n\nRemember: NAT = Network Address Translation. Private→public. ""IP disguise.""\n\nFun fact: NAT was ""temporary"" in the 1990s. Still everywhere 30+ years later."	training/library/topics/nat/primer.md
+nat/cb6c41789ed9	nat	easy	nat, forwarding, sysctl	What kernel setting must be enabled for NAT to forward packets between interfaces?	"net.ipv4.ip_forward must be set to 1. Enable with: sysctl -w net.ipv4.ip_forward=1. Without this, the kernel drops packets destined for other hosts.\n\nGotcha: resets on reboot unless persisted in /etc/sysctl.d/. Docker and Kubernetes enable ip_forward automatically.\n\nUnder the hood: with ip_forward=0, the kernel drops packets destined for other hosts instead of routing between interfaces.\n\nRemember: NAT = Network Address Translation. Private→public. ""IP disguise.""\n\nFun fact: NAT was ""temporary"" in the 1990s. Still everywhere 30+ years later."	training/library/topics/nat/primer.md
+nat/5f4f8ea7d203	nat	medium	nat, conntrack, connection-tracking	What is conntrack and why is it essential for NAT?	"conntrack (connection tracking) is the kernel subsystem that tracks every NAT'd connection in a state table. It records source/destination translations so the kernel can reverse the mapping on return packets, ensuring two-way communication works.\n\nRemember: NAT = Network Address Translation. Private→public. ""IP disguise.""\n\nFun fact: NAT was ""temporary"" in the 1990s. Still everywhere 30+ years later.\n\nNumber anchor: Default nf_conntrack_max is often 65536. A busy NAT gateway can exhaust this in minutes, causing `nf_conntrack: table full` drops.\n\nDebug clue: `conntrack -C` shows current count. Alert when it exceeds 80% of nf_conntrack_max."	training/library/topics/nat/primer.md
+nat/f3d828c0de3b	nat	medium	nat, port-forwarding, dnat	How do you set up port forwarding with iptables to forward port 8080 to an internal host on port 80?	Use DNAT in the PREROUTING chain: iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 8080 -j DNAT --to-destination 10.0.0.5:80. You must also add a FORWARD rule allowing the traffic and enable ip_forward.\n\nRemember: NAT types: SNAT(outbound), DNAT(inbound), PAT(many-to-one via ports).	training/library/topics/nat/primer.md
+nat/45c385cf299c	nat	medium	nat, conntrack, troubleshooting	How do you view and manage the conntrack table?	Use the conntrack tool: conntrack -L (list entries), conntrack -C (count), conntrack -E (live events), conntrack -F (flush). Check the max size with sysctl net.netfilter.nf_conntrack_max.\n\nRemember: NAT types: SNAT(outbound), DNAT(inbound), PAT(many-to-one via ports).	training/library/topics/nat/primer.md
+nat/70e317d11b71	nat	medium	nat, docker, kubernetes	How does Docker use NAT for container networking?	Docker uses MASQUERADE for outbound container traffic (container-to-external) and DNAT for published ports (mapping host ports to container ports). These rules are visible via iptables -t nat -L -n -v.\n\nRemember: NAT types: SNAT(outbound), DNAT(inbound), PAT(many-to-one via ports).	training/library/topics/nat/primer.md
+nat/725a2021d52d	nat	hard	nat, exhaustion, conntrack	What causes NAT port exhaustion and how do you resolve it?	"Each NAT mapping consumes a source port (~64K available per IP). High-traffic proxies exhaust ports, causing ""nf_conntrack: table full, dropping packet"" in dmesg. Fix by: increasing nf_conntrack_max, reducing timeout values (tcp_timeout_time_wait, tcp_timeout_established), or adding more public IPs to the SNAT range.\n\nRemember: NAT = Network Address Translation. Private→public. ""IP disguise.""\n\nFun fact: NAT was ""temporary"" in the 1990s. Still everywhere 30+ years later."	training/library/topics/nat/primer.md
+nat/76a61459d06e	nat	hard	nat, conntrack, tuning	What conntrack sysctls should you tune for a high-traffic NAT gateway?	"Key tunings: net.netfilter.nf_conntrack_max (increase to 262144+), nf_conntrack_buckets (1/4 of max), nf_conntrack_tcp_timeout_time_wait (reduce to 30s), nf_conntrack_tcp_timeout_established (reduce from 432000 to 600s for proxies). Monitor with conntrack -C.\n\nRemember: NAT = Network Address Translation. Private→public. ""IP disguise.""\n\nFun fact: NAT was ""temporary"" in the 1990s. Still everywhere 30+ years later."	training/library/topics/nat/primer.md
+nat/aa6775116abd	nat	hard	nat, nftables, modern	How would you configure SNAT using nftables instead of iptables?	"Create a nat table and postrouting chain: nft add table nat; nft add chain nat postrouting { type nat hook postrouting priority 100 \; }; nft add rule nat postrouting oifname ""eth0"" masquerade. nftables is the modern replacement for iptables with cleaner syntax and better performance.\n\nRemember: SNAT=change source(outbound). Private→internet. Return auto-translated.\n\nTimeline: nftables was merged into Linux kernel 3.13 (2014). It replaces iptables, ip6tables, arptables, and ebtables with a single framework."	training/library/topics/nat/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [NAT](../../../../library/topics/nat/index.md) (Topic Pack, L1) — NAT
+
+<!-- wiki:related:end -->

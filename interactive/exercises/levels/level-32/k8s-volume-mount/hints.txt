@@ -1,0 +1,125 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+🔍 HINT 1: Observing the Problem
+
+Let's investigate why the pod is failing:
+
+1️⃣ Check pod status:
+   kubectl get pod web-app -n k8squest
+
+   What's the STATUS? Is it Running or CrashLoopBackOff?
+
+2️⃣ Check pod logs:
+   kubectl logs web-app -n k8squest
+
+   What error message do you see?
+
+3️⃣ Check the pod specification:
+   kubectl get pod web-app -n k8squest -o yaml | grep -A 5 volumeMounts
+
+   Where is the volume mounted?
+
+4️⃣ Look at the application's expectations:
+   The app tries to read: /app/config/app.conf
+   Where is the volume currently mounted?
+
+📝 Key Observation:
+The application expects files at one path, but the volume is mounted at a different path!
+
+🤔 Questions:
+• What does mountPath specify?
+• Can you change where a volume is mounted?
+• Do init containers and main containers need the same mount path?
+
+## Hint 2
+🎯 HINT 2: Understanding Volume Mounts
+
+The problem is the mountPath doesn't match where the app expects files!
+
+📚 How Volume Mounting Works:
+
+**volumes:** Defines WHAT storage to use
+```yaml
+volumes:
+- name: config-volume      # Give it a name
+  persistentVolumeClaim:
+    claimName: config-pvc  # Reference PVC
+```
+
+**volumeMounts:** Defines WHERE to mount it
+```yaml
+volumeMounts:
+- name: config-volume      # Must match volume name
+  mountPath: /app/config   # Path inside container
+```
+
+🔍 Current Situation:
+
+App expects config at:
+```
+/app/config/app.conf
+```
+
+But volume is mounted at:
+```yaml
+volumeMounts:
+- name: config-volume
+  mountPath: /data  # ❌ Wrong path!
+```
+
+So config file is actually at:
+```
+/data/app.conf  # App can't find it here!
+```
+
+💡 The Solution:
+Change mountPath to match app's expectation:
+```yaml
+volumeMounts:
+- name: config-volume
+  mountPath: /app/config  # ✅ Matches app's path
+```
+
+🎯 Action: Update the mountPath in BOTH init container and main container!
+
+## Hint 3
+✅ HINT 3: Complete Solution
+
+Fix: Change mountPath from /data to /app/config
+
+📝 Key Changes:
+
+In the main container:
+```yaml
+containers:
+- name: app
+  volumeMounts:
+  - name: config-volume
+    mountPath: /app/config  # ✅ Changed from /data
+```
+
+In the init container:
+```yaml
+initContainers:
+- name: setup-config
+  volumeMounts:
+  - name: config-volume
+    mountPath: /app/config  # ✅ Changed from /data
+  command:
+  - sh
+  - -c
+  - echo "app_name=MyApp" > /app/config/app.conf  # ✅ Updated path
+```
+
+🚀 Apply:
+```bash
+kubectl delete pod web-app -n k8squest
+kubectl apply -f solution.yaml
+kubectl logs web-app -n k8squest
+# Should show: "Config loaded successfully"
+```
+
+💡 Remember: mountPath determines where the volume appears in the container filesystem!
+

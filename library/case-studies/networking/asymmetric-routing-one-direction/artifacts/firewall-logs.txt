@@ -1,0 +1,26 @@
+# Firewall logs collected 2026-02-20 09:20 UTC
+
+### fw-01 (10.1.0.1) -- /var/log/firewall.log
+
+Feb 20 09:12:03 fw-01 kernel: FW-DROP-INVALID: IN=eth1 OUT=eth0 SRC=10.1.10.25 DST=10.2.20.40 LEN=52 TOS=0x00 PREC=0x00 TTL=63 ID=44821 DF PROTO=TCP SPT=22 DPT=49182 WINDOW=65160 RES=0x00 ACK SYN URGP=0
+Feb 20 09:12:06 fw-01 kernel: FW-DROP-INVALID: IN=eth1 OUT=eth0 SRC=10.1.10.25 DST=10.2.20.40 LEN=52 TOS=0x00 PREC=0x00 TTL=63 ID=44822 DF PROTO=TCP SPT=22 DPT=49182 WINDOW=65160 RES=0x00 ACK SYN URGP=0
+Feb 20 09:12:12 fw-01 kernel: FW-DROP-INVALID: IN=eth1 OUT=eth0 SRC=10.1.10.25 DST=10.2.20.40 LEN=52 TOS=0x00 PREC=0x00 TTL=63 ID=44823 DF PROTO=TCP SPT=22 DPT=49182 WINDOW=65160 RES=0x00 ACK SYN URGP=0
+Feb 20 09:14:22 fw-01 kernel: FW-DROP-INVALID: IN=eth1 OUT=eth0 SRC=10.1.10.25 DST=10.2.20.40 LEN=52 TOS=0x00 PREC=0x00 TTL=63 ID=44901 DF PROTO=TCP SPT=8080 DPT=52310 WINDOW=65160 RES=0x00 ACK SYN URGP=0
+
+# ^^^ fw-01 is dropping SYN-ACK packets from Host A because it never
+#     saw the corresponding SYN (which went through fw-02).
+#     Note: SPT=22 (SSH) and SPT=8080 confirm these are server replies.
+
+### fw-02 (10.2.0.1) -- /var/log/firewall.log
+
+Feb 20 09:12:03 fw-02 kernel: FW-ACCEPT: IN=eth0 OUT=eth1 SRC=10.2.20.40 DST=10.1.10.25 LEN=60 TOS=0x00 PREC=0x00 TTL=64 ID=31445 DF PROTO=TCP SPT=49182 DPT=22 WINDOW=64240 RES=0x00 SYN URGP=0
+Feb 20 09:14:22 fw-02 kernel: FW-ACCEPT: IN=eth0 OUT=eth1 SRC=10.2.20.40 DST=10.1.10.25 LEN=60 TOS=0x00 PREC=0x00 TTL=64 ID=31502 DF PROTO=TCP SPT=52310 DPT=8080 WINDOW=64240 RES=0x00 SYN URGP=0
+
+# ^^^ fw-02 accepts the SYN from Host B but never sees the return traffic.
+#     Connection stays in SYN_SENT state and eventually times out.
+
+### fw-02 conntrack table:
+
+$ conntrack -L | grep 10.1.10.25
+tcp   6 108 SYN_SENT src=10.2.20.40 dst=10.1.10.25 sport=49182 dport=22 [UNREPLIED] src=10.1.10.25 dst=10.2.20.40 sport=22 dport=49182 mark=0 use=1
+tcp   6  96 SYN_SENT src=10.2.20.40 dst=10.1.10.25 sport=52310 dport=8080 [UNREPLIED] src=10.1.10.25 dst=10.2.20.40 sport=8080 dport=52310 mark=0 use=1

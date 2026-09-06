@@ -1,0 +1,26 @@
+---
+- name: Generate application config
+  hosts: appservers
+  become: true
+  vars:
+    enable_ssl: true
+    ssl_cert_path: /etc/ssl/certs/app.crt
+    ssl_key_path: /etc/ssl/private/app.key
+    app_port: 8443
+  tasks:
+    - name: Deploy nginx virtual host config
+      ansible.builtin.copy:
+        content: |
+          server {
+              listen {{ app_port }};
+              server_name example.com;
+              {% if enable_ssl %}
+              ssl_certificate {{ ssl_cert_path }};
+              ssl_certificate_key {{ ssl_key_path }};
+              ssl on;
+              {% endif %}
+              location / {
+                  proxy_pass http://localhost:8080;
+              }
+          }
+        dest: /etc/nginx/sites-available/app.conf

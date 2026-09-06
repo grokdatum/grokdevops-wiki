@@ -1,0 +1,261 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+# 💡 HINT 1: Observation
+
+## Check Pod Status
+
+```bash
+kubectl get pod gpu-workload -n k8squest
+```
+
+You'll see it's **Pending**.
+
+## Check Pod Events
+
+```bash
+kubectl describe pod gpu-workload -n k8squest
+```
+
+Look for the error:
+```
+Events:
+  Warning  FailedScheduling  ... 0/3 nodes are available:
+  3 node(s) didn't match Pod's node affinity/selector
+```
+
+## Check Node Labels
+
+```bash
+kubectl get nodes --show-labels
+```
+
+Look at what labels your nodes actually have.
+
+## Check Pod's NodeAffinity
+
+```bash
+kubectl get pod gpu-workload -n k8squest -o yaml | grep -A 10 nodeAffinity
+```
+
+Compare the affinity requirements with actual node labels.
+
+## The Problem
+
+The pod requires:
+```yaml
+- key: gpu-type
+  values: [nvidia-tesla]
+```
+
+But nodes don't have this label!
+
+## The Fix
+
+1. Check what labels nodes actually have
+2. Update nodeAffinity to match OR label nodes appropriately
+3. Re-apply the pod
+
+---
+
+**Next hint** explains nodeAffinity in detail.
+
+## Hint 2
+# 💡 HINT 2: Understanding NodeAffinity
+
+## What is NodeAffinity?
+
+NodeAffinity allows you to constrain which nodes pods can be scheduled on based on node labels.
+
+## Two Types
+
+### 1. Required (Hard Constraint)
+
+```yaml
+requiredDuringSchedulingIgnoredDuringExecution:
+  nodeSelectorTerms:
+  - matchExpressions:
+    - key: accelerator
+      operator: In
+      values:
+      - gpu
+```
+
+**Means:** Pod MUST schedule on node with this label, or not at all.
+
+### 2. Preferred (Soft Constraint)
+
+```yaml
+preferredDuringSchedulingIgnoredDuringExecution:
+- weight: 100
+  preference:
+    matchExpressions:
+    - key: disk-type
+      operator: In
+      values:
+      - ssd
+```
+
+**Means:** Prefer nodes with this label, but schedule elsewhere if needed.
+
+## Operators
+
+- **In:** Label value must be in the list
+- **NotIn:** Label value must NOT be in the list
+- **Exists:** Label key must exist (any value)
+- **DoesNotExist:** Label key must NOT exist
+- **Gt:** Numeric label value greater than
+- **Lt:** Numeric label value less than
+
+## Your Current Problem
+
+Your pod wants:
+```yaml
+- key: gpu-type  # ❌ Nodes don't have this key
+  values: [nvidia-tesla]  # ❌ Or this value
+```
+
+But check node labels:
+```bash
+kubectl get nodes --show-labels
+```
+
+You'll see labels like:
+- `kubernetes.io/hostname=kind-control-plane`
+- `node-role.kubernetes.io/control-plane=`
+- Maybe `accelerator=gpu` (if we add it)
+
+## The Solution
+
+Option 1: Fix the nodeAffinity to match existing labels
+Option 2: Add labels to nodes to match affinity
+
+For this level: **Label a node** then use correct affinity.
+
+```bash
+# Add label to node
+kubectl label nodes kind-control-plane accelerator=gpu
+
+# Then update pod affinity to match
+```
+
+---
+
+**Next hint** shows the complete solution.
+
+## Hint 3
+# 💡 HINT 3: Complete Solution
+
+## Step 1: Label a Node
+
+```bash
+# Label the control-plane node for GPU workloads
+kubectl label nodes kind-control-plane accelerator=gpu
+
+# Verify label was added
+kubectl get nodes --show-labels | grep accelerator
+```
+
+## Step 2: Fix the Pod's NodeAffinity
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-workload
+  namespace: k8squest
+spec:
+  containers:
+  - name: ml-training
+    image: nginx:latest
+    command: ['sh', '-c', 'echo "GPU workload running"; sleep 3600']
+  affinity:
+    nodeAffinity:
+      # ✅ REQUIRED: Must match
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: accelerator  # ✅ Matches label we added
+            operator: In
+            values:
+            - gpu  # ✅ Matches label value
+      # ✅ PREFERRED: Nice to have
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+            - kind-control-plane
+```
+
+## Step 3: Apply and Verify
+
+```bash
+# Apply the fixed configuration
+kubectl apply -f solution.yaml
+
+# Watch pod status
+kubectl get pod gpu-workload -n k8squest --watch
+
+# Should transition: Pending → Running
+
+# Verify it's on the right node
+kubectl get pod gpu-workload -n k8squest -o wide
+```
+
+## Complete Commands
+
+```bash
+# 1. Label node
+kubectl label nodes kind-control-plane accelerator=gpu
+
+# 2. Apply solution
+kubectl apply -f solution.yaml
+
+# 3. Verify
+kubectl get pod gpu-workload -n k8squest
+kubectl describe pod gpu-workload -n k8squest | grep "Node:"
+
+# 4. Run validation
+./validate.sh
+```
+
+## Required vs Preferred
+
+### Required (Must Have)
+```yaml
+requiredDuringSchedulingIgnoredDuringExecution:
+  nodeSelectorTerms:
+  - matchExpressions:
+    - key: accelerator
+      operator: In
+      values: [gpu]
+```
+- Pod won't schedule if no match
+- Hard requirement
+
+### Preferred (Nice to Have)
+```yaml
+preferredDuringSchedulingIgnoredDuringExecution:
+- weight: 100  # Higher weight = higher preference
+  preference:
+    matchExpressions:
+    - key: disk-type
+      operator: In
+      values: [ssd]
+```
+- Pod will schedule even if no match
+- Soft preference
+- Weight: 1-100 (higher = more preferred)
+
+---
+
+**Run the validation** to confirm everything works!
+
+```bash
+./validate.sh
+```
+

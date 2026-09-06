@@ -1,0 +1,23 @@
+$ iptables -L OUTPUT -v -n --line-numbers
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination
+1     845K  123M ACCEPT     all  --  *      *       0.0.0.0/0            0.0.0.0/0            state RELATED,ESTABLISHED
+2     2341  140K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:53
+3      847   50K DROP       all  --  *      *       0.0.0.0/0            203.0.113.0/24       /* hardening-block-suspicious-range */
+4     1205   72K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443
+5      987   59K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80
+6      456   27K ACCEPT     udp  --  *      *       0.0.0.0/0            0.0.0.0/0            udp dpt:123
+7        0     0 LOG        all  --  *      *       0.0.0.0/0            0.0.0.0/0            LOG flags 0 level 4 prefix "OUTPUT-DROPPED: "
+8        0     0 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0
+
+# NOTE: Rule 3 drops ALL traffic to 203.0.113.0/24 BEFORE rule 4 which accepts port 443.
+# The payment gateway IP 203.0.113.50 matches rule 3 and is dropped.
+# The pkts counter (847) confirms traffic is hitting this rule.
+
+$ iptables -L INPUT -v -n --line-numbers
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination
+1     912K  134M ACCEPT     all  --  *      *       0.0.0.0/0            0.0.0.0/0            state RELATED,ESTABLISHED
+2     5432  326K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:22
+3     3210  192K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:8080
+4        0     0 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0

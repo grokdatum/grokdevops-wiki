@@ -1,0 +1,46 @@
+### curl test ###
+
+$ curl -vI https://app.example.com
+*   Trying 203.0.113.50:443...
+* Connected to app.example.com (203.0.113.50) port 443
+* ALPN: h2,http/1.1
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+* TLSv1.3 (IN), TLS handshake, Certificate (11):
+* TLSv1.3 (OUT), TLS alert, unknown CA (560):
+* SSL certificate problem: unable to get local issuer certificate
+* Closing connection
+curl: (60) SSL certificate problem: unable to get local issuer certificate
+
+### Python requests test ###
+
+$ python3 -c "import requests; requests.get('https://app.example.com')"
+Traceback (most recent call last):
+  ...
+requests.exceptions.SSLError: HTTPSConnectionPool(host='app.example.com', port=443):
+  Max retries exceeded with url: / (Caused by SSLError(SSLCertVerificationError(1,
+  '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local
+  issuer certificate (_ssl.c:1123)')))
+
+### Browser behavior (Chrome DevTools > Security tab) ###
+
+Certificate:
+  Subject: CN = app.example.com
+  Issuer:  C = US, O = Let's Encrypt, CN = R3
+  Valid:   Feb 15 2026 - May 16 2026
+  Status:  Valid (green padlock)
+
+Certificate Chain (as seen by browser):
+  app.example.com    <-- sent by server
+  R3 (Let's Encrypt) <-- fetched via AIA by browser, NOT sent by server
+  ISRG Root X1       <-- in browser's trust store
+
+### Nginx config on server ###
+
+server {
+    listen 443 ssl;
+    server_name app.example.com;
+    ssl_certificate     /etc/ssl/certs/server.crt;     # leaf only!
+    ssl_certificate_key /etc/ssl/private/server.key;
+    # Should be: ssl_certificate /etc/ssl/certs/fullchain.pem;
+}

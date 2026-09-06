@@ -1,0 +1,31 @@
+$ nfsstat -c
+Client rpc stats:
+calls      retrans    authrefrsh
+184523     12847      184523
+
+Client nfs v4:
+null         read         write        commit       open         close
+0         0% 45123    24% 32456    17% 8901     4% 12345    6% 11234    6%
+...
+(remaining operations omitted for brevity)
+
+$ cat /proc/net/rpc/nfs
+net 0 0 0 0
+rpc 184523 12847 0
+proc4 48 0 45123 32456 8901 12345 11234 9876 8765 7654 6543 5432 4321 3210 2109 1098 987 876 765 654 543 432 321 210 109 98 87 76 65 54 43 32 21 10 9 8 7 6 5 4 3 2 1 0 0 0 0 0 0 0
+
+# NOTE: retrans count (12847) is very high, indicating many retransmitted requests
+# that never received responses from the server.
+
+$ nfsiostat
+nfs.internal:/exports/shared-data mounted on /mnt/shared-data:
+   ops/s       rpc bklog
+   0.00        4821
+
+read:             ops/s      kB/s     kB/op    retrans    avg RTT (ms)    avg exe (ms)
+                  0.000      0.000     0.000     0          0.000           0.000
+write:            ops/s      kB/s     kB/op    retrans    avg RTT (ms)    avg exe (ms)
+                  0.000      0.000     0.000     4821       0.000      600000.000
+
+# NOTE: rpc backlog of 4821 and write avg execution time of 600000ms (10 minutes)
+# indicates all writes are blocked waiting for server response.

@@ -1,0 +1,7589 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Diagnosing stuck deploys by understanding processes, signals, systemd lifecycle, bash job control, and container PID 1.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/lessons/the-hanging-deploy/">
+      
+      
+        <link rel="prev" href="../kubernetes-from-scratch-to-production-upgrade/">
+      
+      
+        <link rel="next" href="../the-disk-that-filled-up/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>The Hanging Deploy - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="The Hanging Deploy - GrokDevOps Wiki" />
+<meta property="og:description" content="Diagnosing stuck deploys by understanding processes, signals, systemd lifecycle, bash job control, and container PID 1." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/the-hanging-deploy.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/lessons/the-hanging-deploy/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="The Hanging Deploy - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Diagnosing stuck deploys by understanding processes, signals, systemd lifecycle, bash job control, and container PID 1." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/the-hanging-deploy.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-hanging-deploy" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              The Hanging Deploy
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-End Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    End-to-End Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-click-a-link/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Click a Link
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-press-power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Press Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-docker-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `docker build`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-kubectl-apply/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `kubectl apply`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-helm-install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `helm install`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-git-push-to-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `git push` to CI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pxe-boot-from-network-to-running-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE Boot: From Network to Running Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh-is-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SSH Is More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strace-reading-the-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    strace: Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-type-a-regex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Type a Regex
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ebpf-the-linux-superpower/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    eBPF: The Linux Superpower
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-inside-a-linux-pipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens Inside a Linux Pipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-proc-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The /proc Filesystem: Linux's Hidden API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-to-read-a-flame-graph/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to Read a Flame Graph
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../iptables-following-a-packet-through-the-chains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    iptables: Following a Packet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-subnet-calculator-in-your-head/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Subnet Calculator in Your Head
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-kubernetes-evicts-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Kubernetes Evicts Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tmux-and-the-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tmux and the Terminal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../opentelemetry-following-a-request-across-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenTelemetry: Following a Request Across Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-services-how-traffic-finds-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Services: How Traffic Finds Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../log-pipelines-from-printf-to-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Pipelines: From printf to Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../container-registries-where-your-images-actually-live/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container Registries: Where Your Images Actually Live
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../envoy-the-proxy-thats-everywhere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Envoy: The Proxy That's Everywhere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-node-lifecycle-from-provision-to-decommission/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Node Lifecycle: From Provision to Decommission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-from-scratch-to-production-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes: From Scratch to Production Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Incident-Driven
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Incident-Driven
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Hanging Deploy
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Hanging Deploy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-what-just-happened-when-you-ran-that-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1: What Just Happened When You Ran That Script
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1: What Just Happened When You Ran That Script">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-this-matters-for-your-stuck-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this matters for your stuck deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-talking-to-processes-signals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2: Talking to Processes — Signals
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2: Talking to Processes — Signals">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-ctrlc-didnt-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Ctrl+C didn't work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-correct-kill-sequence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The correct kill sequence
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-bash-job-control-background-foreground-and-traps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3: Bash Job Control — Background, Foreground, and Traps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3: Bash Job Control — Background, Foreground, and Traps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-things-in-the-background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running things in the background
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-trap-that-saves-your-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The trap that saves your deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-about-nohup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What about nohup?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-zombies-and-orphans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 4: Zombies and Orphans
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 4: Zombies and Orphans">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-do-zombies-exist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why do zombies exist?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-zombies-are-a-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When zombies are a problem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orphans-the-other-half-of-the-story" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Orphans: the other half of the story
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-systemd-process-management-done-right" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 5: systemd — Process Management Done Right
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5: systemd — Process Management Done Right">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-commands-youll-use-every-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The commands you'll use every day
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systemds-dependency-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        systemd's dependency model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debugging-a-service-that-wont-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging a service that won't start
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-containers-change-the-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 6: Containers Change the Rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6: Containers Change the Rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pid-1-in-containers-is-special-and-dangerous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PID 1 in containers is special (and dangerous)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cgroups-why-the-oom-killer-finds-your-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cgroups: why the OOM killer finds your container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pid-namespaces-the-containers-alternate-reality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PID namespaces: the container's alternate reality
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-find-the-stuck-process-investigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Find the stuck process (investigation)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-write-a-safe-deploy-script-bash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Write a safe deploy script (bash)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-zombie-factory-hands-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Zombie factory (hands-on)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-4-write-a-systemd-unit-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Write a systemd unit (design)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-5-the-decision-think-dont-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 5: The decision (think, don't code)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cheat Sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#process-investigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Process Investigation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#signals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        systemd
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bash-script-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bash Script Safety
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Related Lessons">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pages-that-link-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pages that link here
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-disk-that-filled-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Disk That Filled Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-database-that-wouldnt-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Database That Wouldn't Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-mysterious-latency-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Mysterious Latency Spike
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-terraform-state-disaster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Terraform State Disaster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cascading-timeout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cascading Timeout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-rollback-that-wasnt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Rollback That Wasn't
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../when-the-queue-backs-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When the Queue Backs Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-split-brain-nightmare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Split-Brain Nightmare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cloud-bill-surprise/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cloud Bill Surprise
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-backup-nobody-tested/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Backup Nobody Tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-your-certificate-expires/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Your Certificate Expires
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-load-balancer-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Load Balancer Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-monitoring-that-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Monitoring That Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../redis-in-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis in Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elasticsearch-for-people-who-didnt-choose-it/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Elasticsearch Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mysql-operations-the-database-you-inherited/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MySQL Operations: The Database You Inherited
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mongodb-the-document-database-that-surprised-everyone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MongoDB: The Document Database That Surprised Everyone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server-hardware-when-the-blinky-lights-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Hardware: When the Blinky Lights Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../etcd-the-database-that-runs-kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    etcd: The Database That Runs Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-lambda-the-function-that-runs-itself/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS Lambda: The Function That Runs Itself
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-rds-the-managed-database-tradeoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS RDS: The Managed Database Tradeoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-ec2-the-virtual-server-you-never-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS EC2: The Virtual Server You Never See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kafka-the-log-that-runs-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kafka: The Log That Runs Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differential Diagnosis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Differential Diagnosis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connection-refused/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connection Refused
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permission-denied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permission Denied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../out-of-memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Out of Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-vs-ansible-vs-helm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform vs Ansible vs Helm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-nginx-config-that-broke-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Nginx Config That Broke Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-playbook-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible Playbook Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-iam-the-permissions-puzzle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS IAM: The Permissions Puzzle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-debugging-when-pods-wont-behave/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Debugging: When Pods Won't Behave
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dns-ops-when-nslookup-isnt-enough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DNS Operations: When nslookup Isn't Enough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-gateways-the-front-door-to-your-microservices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateways: The Front Door to Your Microservices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Archaeological
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Archaeological
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-init-scripts-to-systemd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    From Init Scripts to systemd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-dns-is-always-the-problem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why DNS Is Always the Problem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-everything-uses-json-now/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why Everything Uses JSON Now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-yaml-keeps-breaking-your-deploys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why YAML Keeps Breaking Your Deploys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-and-the-art-of-not-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus and the Art of Not Alerting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../understanding-distributed-systems-without-a-phd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Understanding Distributed Systems Without a PhD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-service-mesh-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Service Mesh Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-ntp-matters-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why NTP Matters More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../raid-why-your-disks-will-fail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAID: Why Your Disks Will Fail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../make-and-makefiles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Make and Makefiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-kubernetes-migration-that-took-a-year/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Kubernetes Migration That Took a Year
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gitops-the-repo-is-the-truth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitOps: The Repo Is the Truth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../s3-the-object-store-that-runs-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    S3: The Object Store That Runs the Internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bgp-how-the-internet-routes-your-packets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BGP: How the Internet Routes Your Packets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slos-when-good-enough-is-a-number/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SLOs: When Good Enough Is a Number
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-internals-the-content-addressable-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Git Internals: The Content-Addressable Filesystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-under-the-hood/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus: Under the Hood
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adversarial
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Adversarial
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-container-escape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Container Escape
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-git-disaster-recovery-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Git Disaster Recovery Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-engineering-breaking-things-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Engineering: Breaking Things on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../supply-chain-security-trusting-your-dependencies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply Chain Security: Trusting Your Dependencies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cgroups-and-namespaces-containers-are-a-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cgroups and Namespaces: Containers Are a Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-hardening-closing-the-doors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Hardening: Closing the Doors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bash-the-patterns-that-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bash: The Patterns That Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build-Up
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Build-Up
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deploy-a-web-app-from-nothing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy a Web App From Nothing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../secrets-management-without-tears/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets Management Without Tears
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-incident-response-actually-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Incident Response Actually Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-postmortem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Postmortem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-runbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-vpc-the-network-you-cant-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS VPC: The Network You Can't See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../load-testing-finding-the-breaking-point/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load Testing: Finding the Breaking Point
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packer-building-machine-images-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packer: Building Machine Images That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-networking-bridges-bonds-and-vlans/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Networking: Bridges, Bonds, and VLANs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kustomize-kubernetes-config-without-templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kustomize: Kubernetes Config Without Templates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vault-secrets-that-expire-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vault: Secrets That Expire on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../github-actions-ci-cd-that-lives-in-your-repo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Actions: CI/CD That Lives in Your Repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grafana-dashboards-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grafana: Dashboards That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compliance-as-code-automating-the-auditor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compliance as Code: Automating the Auditor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-modules-building-infrastructure-legos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform Modules: Building Infrastructure LEGOs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-compose-the-local-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Compose: The Local Cluster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../systemd-the-init-system-you-cant-avoid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    systemd: The Init System You Can't Avoid
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nginx-the-swiss-army-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nginx: The Swiss Army Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-from-playbook-to-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible: From Playbook to Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capacity-planning-math-before-midnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capacity Planning: Math Before Midnight
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-storage-lvm-filesystems-and-beyond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Storage: LVM, Filesystems, and Beyond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parallel
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Parallel
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../text-processing-jq-awk-sed-in-the-trenches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing: jq, awk, and sed in the Trenches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_9" id="__nav_5_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Learning Path
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python Learning Path
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-zero-to-script-for-the-terminal-native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Zero to Script for the Terminal Native
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-data-wrangling-for-ops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Data Wrangling for Ops
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-automating-everything-apis-and-infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Automating Everything — APIs and Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_10" id="__nav_5_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    More Lessons
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    More Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-ansible/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Ansible
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-system-automation-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python System Automation Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-what-just-happened-when-you-ran-that-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1: What Just Happened When You Ran That Script
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1: What Just Happened When You Ran That Script">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-this-matters-for-your-stuck-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this matters for your stuck deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-talking-to-processes-signals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2: Talking to Processes — Signals
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2: Talking to Processes — Signals">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-ctrlc-didnt-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Ctrl+C didn't work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-correct-kill-sequence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The correct kill sequence
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-bash-job-control-background-foreground-and-traps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3: Bash Job Control — Background, Foreground, and Traps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3: Bash Job Control — Background, Foreground, and Traps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-things-in-the-background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running things in the background
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-trap-that-saves-your-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The trap that saves your deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-about-nohup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What about nohup?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-zombies-and-orphans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 4: Zombies and Orphans
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 4: Zombies and Orphans">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-do-zombies-exist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why do zombies exist?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-zombies-are-a-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When zombies are a problem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orphans-the-other-half-of-the-story" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Orphans: the other half of the story
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-systemd-process-management-done-right" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 5: systemd — Process Management Done Right
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5: systemd — Process Management Done Right">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-commands-youll-use-every-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The commands you'll use every day
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systemds-dependency-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        systemd's dependency model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debugging-a-service-that-wont-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debugging a service that won't start
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-containers-change-the-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 6: Containers Change the Rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6: Containers Change the Rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pid-1-in-containers-is-special-and-dangerous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PID 1 in containers is special (and dangerous)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cgroups-why-the-oom-killer-finds-your-container" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cgroups: why the OOM killer finds your container
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pid-namespaces-the-containers-alternate-reality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PID namespaces: the container's alternate reality
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-find-the-stuck-process-investigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Find the stuck process (investigation)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-write-a-safe-deploy-script-bash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Write a safe deploy script (bash)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-zombie-factory-hands-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Zombie factory (hands-on)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-4-write-a-systemd-unit-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Write a systemd unit (design)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-5-the-decision-think-dont-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 5: The decision (think, don't code)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cheat Sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#process-investigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Process Investigation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#signals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systemd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        systemd
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bash-script-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bash Script Safety
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Related Lessons">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pages-that-link-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pages that link here
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Lessons
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="./" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Incident-Driven
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:bash-job-control" class="md-tag">bash-job-control</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:cgroups" class="md-tag">cgroups</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:containers" class="md-tag">containers</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:lesson" class="md-tag">lesson</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:processes" class="md-tag">processes</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:signals" class="md-tag">signals</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:systemd" class="md-tag">systemd</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="the-hanging-deploy">The Hanging Deploy<a class="headerlink" href="#the-hanging-deploy" title="Permanent link">&para;</a></h1>
+<p><strong>Topics:</strong> processes, signals, systemd, bash job control, containers, cgroups
+<strong>Level:</strong> L1–L2 (Foundations → Operations)
+<strong>Time:</strong> 60–90 minutes
+<strong>Prerequisites:</strong> None (everything is explained from scratch)</p>
+<hr />
+<h2 id="the-mission">The Mission<a class="headerlink" href="#the-mission" title="Permanent link">&para;</a></h2>
+<p>It's 2pm on a Thursday. You ran a deploy script and it just... stopped. The terminal is
+frozen. No output. No error. Ctrl+C does nothing. Your colleague asks "is the deploy done?"
+and you don't know.</p>
+<p>This happens more than anyone admits. And the fix depends on understanding something most
+people never learn properly: what a process actually <em>is</em>, how processes talk to each other,
+and what happens when they don't.</p>
+<p>By the end of this lesson you'll understand:
+- What your shell actually does when you run a command
+- Why processes hang, and the systematic way to unstick them
+- How signals work (and why Ctrl+C sometimes doesn't)
+- What zombies are, why they exist, and why they're usually harmless
+- How systemd wraps all of this, and how containers change the rules</p>
+<p>We'll start at the bottom — what the kernel actually does when you type a command — and work
+our way up through signals, job control, systemd, and containers. Each layer builds on the
+one before it.</p>
+<hr />
+<h2 id="part-1-what-just-happened-when-you-ran-that-script">Part 1: What Just Happened When You Ran That Script<a class="headerlink" href="#part-1-what-just-happened-when-you-ran-that-script" title="Permanent link">&para;</a></h2>
+<p>When you typed <code>./deploy.sh</code> and hit enter, your shell did something beautifully simple
+that's been the same since 1969: it called <code>fork()</code>, then <code>exec()</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># This is what your shell does internally (simplified):</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">pid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>fork<span class="o">()</span><span class="w">       </span><span class="c1"># Create an exact copy of the shell process</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">if</span><span class="w"> </span><span class="nv">pid</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="m">0</span>:<span class="w">       </span><span class="c1"># In the child process:</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span>exec<span class="o">(</span><span class="s2">"./deploy.sh"</span><span class="o">)</span><span class="w">  </span><span class="c1"># Replace yourself with the deploy script</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">else</span>:<span class="w">              </span><span class="c1"># In the parent (your shell):</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span>waitpid<span class="o">(</span>pid<span class="o">)</span><span class="w">   </span><span class="c1"># Sit here until the child exits</span>
+</code></pre></div>
+<p>That's it. That's the whole model. Every command you've ever run in a terminal works this
+way.</p>
+<blockquote>
+<p><strong>Under the Hood:</strong> <code>fork()</code> doesn't actually copy all the memory — it uses
+<strong>copy-on-write</strong> (COW). The parent and child share the same physical memory pages until
+one of them writes to a page, at which point the kernel copies just that page. This makes
+<code>fork()</code> fast even for processes using gigabytes of RAM. Redis exploits this for background
+saves — it forks, the child writes the snapshot to disk, and because most pages are
+read-only, almost no memory is copied.</p>
+<p><strong>Name Origin:</strong> <code>fork()</code> was adapted from Multics for the original Unix at Bell Labs. The
+Unix twist: the child is an <em>exact duplicate</em> of the parent, distinguished only by the
+return value. In the child, <code>fork()</code> returns 0. In the parent, it returns the child's PID.
+This elegant split means the child can set up redirections, change directories, or drop
+privileges between <code>fork()</code> and <code>exec()</code> — which is why shell I/O redirection works at all.</p>
+</blockquote>
+<h3 id="why-this-matters-for-your-stuck-deploy">Why this matters for your stuck deploy<a class="headerlink" href="#why-this-matters-for-your-stuck-deploy" title="Permanent link">&para;</a></h3>
+<p>Your shell is sitting in <code>waitpid()</code> — it's blocked, waiting for the child process (your
+deploy script) to exit. The script hasn't exited. That's why your terminal is frozen.</p>
+<p>But here's the thing: <code>deploy.sh</code> probably isn't one process. It's a tree of processes. The
+script calls <code>ssh</code>, which calls <code>apt</code>, which calls <code>dpkg</code>, which forks workers. Any one of
+those descendants could be the one that's stuck.</p>
+<p>Let's find out which one. Open another terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Find your deploy script's process tree</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pstree<span class="w"> </span>-p<span class="w"> </span><span class="k">$(</span>pgrep<span class="w"> </span>-f<span class="w"> </span>deploy.sh<span class="k">)</span>
+</code></pre></div>
+<p>You might see something like:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>deploy.sh(14523)─┬─ssh(14524)─┬─apt-get(14587)───dpkg(14601)
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>                  │            └─tee(14525)
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>                  └─curl(14530)
+</code></pre></div>
+<p>Now you can see the whole family. The stuck process is probably <code>apt-get</code> or <code>dpkg</code> —
+waiting for a lock, waiting for a prompt, or waiting for network I/O.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># What is the stuck process doing right now?</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>cat<span class="w"> </span>/proc/14601/wchan
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># → "do_wait" or "poll_schedule_timeout" or something else revealing</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># What state is it in?</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>ps<span class="w"> </span>-o<span class="w"> </span>pid,stat,wchan,comm<span class="w"> </span>-p<span class="w"> </span><span class="m">14601</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># → 14601 S  poll_schedule_timeout dpkg</span>
+</code></pre></div>
+<p>The <code>stat</code> column tells you the process state:</p>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Meaning</th>
+<th>Can you kill it?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>R</code></td>
+<td>Running or runnable</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>S</code></td>
+<td>Sleeping (waiting for something — I/O, timer, signal)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>D</code></td>
+<td>Uninterruptible sleep (waiting for disk/NFS I/O)</td>
+<td><strong>No</strong> — not even SIGKILL</td>
+</tr>
+<tr>
+<td><code>Z</code></td>
+<td>Zombie (exited but parent hasn't read the exit code)</td>
+<td>Already dead — kill the parent instead</td>
+</tr>
+<tr>
+<td><code>T</code></td>
+<td>Stopped (Ctrl+Z or SIGSTOP)</td>
+<td>Yes, resume with SIGCONT</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Gotcha:</strong> If you see <code>D</code> state, you're in trouble. The process is stuck in a kernel I/O
+operation — usually NFS, a flaky disk, or a FUSE mount. No signal can reach it because the
+kernel won't deliver signals during uninterruptible I/O. You have to fix the I/O subsystem
+(restart NFS, fix the disk) or reboot. This is the only process state where <code>kill -9</code>
+genuinely does nothing.</p>
+</blockquote>
+<hr />
+<h2 id="part-2-talking-to-processes-signals">Part 2: Talking to Processes — Signals<a class="headerlink" href="#part-2-talking-to-processes-signals" title="Permanent link">&para;</a></h2>
+<p>Your deploy is stuck. Time to communicate with it. In Unix, processes communicate through
+<strong>signals</strong> — small numbered messages that the kernel delivers.</p>
+<p>When you hit Ctrl+C, you're sending signal 2 (SIGINT). When you run <code>kill &lt;pid&gt;</code>, you're
+sending signal 15 (SIGTERM). These aren't magic — they're just integers with conventions
+attached.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># See all the signals on your system</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">kill</span><span class="w"> </span>-l
+</code></pre></div>
+<p>The ones you'll actually use:</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Number</th>
+<th>Keyboard</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SIGHUP</td>
+<td>1</td>
+<td>—</td>
+<td>"Hang up" — originally meant the modem disconnected. Now means "reload your config" for most daemons</td>
+</tr>
+<tr>
+<td>SIGINT</td>
+<td>2</td>
+<td>Ctrl+C</td>
+<td>"Interrupt" — polite request to stop</td>
+</tr>
+<tr>
+<td>SIGKILL</td>
+<td>9</td>
+<td>—</td>
+<td>"Die now" — kernel terminates the process, no handler possible</td>
+</tr>
+<tr>
+<td>SIGTERM</td>
+<td>15</td>
+<td>—</td>
+<td>"Terminate" — polite request to exit cleanly. <strong>This is the default <code>kill</code> signal</strong></td>
+</tr>
+<tr>
+<td>SIGSTOP</td>
+<td>19</td>
+<td>Ctrl+Z</td>
+<td>"Freeze" — process is suspended, can be resumed</td>
+</tr>
+<tr>
+<td>SIGCONT</td>
+<td>18</td>
+<td>—</td>
+<td>"Continue" — resume a stopped process</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Name Origin:</strong> SIGHUP stands for "Signal Hang Up" — from the days of telephone modems.
+When the physical phone line disconnected, the terminal driver sent SIGHUP to all processes
+on that terminal. Today, <code>nohup</code> literally means "immune to hangup" — it blocks SIGHUP so
+your process survives when you close the terminal. Many daemons reinterpret SIGHUP as
+"please reload your configuration file," which is why <code>kill -HUP nginx</code> reloads nginx
+without dropping connections.</p>
+</blockquote>
+<h3 id="why-ctrlc-didnt-work">Why Ctrl+C didn't work<a class="headerlink" href="#why-ctrlc-didnt-work" title="Permanent link">&para;</a></h3>
+<p>Here's the thing most people miss: Ctrl+C doesn't send SIGINT to the process you're looking
+at. It sends SIGINT to the <strong>entire foreground process group</strong>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># See what process group your deploy script is in</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>ps<span class="w"> </span>-o<span class="w"> </span>pid,pgid,comm<span class="w"> </span>-p<span class="w"> </span><span class="m">14523</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># → 14523 14523 deploy.sh</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># See all processes in that group</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>ps<span class="w"> </span>-o<span class="w"> </span>pid,pgid,comm<span class="w"> </span>-g<span class="w"> </span><span class="m">14523</span>
+</code></pre></div>
+<p>But there's a problem: if <code>deploy.sh</code> launched <code>ssh</code>, and <code>ssh</code> launched something on a
+remote server, the remote process is NOT in your local process group. Ctrl+C kills the local
+<code>ssh</code> client, but the remote <code>apt-get</code> keeps running — headless, parentless, doing whatever
+it was doing.</p>
+<p>This is why Ctrl+C "didn't work" — the actual stuck process was remote, and killing the SSH
+client just disconnected you from it.</p>
+<blockquote>
+<p><strong>Mental Model:</strong> Think of signals like phone calls. SIGTERM is a call saying "please hang
+up." The process can answer and handle it gracefully — flush buffers, close connections,
+write a final log line. SIGKILL is the phone company cutting the line — no negotiation, no
+cleanup, no last words. Only two signals can't be caught or ignored: SIGKILL (9) and
+SIGSTOP (19). Everything else is negotiable.</p>
+</blockquote>
+<h3 id="the-correct-kill-sequence">The correct kill sequence<a class="headerlink" href="#the-correct-kill-sequence" title="Permanent link">&para;</a></h3>
+<p>Never start with <code>kill -9</code>. Always:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Step 1: Ask politely (SIGTERM, the default)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">kill</span><span class="w"> </span><span class="nv">$PID</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Step 2: Wait for it to clean up (10-30 seconds depending on the service)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>sleep<span class="w"> </span><span class="m">10</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Step 3: Check if it's still alive (kill -0 sends no signal, just checks)</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="nb">kill</span><span class="w"> </span>-0<span class="w"> </span><span class="nv">$PID</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"still alive"</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"dead"</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># Step 4: Only if still alive, force it</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="nb">kill</span><span class="w"> </span>-0<span class="w"> </span><span class="nv">$PID</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">kill</span><span class="w"> </span>-9<span class="w"> </span><span class="nv">$PID</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Remember:</strong> "TERM asks, KILL takes." SIGTERM (15) = polite, SIGKILL (9) = forced. Exit
+code = 128 + signal number, so SIGTERM death = exit 143, SIGKILL death = exit 137. When
+you see exit code 137 in your CI logs, that's the OOM killer or a <code>kill -9</code>.</p>
+<p><strong>War Story:</strong> A team had a deploy script that called <code>kill -9</code> as the very first step
+when restarting their Java service. The JVM never got a chance to flush write-ahead logs or
+close database connections cleanly. For months they had intermittent data corruption —
+transactions would half-complete, with money debited but not credited. The fix was changing
+<code>kill -9</code> to <code>kill -TERM</code>, adding a 30-second timeout, and only escalating to SIGKILL if
+the graceful shutdown failed.</p>
+</blockquote>
+<hr />
+<h2 id="part-3-bash-job-control-background-foreground-and-traps">Part 3: Bash Job Control — Background, Foreground, and Traps<a class="headerlink" href="#part-3-bash-job-control-background-foreground-and-traps" title="Permanent link">&para;</a></h2>
+<p>Back to your stuck deploy. You've identified the stuck process and killed it. But now you
+want to prevent this from happening again. Let's look at how bash manages processes and
+how to write scripts that don't get stuck.</p>
+<h3 id="running-things-in-the-background">Running things in the background<a class="headerlink" href="#running-things-in-the-background" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Run a command in the background</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>long-running-task<span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># $! is the PID of the last backgrounded process</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"Started task with PID </span><span class="nv">$!</span><span class="s2">"</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># List background jobs</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nb">jobs</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># → [1]+  Running    long-running-task &amp;</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="c1"># Bring it back to the foreground</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="nb">fg</span><span class="w"> </span>%1
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="c1"># Or suspend whatever's in the foreground</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="c1"># Ctrl+Z</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="c1"># And resume it in the background</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="nb">bg</span><span class="w"> </span>%1
+</code></pre></div>
+<blockquote>
+<p><strong>Under the Hood:</strong> When you press Ctrl+Z, the terminal driver sends SIGSTOP to the
+foreground process group. SIGSTOP is one of the two uncatchable signals — the process has
+no choice. When you type <code>bg</code>, the shell sends SIGCONT, and the process resumes running
+but is no longer in the foreground group. This is how job control has worked since BSD Unix
+added it in the early 1980s.</p>
+</blockquote>
+<h3 id="the-trap-that-saves-your-deploy">The trap that saves your deploy<a class="headerlink" href="#the-trap-that-saves-your-deploy" title="Permanent link">&para;</a></h3>
+<p>The real fix is writing deploy scripts that clean up after themselves. The <code>trap</code> command
+registers a function to run when a signal arrives:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="ch">#!/bin/bash</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">set</span><span class="w"> </span>-euo<span class="w"> </span>pipefail
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Track child processes we need to clean up</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nv">CHILDREN</span><span class="o">=()</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>cleanup<span class="o">()</span><span class="w"> </span><span class="o">{</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"Caught signal, cleaning up..."</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="k">for</span><span class="w"> </span>pid<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">CHILDREN</span><span class="p">[@]</span><span class="si">}</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">        </span><span class="nb">kill</span><span class="w"> </span><span class="s2">"</span><span class="nv">$pid</span><span class="s2">"</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">    </span><span class="k">done</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="o">}</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="c1"># Register cleanup for common signals AND normal exit</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="nb">trap</span><span class="w"> </span>cleanup<span class="w"> </span>SIGTERM<span class="w"> </span>SIGINT<span class="w"> </span>EXIT
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="c1"># Now launch child processes and track them</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>ssh<span class="w"> </span>target-server<span class="w"> </span><span class="s2">"apt-get update"</span><span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="nv">CHILDREN</span><span class="o">+=(</span><span class="nv">$!</span><span class="o">)</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>ssh<span class="w"> </span>target-server<span class="w"> </span><span class="s2">"systemctl restart app"</span><span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="nv">CHILDREN</span><span class="o">+=(</span><span class="nv">$!</span><span class="o">)</span>
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>
+<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="c1"># Wait for all children — THIS IS CRITICAL</span>
+<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="c1"># Without 'wait', the script exits immediately after backgrounding</span>
+<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a><span class="nb">wait</span>
+<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a>
+<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"Deploy complete"</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> If you run a child process in the <em>foreground</em> (without <code>&amp;</code>), trap handlers
+don't fire until that child exits. That means if <code>ssh</code> hangs for 20 minutes, your trap
+handler sits dormant for 20 minutes. The pattern above — background the children with <code>&amp;</code>,
+track their PIDs, and use <code>wait</code> — lets trap handlers fire between wait iterations.</p>
+<p><strong>Gotcha:</strong> <code>set -euo pipefail</code> is the bash safety harness — exit on errors (<code>-e</code>), error
+on undefined variables (<code>-u</code>), and fail pipelines if <em>any</em> command fails (<code>-o pipefail</code>).
+But <code>-e</code> has surprising exceptions: it's silently disabled inside <code>if</code> conditions, <code>&amp;&amp;</code>/<code>||</code>
+chains, and subshells. Don't rely on it as your only error handling.</p>
+<p><strong>Remember:</strong> The EUP mnemonic: <strong>E</strong>xit on error, <strong>U</strong>nset is error, <strong>P</strong>ipes fail
+properly. <code>set -euo pipefail</code> — type it at the top of every production script until it's
+muscle memory.</p>
+</blockquote>
+<h3 id="what-about-nohup">What about <code>nohup</code>?<a class="headerlink" href="#what-about-nohup" title="Permanent link">&para;</a></h3>
+<p>You'll see people suggest <code>nohup ./deploy.sh &amp;</code> to keep the script running after you
+disconnect. It works, but barely:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># What people do</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>nohup<span class="w"> </span>./deploy.sh<span class="w"> </span>&gt;<span class="w"> </span>deploy.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># What they forget</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="c1"># - nohup only blocks SIGHUP, nothing else</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1"># - stdout goes to nohup.out if you don't redirect (fills disk)</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># - no restart on failure</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="c1"># - no resource limits</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="c1"># - no log rotation</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># - no dependency management</span>
+</code></pre></div>
+<p>For anything you need to survive a terminal disconnect, use <code>systemd-run</code> or a proper
+systemd service. <code>nohup</code> is a band-aid from the 1970s that's still in the first-aid kit
+for one reason: it's one line and it works in a pinch.</p>
+<hr />
+<h2 id="part-4-zombies-and-orphans">Part 4: Zombies and Orphans<a class="headerlink" href="#part-4-zombies-and-orphans" title="Permanent link">&para;</a></h2>
+<p>While debugging your deploy, you might have noticed something weird in <code>ps</code> output: a
+process in state <code>Z</code> — a <strong>zombie</strong>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Find zombie processes</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>ps<span class="w"> </span>aux<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">'$8 == "Z"'</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># or</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>ps<span class="w"> </span>-eo<span class="w"> </span>pid,ppid,stat,comm<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">'$3 ~ /Z/'</span>
+</code></pre></div>
+<p>A zombie is a process that has <strong>exited</strong> but whose parent hasn't called <code>waitpid()</code> to read
+the exit code. The process is dead — it uses no CPU, no memory. But it occupies a slot in
+the process table (just its PID and exit status — a few bytes).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>Parent (running)
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  ├── Child A (running)
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  ├── Child B (zombie) ← exited, but parent hasn't called wait()
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  └── Child C (running)
+</code></pre></div>
+<h3 id="why-do-zombies-exist">Why do zombies exist?<a class="headerlink" href="#why-do-zombies-exist" title="Permanent link">&para;</a></h3>
+<p>Because exit codes matter. When your deploy script finishes, you want to know: did it
+succeed (exit 0) or fail (exit non-zero)? The kernel holds onto that information until
+someone asks for it via <code>waitpid()</code>. Until then, the process is a zombie — dead but not
+yet reaped.</p>
+<blockquote>
+<p><strong>Name Origin:</strong> "Zombie process" is a genuine Unix term, not slang. It appears in the
+original BSD documentation. The analogy is exact: a zombie is dead but still present,
+lingering until the proper ritual (calling <code>wait()</code>) lays it to rest.</p>
+</blockquote>
+<h3 id="when-zombies-are-a-problem">When zombies are a problem<a class="headerlink" href="#when-zombies-are-a-problem" title="Permanent link">&para;</a></h3>
+<p>One zombie is fine. Thousands of zombies are a problem — they exhaust the PID space. The
+default maximum PID on Linux is 32,768 (check with <code>cat /proc/sys/kernel/pid_max</code>). If a
+buggy server process forks children and never waits for them, zombie PIDs accumulate until
+the system can't start new processes.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Count zombies</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>ps<span class="w"> </span>aux<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">'$8 == "Z"'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>wc<span class="w"> </span>-l
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># Find who's creating them (the parent)</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>ps<span class="w"> </span>-eo<span class="w"> </span>pid,ppid,stat,comm<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">'$3 ~ /Z/ {print $2}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span><span class="p">|</span><span class="w"> </span>uniq<span class="w"> </span>-c<span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span>-rn
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="c1"># → The PID with the most zombie children is your culprit</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> You can't kill a zombie — it's already dead. <code>kill -9 &lt;zombie_pid&gt;</code> does
+nothing because there's no process to kill, just a process table entry. You have two
+options: (1) kill the parent, which causes the zombies to be re-parented to PID 1, which
+reaps them automatically, or (2) fix the parent to call <code>wait()</code>.</p>
+</blockquote>
+<h3 id="orphans-the-other-half-of-the-story">Orphans: the other half of the story<a class="headerlink" href="#orphans-the-other-half-of-the-story" title="Permanent link">&para;</a></h3>
+<p>An <strong>orphan</strong> is the opposite scenario: the parent dies while the children are still running.
+When that happens, the kernel re-parents all the orphan children to PID 1 (typically
+<code>systemd</code>), which automatically calls <code>wait()</code> when they eventually exit.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Before: Parent (PID 500) → Child (PID 501)
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>Parent dies.
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>After:  systemd (PID 1)  → Child (PID 501)  ← re-parented
+</code></pre></div>
+<p>This is usually fine — systemd handles it gracefully. But there's a subtle danger: those
+orphan children are still running, still consuming resources, still holding connections.
+If your deploy script crashes mid-way, the <code>ssh</code> and <code>curl</code> processes it spawned keep
+running on the remote server. They're orphans now, invisible to you, doing who-knows-what.</p>
+<blockquote>
+<p><strong>War Story:</strong> A team's deploy script crashed partway through, leaving 50 orphaned worker
+processes still running on a production server. Each one held a database connection. The
+pool filled, new requests started timing out, and the monitoring blamed "database slow" for
+three hours before someone noticed the orphans with <code>ss -tnp | grep postgres</code>.</p>
+</blockquote>
+<hr />
+<h2 id="part-5-systemd-process-management-done-right">Part 5: systemd — Process Management Done Right<a class="headerlink" href="#part-5-systemd-process-management-done-right" title="Permanent link">&para;</a></h2>
+<p>Everything above — signals, cleanup, PID tracking, zombie reaping — is work you have to do
+manually in a bash script. <code>systemd</code> does all of it for you, and more.</p>
+<p>When your deploy script needs to restart a service, it should be restarting a systemd unit,
+not calling <code>kill</code> and <code>/usr/bin/myapp &amp;</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># /etc/systemd/system/myapp.service</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="k">[Unit]</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="na">Description</span><span class="o">=</span><span class="s">My Application Server</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="na">After</span><span class="o">=</span><span class="s">network.target postgresql.service</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="na">Requires</span><span class="o">=</span><span class="s">postgresql.service</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="k">[Service]</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="na">Type</span><span class="o">=</span><span class="s">simple</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="na">User</span><span class="o">=</span><span class="s">appuser</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="na">WorkingDirectory</span><span class="o">=</span><span class="s">/opt/myapp</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="na">ExecStart</span><span class="o">=</span><span class="s">/opt/myapp/bin/server --port 8080</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="na">ExecStop</span><span class="o">=</span><span class="s">/bin/kill -TERM $MAINPID</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="na">Restart</span><span class="o">=</span><span class="s">on-failure</span>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="na">RestartSec</span><span class="o">=</span><span class="s">5</span>
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="na">TimeoutStopSec</span><span class="o">=</span><span class="s">30</span>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="c1"># Resource limits</span>
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a><span class="na">MemoryMax</span><span class="o">=</span><span class="s">1G</span>
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a><span class="na">CPUQuota</span><span class="o">=</span><span class="s">200%</span>
+<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a>
+<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a><span class="c1"># Security</span>
+<a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a><span class="na">NoNewPrivileges</span><span class="o">=</span><span class="s">true</span>
+<a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a><span class="na">ProtectSystem</span><span class="o">=</span><span class="s">strict</span>
+<a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a><span class="na">ReadWritePaths</span><span class="o">=</span><span class="s">/opt/myapp/data</span>
+<a id="__codelineno-14-25" name="__codelineno-14-25" href="#__codelineno-14-25"></a>
+<a id="__codelineno-14-26" name="__codelineno-14-26" href="#__codelineno-14-26"></a><span class="k">[Install]</span>
+<a id="__codelineno-14-27" name="__codelineno-14-27" href="#__codelineno-14-27"></a><span class="na">WantedBy</span><span class="o">=</span><span class="s">multi-user.target</span>
+</code></pre></div>
+<p>This unit file replaces hundreds of lines of bash:</p>
+<table>
+<thead>
+<tr>
+<th>What bash requires</th>
+<th>What systemd does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trap cleanup EXIT</code> and manual PID tracking</td>
+<td>Automatic cgroup tracking — every child process is accounted for</td>
+</tr>
+<tr>
+<td><code>nohup</code> and output redirection</td>
+<td>Journal logging — <code>journalctl -u myapp</code></td>
+</tr>
+<tr>
+<td><code>while true; do ./app; sleep 5; done</code> for restart</td>
+<td><code>Restart=on-failure</code> + <code>RestartSec=5</code></td>
+</tr>
+<tr>
+<td>Manual <code>kill</code> sequences with timeouts</td>
+<td><code>TimeoutStopSec=30</code> then automatic SIGKILL</td>
+</tr>
+<tr>
+<td><code>ulimit</code> and manual cgroup setup</td>
+<td><code>MemoryMax=</code>, <code>CPUQuota=</code> — enforced by cgroups</td>
+</tr>
+<tr>
+<td>File permission checks and <code>sudo</code></td>
+<td><code>User=</code>, <code>NoNewPrivileges=</code>, <code>ProtectSystem=</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Name Origin:</strong> systemd's "d" stands for "daemon." The word "daemon" in computing comes
+from <strong>Maxwell's demon</strong> — a thought experiment in thermodynamics where an imaginary being
+sorts fast and slow molecules. MIT programmers in the 1960s adopted the term for background
+processes that do work automatically, invisibly, like Maxwell's demon sorting molecules.
+It has nothing to do with the occult. The BSD mascot (a red daemon with a pitchfork) is a
+visual pun, not an etymology.</p>
+</blockquote>
+<h3 id="the-commands-youll-use-every-day">The commands you'll use every day<a class="headerlink" href="#the-commands-youll-use-every-day" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Start / stop / restart</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>systemctl<span class="w"> </span>start<span class="w"> </span>myapp
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>systemctl<span class="w"> </span>stop<span class="w"> </span>myapp<span class="w">       </span><span class="c1"># Sends SIGTERM, waits TimeoutStopSec, then SIGKILL</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>systemctl<span class="w"> </span>restart<span class="w"> </span>myapp<span class="w">    </span><span class="c1"># stop + start</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="c1"># Check status (shows PID, memory, recent log lines)</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>systemctl<span class="w"> </span>status<span class="w"> </span>myapp
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="c1"># View logs</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>journalctl<span class="w"> </span>-u<span class="w"> </span>myapp<span class="w"> </span>-f<span class="w">     </span><span class="c1"># Follow (live tail)</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>journalctl<span class="w"> </span>-u<span class="w"> </span>myapp<span class="w"> </span>-n<span class="w"> </span><span class="m">100</span><span class="w"> </span><span class="c1"># Last 100 lines</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>journalctl<span class="w"> </span>-u<span class="w"> </span>myapp<span class="w"> </span>--since<span class="w"> </span><span class="s2">"10 minutes ago"</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="c1"># Reload config without restart (sends SIGHUP)</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>systemctl<span class="w"> </span>reload<span class="w"> </span>myapp
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a>
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a><span class="c1"># See what's broken</span>
+<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a>systemctl<span class="w"> </span>list-units<span class="w"> </span>--failed
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> <code>systemctl enable myapp</code> does NOT start the service. It creates a symlink so
+the service starts <em>on boot</em>. If you want both: <code>systemctl enable --now myapp</code>. This
+confuses everyone at least once.</p>
+<p><strong>Gotcha:</strong> After editing a unit file, you MUST run <code>systemctl daemon-reload</code> before
+restart. systemd caches unit definitions in memory. Without the reload, your changes are
+invisible — systemd happily uses the old cached version, and you spend 20 minutes wondering
+why your config change didn't take effect.</p>
+</blockquote>
+<h3 id="systemds-dependency-model">systemd's dependency model<a class="headerlink" href="#systemds-dependency-model" title="Permanent link">&para;</a></h3>
+<p>The unit file above has:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="na">After</span><span class="o">=</span><span class="s">network.target postgresql.service</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="na">Requires</span><span class="o">=</span><span class="s">postgresql.service</span>
+</code></pre></div>
+<p>These are two different things and you almost always need both:</p>
+<ul>
+<li><code>After=</code> controls <strong>ordering</strong> — "start me after this unit is up"</li>
+<li><code>Requires=</code> controls <strong>dependency</strong> — "if this unit fails, I fail too"</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Directive</th>
+<th>What it does</th>
+<th>What it DOESN'T do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>After=X</code></td>
+<td>Start after X is ready</td>
+<td>Doesn't make X a hard dependency — if X isn't being started, this unit starts anyway</td>
+</tr>
+<tr>
+<td><code>Requires=X</code></td>
+<td>If X fails, I fail</td>
+<td>Doesn't control ordering — both might start simultaneously</td>
+</tr>
+<tr>
+<td><code>Wants=X</code></td>
+<td>Soft dependency — I'd like X running, but I'll survive without it</td>
+<td>Doesn't control ordering either</td>
+</tr>
+<tr>
+<td><code>Requires=X</code> + <code>After=X</code></td>
+<td>Hard dependency with correct ordering</td>
+<td>This is what you want 90% of the time</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Trivia:</strong> systemd replaced SysV init scripts — the system that used numbered shell
+scripts (<code>S01network</code>, <code>S02sshd</code>) to control boot order sequentially. systemd parallelizes
+boot using a dependency graph, which reduced boot times from 30-60 seconds to under 5.
+It's also one of the most controversial projects in Linux history — the Debian vote in 2014
+nearly split the project, spawned the Devuan fork, and the arguments haven't really stopped
+since. Lennart Poettering, the primary author, previously created PulseAudio — also
+controversial. The running joke is that "systemd is an operating system" because it's
+absorbed init, cron (timers), syslog (journald), DNS (resolved), network config (networkd),
+login management (logind), and device management (udevd).</p>
+</blockquote>
+<h3 id="debugging-a-service-that-wont-start">Debugging a service that won't start<a class="headerlink" href="#debugging-a-service-that-wont-start" title="Permanent link">&para;</a></h3>
+<p>Your deploy does <code>systemctl restart myapp</code> and it fails. Here's the systematic approach:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># 1. Check status — shows exit code and recent log lines</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>systemctl<span class="w"> </span>status<span class="w"> </span>myapp
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># 2. Full logs for this unit</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>journalctl<span class="w"> </span>-u<span class="w"> </span>myapp<span class="w"> </span>-n<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># 3. See the actual unit file (with overrides applied)</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>systemctl<span class="w"> </span>cat<span class="w"> </span>myapp
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1"># 4. Check runtime values</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>systemctl<span class="w"> </span>show<span class="w"> </span>myapp<span class="w"> </span>-p<span class="w"> </span>Environment,WorkingDirectory,ExecStart
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="c1"># 5. Try running the command manually as the service user</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>sudo<span class="w"> </span>-u<span class="w"> </span>appuser<span class="w"> </span>/opt/myapp/bin/server<span class="w"> </span>--port<span class="w"> </span><span class="m">8080</span>
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a><span class="c1"># → This often reveals missing env vars, wrong paths, or permission errors</span>
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a><span class="c1">#   that don't show up in journal output</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> systemd runs services in a different execution context than your interactive
+shell. The service doesn't get your <code>~/.bashrc</code>, your <code>$PATH</code> might be minimal, and
+environment variables from your session don't exist. If the app works when you run it
+manually but fails under systemd, the first thing to check is the environment. Add
+<code>Environment=</code> or <code>EnvironmentFile=</code> to the unit file.</p>
+</blockquote>
+<hr />
+<h2 id="part-6-containers-change-the-rules">Part 6: Containers Change the Rules<a class="headerlink" href="#part-6-containers-change-the-rules" title="Permanent link">&para;</a></h2>
+<p>Everything you've learned so far assumes a traditional Linux system with systemd as PID 1.
+Containers change some of the rules — and knowing which rules change is the difference
+between "containers just work" and debugging mysterious hangs.</p>
+<h3 id="pid-1-in-containers-is-special-and-dangerous">PID 1 in containers is special (and dangerous)<a class="headerlink" href="#pid-1-in-containers-is-special-and-dangerous" title="Permanent link">&para;</a></h3>
+<p>In a container, the process specified in <code>CMD</code> or <code>ENTRYPOINT</code> becomes PID 1. PID 1 has
+special behavior in the kernel:</p>
+<ol>
+<li>
+<p><strong>Signals are different.</strong> The kernel only delivers signals that PID 1 has <em>explicitly
+   registered handlers for</em>. If your app doesn't handle SIGTERM, <code>docker stop</code> sends
+   SIGTERM, your app ignores it (because it never registered a handler), Docker waits 10
+   seconds, then sends SIGKILL. Every. Single. Time.</p>
+</li>
+<li>
+<p><strong>Zombie reaping.</strong> PID 1 is supposed to call <code>wait()</code> on orphaned children. If your
+   app is PID 1 and it doesn't do this (most applications don't), zombies accumulate inside
+   the container.</p>
+</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c"># BAD — your app is PID 1, doesn't handle signals or reap zombies</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.11-slim</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"python"</span><span class="p">,</span><span class="w"> </span><span class="s2">"server.py"</span><span class="p">]</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="c"># GOOD — tini is PID 1, handles signals and zombie reaping</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.11-slim</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="k">RUN</span><span class="w"> </span>apt-get<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>tini
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="k">ENTRYPOINT</span><span class="w"> </span><span class="p">[</span><span class="s2">"tini"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--"</span><span class="p">]</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">"python"</span><span class="p">,</span><span class="w"> </span><span class="s2">"server.py"</span><span class="p">]</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="c"># ALSO GOOD — Docker's built-in init</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="c"># docker run --init myimage</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Under the Hood:</strong> <code>tini</code> is a tiny (~30KB) init process purpose-built for containers.
+It does exactly two things: forward signals to child processes, and reap zombies. That's
+the entire source code — about 200 lines of C. Docker's <code>--init</code> flag does the same thing
+using a bundled copy of tini.</p>
+</blockquote>
+<h3 id="cgroups-why-the-oom-killer-finds-your-container">Cgroups: why the OOM killer finds your container<a class="headerlink" href="#cgroups-why-the-oom-killer-finds-your-container" title="Permanent link">&para;</a></h3>
+<p>When you set <code>--memory=1g</code> on a Docker container, you're configuring a <strong>cgroup</strong> (control
+group) limit. The kernel's OOM killer watches cgroup memory usage and kills processes that
+exceed their limit.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># See a container's cgroup memory limit</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>docker<span class="w"> </span>inspect<span class="w"> </span>--format<span class="o">=</span><span class="s1">'{{.HostConfig.Memory}}'</span><span class="w"> </span>mycontainer
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="c1"># Inside the container, check your own limits</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>cat<span class="w"> </span>/sys/fs/cgroup/memory.max<span class="w">    </span><span class="c1"># cgroups v2</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>cat<span class="w"> </span>/sys/fs/cgroup/memory/memory.limit_in_bytes<span class="w">  </span><span class="c1"># cgroups v1</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="c1"># See current usage</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>cat<span class="w"> </span>/sys/fs/cgroup/memory.current
+</code></pre></div>
+<p>When the OOM killer strikes, the process gets SIGKILL (exit code 137). Your application
+never sees it coming — no graceful shutdown, no cleanup, no "I'm about to die" log line.</p>
+<blockquote>
+<p><strong>Gotcha:</strong> <code>docker stats</code> shows memory usage including the page cache, which can make it
+look like your container is using its entire memory limit when it's actually fine. The
+kernel will evict page cache under pressure. RSS (resident set size) is what you care
+about for OOM risk, not total usage.</p>
+</blockquote>
+<h3 id="pid-namespaces-the-containers-alternate-reality">PID namespaces: the container's alternate reality<a class="headerlink" href="#pid-namespaces-the-containers-alternate-reality" title="Permanent link">&para;</a></h3>
+<p>Inside a container, your process thinks it's PID 1. On the host, it's PID 48372. This is
+a <strong>PID namespace</strong> — a kernel feature that gives each container its own independent PID
+numbering.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># Inside the container</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>ps<span class="w"> </span>aux
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="c1"># → PID 1 is your app</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="c1"># On the host</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>docker<span class="w"> </span>top<span class="w"> </span>mycontainer
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="c1"># → PID 48372 is the same process</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="c1"># The kernel tracks both</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>cat<span class="w"> </span>/proc/48372/status<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>NSpid
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="c1"># → NSpid: 48372  1</span>
+<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="c1"># First number = host PID, second = container PID</span>
+</code></pre></div>
+<p>This matters for debugging: if you see an OOM kill in <code>dmesg</code> on the host, it shows the
+host PID. You need to map it back to the container to figure out what died.</p>
+<hr />
+<h2 id="flashcard-check">Flashcard Check<a class="headerlink" href="#flashcard-check" title="Permanent link">&para;</a></h2>
+<p>Cover the answers and test yourself.</p>
+<p><strong>Q1:</strong> What two system calls does the shell use to run every command?</p>
+<blockquote>
+<p><code>fork()</code> and <code>exec()</code>. Fork creates a copy, exec replaces it with the new program.
+The parent waits with <code>waitpid()</code>.</p>
+</blockquote>
+<p><strong>Q2:</strong> What's the difference between SIGTERM and SIGKILL?</p>
+<blockquote>
+<p>SIGTERM (15) can be caught and handled — the process can clean up. SIGKILL (9) can't
+be caught — the kernel terminates the process immediately. Always try SIGTERM first.</p>
+</blockquote>
+<p><strong>Q3:</strong> A process is in state <code>D</code>. Can you kill it?</p>
+<blockquote>
+<p>No. <code>D</code> = uninterruptible sleep, stuck in kernel I/O. No signal is delivered. Fix the
+I/O subsystem (NFS, disk) or reboot. This is the only state where <code>kill -9</code> fails.</p>
+</blockquote>
+<p><strong>Q4:</strong> What is a zombie process and how do you get rid of it?</p>
+<blockquote>
+<p>A process that has exited but whose parent hasn't called <code>wait()</code>. Uses only a PID
+slot. You can't kill it (it's already dead) — kill or fix the parent instead.</p>
+</blockquote>
+<p><strong>Q5:</strong> <code>systemctl enable myapp</code> — is the service running now?</p>
+<blockquote>
+<p>No. <code>enable</code> only creates a boot-time symlink. Use <code>enable --now</code> to also start it
+immediately.</p>
+</blockquote>
+<p><strong>Q6:</strong> Why do you need <code>daemon-reload</code> after editing a unit file?</p>
+<blockquote>
+<p>systemd caches unit definitions in memory. Without <code>daemon-reload</code>, it uses the old
+cached version and your changes have no effect.</p>
+</blockquote>
+<p><strong>Q7:</strong> Why does <code>docker stop</code> take 10 seconds for some containers?</p>
+<blockquote>
+<p>Docker sends SIGTERM, but if PID 1 hasn't registered a SIGTERM handler, the signal is
+ignored. Docker waits 10 seconds then sends SIGKILL. Fix: use <code>tini</code> or <code>--init</code>.</p>
+</blockquote>
+<p><strong>Q8:</strong> Exit code 137 — what happened?</p>
+<blockquote>
+<p>128 + 9 = SIGKILL. Either the OOM killer or someone ran <code>kill -9</code>. Exit code 143
+= 128 + 15 = SIGTERM.</p>
+</blockquote>
+<hr />
+<h2 id="exercises">Exercises<a class="headerlink" href="#exercises" title="Permanent link">&para;</a></h2>
+<h3 id="exercise-1-find-the-stuck-process-investigation">Exercise 1: Find the stuck process (investigation)<a class="headerlink" href="#exercise-1-find-the-stuck-process-investigation" title="Permanent link">&para;</a></h3>
+<p>You have a process tree where something is hanging. Given this <code>pstree</code> output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>bash(1000)───deploy.sh(1001)─┬─ssh(1002)───apt-get(1003)
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>                              ├─curl(1004)
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>                              └─sleep(1005)
+</code></pre></div>
+<p>And this <code>ps</code> output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>  PID STAT WCHAN             COMM
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a> 1001 S    wait               deploy.sh
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a> 1002 S    poll_schedule_to   ssh
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a> 1003 D    nfs_wait_bit_kil   apt-get
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a> 1004 S    poll_schedule_to   curl
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a> 1005 S    hrtimer_nanosle    sleep
+</code></pre></div>
+<p>Which process is stuck? Can you kill it? What should you do?</p>
+<details>
+<summary>Answer</summary>
+
+PID 1003 (`apt-get`) is in state `D` (uninterruptible sleep) with wchan `nfs_wait_bit_kil`
+— it's waiting on an NFS operation. You **cannot** kill it, not even with SIGKILL. The NFS
+server is likely unreachable. Fix the NFS mount (check network, restart NFS server) and the
+process will unblock. If you can't fix NFS, the only option is a reboot.
+</details>
+
+<hr />
+<h3 id="exercise-2-write-a-safe-deploy-script-bash">Exercise 2: Write a safe deploy script (bash)<a class="headerlink" href="#exercise-2-write-a-safe-deploy-script-bash" title="Permanent link">&para;</a></h3>
+<p>Write a bash script that:
+1. SSHes to a server and runs <code>systemctl restart myapp</code>
+2. Waits up to 60 seconds for the service to be healthy (check <code>curl -f http://server:8080/health</code>)
+3. If the health check fails, rolls back by running <code>systemctl restart myapp-previous</code>
+4. Cleans up properly on Ctrl+C or any error</p>
+<details>
+<summary>Hint 1</summary>
+Use `set -euo pipefail` and `trap cleanup EXIT` as your foundation.
+</details>
+
+<details>
+<summary>Hint 2</summary>
+Use a `for` loop with `sleep` for the health check, not an infinite loop.
+The exit code of `curl -f` tells you if the endpoint returned 2xx.
+</details>
+
+<details>
+<summary>Solution</summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="ch">#!/bin/bash</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="nb">set</span><span class="w"> </span>-euo<span class="w"> </span>pipefail
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="nv">SERVER</span><span class="o">=</span><span class="s2">"target-server"</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="nv">TIMEOUT</span><span class="o">=</span><span class="m">60</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="nv">HEALTH_URL</span><span class="o">=</span><span class="s2">"http://</span><span class="si">${</span><span class="nv">SERVER</span><span class="si">}</span><span class="s2">:8080/health"</span>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="nv">ROLLED_BACK</span><span class="o">=</span><span class="nb">false</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>cleanup<span class="o">()</span><span class="w"> </span><span class="o">{</span>
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="w">    </span><span class="nb">local</span><span class="w"> </span><span class="nv">exit_code</span><span class="o">=</span><span class="nv">$?</span>
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span><span class="nv">$exit_code</span><span class="w"> </span>-ne<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="o">]]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span><span class="s2">"</span><span class="nv">$ROLLED_BACK</span><span class="s2">"</span><span class="w"> </span>!<span class="o">=</span><span class="w"> </span><span class="s2">"true"</span><span class="w"> </span><span class="o">]]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a><span class="w">        </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"ERROR: Deploy failed (exit </span><span class="nv">$exit_code</span><span class="s2">), rolling back..."</span>
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a><span class="w">        </span>ssh<span class="w"> </span><span class="s2">"</span><span class="nv">$SERVER</span><span class="s2">"</span><span class="w"> </span><span class="s2">"systemctl restart myapp-previous"</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a><span class="w">        </span><span class="nv">ROLLED_BACK</span><span class="o">=</span><span class="nb">true</span>
+<a id="__codelineno-23-15" name="__codelineno-23-15" href="#__codelineno-23-15"></a><span class="w">    </span><span class="k">fi</span>
+<a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a><span class="w">    </span><span class="nb">exit</span><span class="w"> </span><span class="s2">"</span><span class="nv">$exit_code</span><span class="s2">"</span>
+<a id="__codelineno-23-17" name="__codelineno-23-17" href="#__codelineno-23-17"></a><span class="o">}</span>
+<a id="__codelineno-23-18" name="__codelineno-23-18" href="#__codelineno-23-18"></a><span class="nb">trap</span><span class="w"> </span>cleanup<span class="w"> </span>EXIT
+<a id="__codelineno-23-19" name="__codelineno-23-19" href="#__codelineno-23-19"></a>
+<a id="__codelineno-23-20" name="__codelineno-23-20" href="#__codelineno-23-20"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"Restarting myapp on </span><span class="nv">$SERVER</span><span class="s2">..."</span>
+<a id="__codelineno-23-21" name="__codelineno-23-21" href="#__codelineno-23-21"></a>ssh<span class="w"> </span><span class="s2">"</span><span class="nv">$SERVER</span><span class="s2">"</span><span class="w"> </span><span class="s2">"systemctl restart myapp"</span>
+<a id="__codelineno-23-22" name="__codelineno-23-22" href="#__codelineno-23-22"></a>
+<a id="__codelineno-23-23" name="__codelineno-23-23" href="#__codelineno-23-23"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"Waiting up to </span><span class="si">${</span><span class="nv">TIMEOUT</span><span class="si">}</span><span class="s2">s for health check..."</span>
+<a id="__codelineno-23-24" name="__codelineno-23-24" href="#__codelineno-23-24"></a><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="k">$(</span>seq<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="s2">"</span><span class="nv">$TIMEOUT</span><span class="s2">"</span><span class="k">)</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-23-25" name="__codelineno-23-25" href="#__codelineno-23-25"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span>curl<span class="w"> </span>-sf<span class="w"> </span><span class="s2">"</span><span class="nv">$HEALTH_URL</span><span class="s2">"</span><span class="w"> </span>&gt;<span class="w"> </span>/dev/null<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<a id="__codelineno-23-26" name="__codelineno-23-26" href="#__codelineno-23-26"></a><span class="w">        </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"Healthy after </span><span class="si">${</span><span class="nv">i</span><span class="si">}</span><span class="s2">s"</span>
+<a id="__codelineno-23-27" name="__codelineno-23-27" href="#__codelineno-23-27"></a><span class="w">        </span><span class="nb">exit</span><span class="w"> </span><span class="m">0</span>
+<a id="__codelineno-23-28" name="__codelineno-23-28" href="#__codelineno-23-28"></a><span class="w">    </span><span class="k">fi</span>
+<a id="__codelineno-23-29" name="__codelineno-23-29" href="#__codelineno-23-29"></a><span class="w">    </span>sleep<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-23-30" name="__codelineno-23-30" href="#__codelineno-23-30"></a><span class="k">done</span>
+<a id="__codelineno-23-31" name="__codelineno-23-31" href="#__codelineno-23-31"></a>
+<a id="__codelineno-23-32" name="__codelineno-23-32" href="#__codelineno-23-32"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"Health check timed out after </span><span class="si">${</span><span class="nv">TIMEOUT</span><span class="si">}</span><span class="s2">s"</span>
+<a id="__codelineno-23-33" name="__codelineno-23-33" href="#__codelineno-23-33"></a><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+</code></pre></div>
+</details>
+
+<hr />
+<h3 id="exercise-3-zombie-factory-hands-on">Exercise 3: Zombie factory (hands-on)<a class="headerlink" href="#exercise-3-zombie-factory-hands-on" title="Permanent link">&para;</a></h3>
+<p>Create a zombie process on purpose, verify it exists, then clean it up.</p>
+<details>
+<summary>Hint</summary>
+
+You need a parent that forks a child but never calls `wait()`. In bash, backgrounding
+a process and then sleeping forever (without `wait`) does this after the child exits.
+</details>
+
+<details>
+<summary>Solution</summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Terminal 1: Create a zombie</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>bash<span class="w"> </span>-c<span class="w"> </span><span class="s1">'</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="s1">    # Fork a child that exits immediately</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="s1">    /bin/true &amp;</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="s1">    CHILD=$!</span>
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="s1">    echo "Child PID: $CHILD, Parent PID: $$"</span>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="s1">    # Sleep without ever calling wait</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="s1">    sleep 300</span>
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a><span class="s1">'</span><span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="nv">PARENT</span><span class="o">=</span><span class="nv">$!</span>
+<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a>
+<a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a><span class="c1"># Wait a moment for the child to exit</span>
+<a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a>sleep<span class="w"> </span><span class="m">2</span>
+<a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a>
+<a id="__codelineno-24-15" name="__codelineno-24-15" href="#__codelineno-24-15"></a><span class="c1"># Verify zombie exists</span>
+<a id="__codelineno-24-16" name="__codelineno-24-16" href="#__codelineno-24-16"></a>ps<span class="w"> </span>-eo<span class="w"> </span>pid,ppid,stat,comm<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>Z
+<a id="__codelineno-24-17" name="__codelineno-24-17" href="#__codelineno-24-17"></a><span class="c1"># → You should see the child in Z state with PPID = the bash subshell</span>
+<a id="__codelineno-24-18" name="__codelineno-24-18" href="#__codelineno-24-18"></a>
+<a id="__codelineno-24-19" name="__codelineno-24-19" href="#__codelineno-24-19"></a><span class="c1"># Clean it up by killing the parent</span>
+<a id="__codelineno-24-20" name="__codelineno-24-20" href="#__codelineno-24-20"></a><span class="nb">kill</span><span class="w"> </span><span class="nv">$PARENT</span>
+<a id="__codelineno-24-21" name="__codelineno-24-21" href="#__codelineno-24-21"></a>
+<a id="__codelineno-24-22" name="__codelineno-24-22" href="#__codelineno-24-22"></a><span class="c1"># Verify zombie is gone (PID 1 reaped it)</span>
+<a id="__codelineno-24-23" name="__codelineno-24-23" href="#__codelineno-24-23"></a>sleep<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-24-24" name="__codelineno-24-24" href="#__codelineno-24-24"></a>ps<span class="w"> </span>-eo<span class="w"> </span>pid,ppid,stat,comm<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>Z
+<a id="__codelineno-24-25" name="__codelineno-24-25" href="#__codelineno-24-25"></a><span class="c1"># → Should be empty</span>
+</code></pre></div>
+</details>
+
+<hr />
+<h3 id="exercise-4-write-a-systemd-unit-design">Exercise 4: Write a systemd unit (design)<a class="headerlink" href="#exercise-4-write-a-systemd-unit-design" title="Permanent link">&para;</a></h3>
+<p>Your team has a Python web app that:
+- Lives at <code>/opt/webapp/app.py</code>
+- Needs PostgreSQL running first
+- Should restart if it crashes, but stop retrying after 5 failures in 2 minutes
+- Needs <code>DATABASE_URL</code> from <code>/opt/webapp/.env</code>
+- Should not be able to write anywhere except <code>/opt/webapp/data/</code></p>
+<p>Write the systemd unit file. Don't look at the solution until you've tried.</p>
+<details>
+<summary>Hint</summary>
+You need `Requires=` + `After=` for PostgreSQL, `EnvironmentFile=` for the env vars,
+`Restart=on-failure` + `StartLimitBurst` + `StartLimitIntervalSec` for retry limits,
+and `ProtectSystem=strict` + `ReadWritePaths=` for filesystem isolation.
+</details>
+
+<details>
+<summary>Solution</summary>
+
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="k">[Unit]</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="na">Description</span><span class="o">=</span><span class="s">Web Application</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="na">After</span><span class="o">=</span><span class="s">network.target postgresql.service</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="na">Requires</span><span class="o">=</span><span class="s">postgresql.service</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="k">[Service]</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="na">Type</span><span class="o">=</span><span class="s">simple</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="na">User</span><span class="o">=</span><span class="s">webapp</span>
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="na">Group</span><span class="o">=</span><span class="s">webapp</span>
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="na">WorkingDirectory</span><span class="o">=</span><span class="s">/opt/webapp</span>
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="na">ExecStart</span><span class="o">=</span><span class="s">/usr/bin/python3 /opt/webapp/app.py</span>
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="na">EnvironmentFile</span><span class="o">=</span><span class="s">/opt/webapp/.env</span>
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="na">Restart</span><span class="o">=</span><span class="s">on-failure</span>
+<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a><span class="na">RestartSec</span><span class="o">=</span><span class="s">5</span>
+<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a><span class="na">StartLimitBurst</span><span class="o">=</span><span class="s">5</span>
+<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a><span class="na">StartLimitIntervalSec</span><span class="o">=</span><span class="s">120</span>
+<a id="__codelineno-25-18" name="__codelineno-25-18" href="#__codelineno-25-18"></a>
+<a id="__codelineno-25-19" name="__codelineno-25-19" href="#__codelineno-25-19"></a><span class="na">ProtectSystem</span><span class="o">=</span><span class="s">strict</span>
+<a id="__codelineno-25-20" name="__codelineno-25-20" href="#__codelineno-25-20"></a><span class="na">ReadWritePaths</span><span class="o">=</span><span class="s">/opt/webapp/data</span>
+<a id="__codelineno-25-21" name="__codelineno-25-21" href="#__codelineno-25-21"></a><span class="na">NoNewPrivileges</span><span class="o">=</span><span class="s">true</span>
+<a id="__codelineno-25-22" name="__codelineno-25-22" href="#__codelineno-25-22"></a><span class="na">PrivateTmp</span><span class="o">=</span><span class="s">true</span>
+<a id="__codelineno-25-23" name="__codelineno-25-23" href="#__codelineno-25-23"></a>
+<a id="__codelineno-25-24" name="__codelineno-25-24" href="#__codelineno-25-24"></a><span class="k">[Install]</span>
+<a id="__codelineno-25-25" name="__codelineno-25-25" href="#__codelineno-25-25"></a><span class="na">WantedBy</span><span class="o">=</span><span class="s">multi-user.target</span>
+</code></pre></div>
+</details>
+
+<hr />
+<h3 id="exercise-5-the-decision-think-dont-code">Exercise 5: The decision (think, don't code)<a class="headerlink" href="#exercise-5-the-decision-think-dont-code" title="Permanent link">&para;</a></h3>
+<p>For each scenario, decide: bash with <code>trap</code> and <code>wait</code>, a systemd service, or a
+container with <code>tini</code>? Justify your choice.</p>
+<ol>
+<li>A one-shot backup script that runs nightly via cron</li>
+<li>A long-running API server that must survive reboots</li>
+<li>A batch job that processes files from a queue and should retry on failure</li>
+<li>A deploy script that SSHes to 5 servers sequentially</li>
+<li>A microservice that runs alongside 15 others on the same host</li>
+</ol>
+<details>
+<summary>Answers</summary>
+
+1. **Systemd timer** (not cron). You get logging via `journalctl`, automatic cgroup resource
+   limits, `Persistent=true` to catch up missed runs, and `RandomizedDelaySec` to avoid
+   thundering herd. Plain cron gives you none of this.
+
+2. **Systemd service.** `Restart=on-failure`, `WantedBy=multi-user.target` for boot, resource
+   limits, journal logging. This is exactly what systemd was built for.
+
+3. **Systemd service** with `Restart=on-failure` and `RestartSec=` for backoff. A container
+   works too if you're already containerized, but the retry logic comes from the orchestrator
+   (systemd or Kubernetes), not the container itself.
+
+4. **Bash with `trap` and `set -euo pipefail`.** It's a one-shot script, not a long-running
+   service. A systemd service is overkill. But the script needs proper signal handling and
+   cleanup — this is where `trap cleanup EXIT` earns its keep.
+
+5. **Container with `tini` (or `--init`).** 15 microservices on one host = you need
+   isolation. Containers give you PID namespaces, cgroup limits, filesystem isolation, and
+   independent logging. `tini` handles signals and zombie reaping inside each container.
+</details>
+
+<hr />
+<h2 id="cheat-sheet">Cheat Sheet<a class="headerlink" href="#cheat-sheet" title="Permanent link">&para;</a></h2>
+<h3 id="process-investigation">Process Investigation<a class="headerlink" href="#process-investigation" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>What you need</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Process tree</td>
+<td><code>pstree -p &lt;pid&gt;</code></td>
+</tr>
+<tr>
+<td>What a process is doing</td>
+<td><code>cat /proc/&lt;pid&gt;/wchan</code></td>
+</tr>
+<tr>
+<td>Process state</td>
+<td><code>ps -o pid,stat,comm -p &lt;pid&gt;</code></td>
+</tr>
+<tr>
+<td>All processes sorted by CPU</td>
+<td><code>ps aux --sort=-%cpu \| head</code></td>
+</tr>
+<tr>
+<td>All processes sorted by memory</td>
+<td><code>ps aux --sort=-rss \| head</code></td>
+</tr>
+<tr>
+<td>Find zombies</td>
+<td><code>ps -eo pid,ppid,stat,comm \| awk '$3 ~ /Z/'</code></td>
+</tr>
+<tr>
+<td>Find D-state (unkillable)</td>
+<td><code>ps aux \| awk '$8 ~ /^D/'</code></td>
+</tr>
+<tr>
+<td>Open files for a process</td>
+<td><code>ls /proc/&lt;pid&gt;/fd \| wc -l</code></td>
+</tr>
+<tr>
+<td>Deleted but open files (eating disk)</td>
+<td><code>lsof +L1</code></td>
+</tr>
+<tr>
+<td>Kernel stack of stuck process</td>
+<td><code>cat /proc/&lt;pid&gt;/stack</code> (root)</td>
+</tr>
+<tr>
+<td>Network connections per process</td>
+<td><code>ss -tnp \| grep "pid=&lt;pid&gt;"</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="signals">Signals<a class="headerlink" href="#signals" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Num</th>
+<th>Meaning</th>
+<th>Catchable?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SIGHUP</td>
+<td>1</td>
+<td>Hangup / reload config</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>SIGINT</td>
+<td>2</td>
+<td>Interrupt (Ctrl+C)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>SIGKILL</td>
+<td>9</td>
+<td>Force kill</td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td>SIGTERM</td>
+<td>15</td>
+<td>Graceful terminate</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>SIGSTOP</td>
+<td>19</td>
+<td>Freeze (Ctrl+Z)</td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td>SIGCONT</td>
+<td>18</td>
+<td>Resume</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<p>Exit code = 128 + signal number (137 = SIGKILL, 143 = SIGTERM)</p>
+<h3 id="systemd">systemd<a class="headerlink" href="#systemd" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Start/stop/restart</td>
+<td><code>systemctl {start,stop,restart} &lt;unit&gt;</code></td>
+</tr>
+<tr>
+<td>Status + recent logs</td>
+<td><code>systemctl status &lt;unit&gt;</code></td>
+</tr>
+<tr>
+<td>Follow logs live</td>
+<td><code>journalctl -u &lt;unit&gt; -f</code></td>
+</tr>
+<tr>
+<td>Enable at boot + start now</td>
+<td><code>systemctl enable --now &lt;unit&gt;</code></td>
+</tr>
+<tr>
+<td>Reload after editing unit file</td>
+<td><code>systemctl daemon-reload</code></td>
+</tr>
+<tr>
+<td>See what's broken</td>
+<td><code>systemctl list-units --failed</code></td>
+</tr>
+<tr>
+<td>View unit with overrides</td>
+<td><code>systemctl cat &lt;unit&gt;</code></td>
+</tr>
+<tr>
+<td>Boot time analysis</td>
+<td><code>systemd-analyze blame</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="bash-script-safety">Bash Script Safety<a class="headerlink" href="#bash-script-safety" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="ch">#!/bin/bash</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="nb">set</span><span class="w"> </span>-euo<span class="w"> </span>pipefail<span class="w">          </span><span class="c1"># EUP: Exit, Unset, Pipefail</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="nb">trap</span><span class="w"> </span>cleanup<span class="w"> </span>EXIT<span class="w">           </span><span class="c1"># Always clean up</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="nv">children</span><span class="o">=()</span><span class="p">;</span><span class="w"> </span>cmd<span class="w"> </span><span class="p">&amp;</span><span class="w"> </span><span class="nv">children</span><span class="o">+=(</span><span class="nv">$!</span><span class="o">)</span><span class="w">  </span><span class="c1"># Track child PIDs</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="nb">wait</span><span class="w">                        </span><span class="c1"># Let traps fire between waits</span>
+</code></pre></div>
+<hr />
+<h2 id="takeaways">Takeaways<a class="headerlink" href="#takeaways" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>Every command is fork + exec + wait.</strong> Your shell forks a copy of itself, the copy
+   replaces itself with the command, the shell waits. When it doesn't return, something in
+   that chain is stuck.</p>
+</li>
+<li>
+<p><strong>TERM first, KILL last.</strong> SIGTERM lets the process clean up. SIGKILL doesn't. Exit code
+   137 = SIGKILL, 143 = SIGTERM. Starting with <code>kill -9</code> is like unplugging a server to
+   reboot it.</p>
+</li>
+<li>
+<p><strong>D-state is unkillable.</strong> If a process is in uninterruptible sleep, no signal reaches it.
+   Fix the I/O subsystem or reboot. Everything else can be killed.</p>
+</li>
+<li>
+<p><strong>Zombies are harmless until they're not.</strong> One zombie is fine. Thousands exhaust the PID
+   space. Kill the parent, not the zombie.</p>
+</li>
+<li>
+<p><strong>systemd replaces hundreds of lines of bash.</strong> Unit files give you restart logic, resource
+   limits, dependency management, logging, and cgroup tracking — for free.</p>
+</li>
+<li>
+<p><strong>PID 1 in containers needs an init.</strong> Without <code>tini</code> or <code>--init</code>, your app doesn't
+   handle signals correctly and zombies accumulate. This causes the mysterious 10-second
+   <code>docker stop</code> delay.</p>
+</li>
+</ol>
+<hr />
+<h2 id="related-lessons">Related Lessons<a class="headerlink" href="#related-lessons" title="Permanent link">&para;</a></h2>
+<ul>
+<li><em>What Happens When You Click a Link</em> — end-to-end trace through networking</li>
+<li><em>Connection Refused</em> — differential diagnosis of a common error across layers</li>
+</ul>
+<!-- wiki:backlinks:start -->
+
+<h3 id="pages-that-link-here">Pages that link here<a class="headerlink" href="#pages-that-link-here" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../ansible-from-playbook-to-production/">Ansible From Playbook To Production</a></li>
+<li><a href="../bash-the-patterns-that-matter/">Bash — The Patterns That Matter</a></li>
+<li><a href="../cgroups-and-namespaces-containers-are-a-lie/">Cgroups and Namespaces — Containers Are a Lie</a></li>
+<li><a href="../">Cross-Domain Lessons</a></li>
+<li><a href="../linux-networking-bridges-bonds-and-vlans/">Linux Networking Bridges Bonds And Vlans</a></li>
+<li><a href="../python-for-ops-the-bash-experts-bridge/">Python For Ops The Bash Experts Bridge</a></li>
+<li><a href="../systemd-the-init-system-you-cant-avoid/">systemd — The Init System You Can't Avoid</a></li>
+</ul>
+<!-- wiki:backlinks:end -->
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="April 17, 2026 10:49:23 UTC">April 17, 2026 10:49:23</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 22, 2026 18:01:01 UTC">March 22, 2026 18:01:01</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../kubernetes-from-scratch-to-production-upgrade/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Kubernetes: From Scratch to Production Upgrade">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Kubernetes: From Scratch to Production Upgrade
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../the-disk-that-filled-up/" class="md-footer__link md-footer__link--next" aria-label="Next: The Disk That Filled Up">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                The Disk That Filled Up
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../portal/js/random-content.js"></script>
+      
+        <script src="../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../portal/js/graph.js"></script>
+      
+        <script src="../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

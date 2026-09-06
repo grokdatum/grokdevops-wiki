@@ -1,0 +1,49 @@
+# Internal DNS zone file and client resolv.conf
+# Collected: 2026-02-22
+
+### /etc/resolv.conf on app-node-03:
+search acme.com
+nameserver 10.100.1.10
+nameserver 10.100.1.11
+
+### Internal zone file: /etc/bind/zones/internal.acme.com.zone
+$TTL 300
+@       IN      SOA     ns1.acme.com. admin.acme.com. (
+                        2026021501      ; Serial
+                        3600            ; Refresh
+                        900             ; Retry
+                        604800          ; Expire
+                        300 )           ; Negative Cache TTL
+
+        IN      NS      ns1.acme.com.
+        IN      NS      ns2.acme.com.
+
+ns1     IN      A       10.100.1.10
+ns2     IN      A       10.100.1.11
+
+; Application services
+inventory       IN      A       10.100.8.25
+orders          IN      A       10.100.8.28
+auth            IN      A       10.100.8.31
+catalog         IN      A       10.100.8.33
+shipping        IN      A       10.100.8.35
+
+; NOTE: 'payments' record is MISSING from this zone
+; It was present before the DNS consolidation on 2026-02-15
+; The external zone has: payments IN A 203.0.113.50
+; Internal zone should have: payments IN A 10.100.8.30
+
+### named.conf forwarding configuration:
+options {
+    directory "/var/cache/bind";
+    forwarders {
+        8.8.8.8;
+        8.8.4.4;
+    };
+    forward only;
+    dnssec-validation auto;
+};
+
+# Because 'forward only' is set, queries for records NOT in the
+# authoritative internal zone are forwarded to 8.8.8.8 -- this is
+# why payments.acme.com resolves to the external IP.

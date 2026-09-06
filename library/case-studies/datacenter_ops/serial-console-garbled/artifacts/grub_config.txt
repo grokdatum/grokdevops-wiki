@@ -1,0 +1,30 @@
+# /etc/default/grub (current, after RHEL 8 upgrade)
+
+$ cat /etc/default/grub
+GRUB_TIMEOUT=5
+GRUB_DISTRIBUTOR="$(sed 's, release .*$,,g' /etc/system-release)"
+GRUB_DEFAULT=saved
+GRUB_DISABLE_SUBMENU=true
+GRUB_TERMINAL_OUTPUT="console serial"
+GRUB_SERIAL_COMMAND="serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1"
+GRUB_CMDLINE_LINUX="crashkernel=auto resume=/dev/mapper/vg0-swap rd.lvm.lv=vg0/root rd.lvm.lv=vg0/swap console=tty0 console=ttyS0,115200n8"
+GRUB_DISABLE_RECOVERY="true"
+
+# Note: GRUB_SERIAL_COMMAND and console= both set to 115200
+# BIOS is set to 19200 -- THIS IS THE MISMATCH
+
+# Previous RHEL 7 GRUB config (from backup):
+# GRUB_SERIAL_COMMAND="serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1"
+# GRUB_CMDLINE_LINUX="... console=ttyS0,19200n8"
+
+# Kernel command line (runtime):
+$ cat /proc/cmdline
+BOOT_IMAGE=(hd0,msdos1)/vmlinuz-4.18.0-477.27.1.el8_8.x86_64 root=/dev/mapper/vg0-root ro crashkernel=auto resume=/dev/mapper/vg0-swap rd.lvm.lv=vg0/root rd.lvm.lv=vg0/swap console=tty0 console=ttyS0,115200n8
+
+# Serial getty service:
+$ systemctl status serial-getty@ttyS0.service
+  serial-getty@ttyS0.service - Serial Getty on ttyS0
+   Active: active (running)
+   Main PID: 1847 (agetty)
+   CGroup: /system.slice/serial-getty@ttyS0.service
+           1847 /sbin/agetty -o -p -- \u --keep-baud 115200,57600,9600 ttyS0 vt220

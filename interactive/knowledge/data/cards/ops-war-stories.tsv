@@ -1,0 +1,33 @@
+---
+tags:
+- devops
+- l1
+- flashcard-deck
+- ops-war-stories
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [Ops War Stories](../../../../library/portal/topics.md) | **Domain:** DevOps & Tooling
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+ops-war-stories/c0cc911d8e2f	ops-war-stories	easy	ops, diagnosis, first-question	What single question resolves approximately 40% of incidents within minutes?	"Was anything deployed or changed in the last 4 hours?" If yes, there is strong correlation with the incident — rollback first, investigate second."\n\nRemember: "CREDIT" for the five causes — Change, Resources, External dependency, Date/time trigger, Influx of traffic.	training/library/topics/ops-war-stories/primer.md
+ops-war-stories/d9e413678e6e	ops-war-stories	easy	ops, diagnosis, common-causes	What are the five most common cause categories for infrastructure incidents, ranked by frequency?	(1) Recent change ~40%, (2) Resource exhaustion (disk, memory, CPU, connections) ~25%, (3) Dependency failure (upstream service, DNS, database) ~15%, (4) Time-based trigger (cron, cert expiry, log rotation) ~10%, (5) Traffic/load spike ~10%.\n\nRemember: "CREDIT" mnemonic maps to the five categories. Example: A deploy at 3 PM causes 502s — that's the C (Change, ~40%).	training/library/topics/ops-war-stories/primer.md
+ops-war-stories/499b654a5033	ops-war-stories	easy	ops, disk, troubleshooting	What is the most common cause when df shows 100% disk usage but du totals to much less?	Deleted files still held open by a process. Unix doesn't free disk space until ALL file descriptors are closed. Check with lsof +D /var/log | grep deleted, then restart the process holding the file descriptor.\n\nGotcha: Even after restarting the offending process, the space may not free if another process also holds a descriptor. Example: a log rotator and the app both hold the same log file open.\n\nRemember: "Deleted but not freed = fd still alive."	training/library/topics/ops-war-stories/primer.md
+ops-war-stories/0a3953aaa561	ops-war-stories	medium	ops, network, latency	An API has 2-second response time but CPU is at 10%, memory and disk are fine. What are the top three causes to investigate?	(1) DNS resolution delays — check with time nslookup; if >100ms, add DNS caching. (2) Connection pool exhaustion — application waiting for DB/Redis/HTTP connections. (3) Upstream service is slow — your service is fast but waits on a dependency. Also check TCP retransmissions (netstat -s | grep retransmit) and GC pauses.\n\nRemember: "DNS, Drain, Downstream" — the 3 Ds of mystery latency with low CPU.	training/library/topics/ops-war-stories/primer.md
+ops-war-stories/2a76c0ec0cbe	ops-war-stories	medium	ops, network, connections	A service is running (systemctl shows UP) but connections are refused. What are four possible causes?	(1) Service listening on wrong interface (127.0.0.1 vs 0.0.0.0). (2) Firewall or security group blocking the port. (3) TCP listen backlog is full under heavy load — increase net.core.somaxconn. (4) File descriptor limit reached — the process can't open new sockets (check with cat /proc/PID/limits).\n\nRemember: "LIFT" — Listening address, iptables/firewall, Full backlog, Too many fds.\n\nExample: curl -v localhost:8080 shows "Connection refused" but ss -tlnp shows the service on 127.0.0.1:8080 — change to 0.0.0.0.	training/library/topics/ops-war-stories/primer.md
+ops-war-stories/b65805c9683f	ops-war-stories	medium	ops, system, reboot	A server rebooted unexpectedly with no maintenance scheduled. What are the top four causes to investigate?	(1) OOM killer invoked — check dmesg | grep "out of memory". (2) Kernel panic — check journalctl -k -b -1 (previous boot). (3) Hardware watchdog timeout — dmesg | grep watchdog. (4) Unattended OS updates with auto-reboot — check /var/log/unattended-upgrades/ or dnf history. Also check UPS logs and cloud console event logs.	training/library/topics/ops-war-stories/primer.md
+ops-war-stories/8f2a1b45aa25	ops-war-stories	medium	ops, process, crash	An application crashes every few hours with no error in app logs. What is the most common cause and how do you confirm it?	OOM killer is the most common cause for silent process kills. Confirm with dmesg | grep "Killed process" which shows the PID and memory usage at kill time. Other causes: segfault (dmesg | grep segfault), resource limits hit (check /proc/PID/limits), systemd killing it (TimeoutStopSec/WatchdogSec), or another process sending a kill signal.	training/library/topics/ops-war-stories/primer.md
+ops-war-stories/cd9734e20fa7	ops-war-stories	hard	ops, diagnosis, differential	Explain the Differential Diagnosis Model for infrastructure debugging.	Like doctors, generate a list of possible causes ranked by probability, then systematically rule them out: (1) Observe symptoms, (2) Generate hypotheses, (3) Rank by probability, (4) Test the most likely hypothesis first (cheapest/fastest check), (5) If confirmed, remediate, (6) If not, eliminate and move to next, (7) If all eliminated, you're missing information — widen your view.	training/library/topics/ops-war-stories/primer.md
+ops-war-stories/2216527f6c35	ops-war-stories	hard	ops, anti-patterns, investigation	Name four investigation anti-patterns and their better approaches.	(1) Anchoring: first theory becomes the only theory — write down 3 hypotheses before testing any. (2) Confirmation bias: only seeking supporting evidence — actively try to disprove your theory. (3) Tunnel vision: deep-diving one component — set 15-minute timeboxes. (4) Heroics: one person debugging solo for hours — escalate at 15 minutes if no progress.	training/library/topics/ops-war-stories/primer.md
+ops-war-stories/2d9a2ced9b39	ops-war-stories	hard	ops, disk, io	Disk I/O is slow but iostat shows under 50% utilization. What are four non-obvious causes?	(1) I/O scheduler contention — multiple processes competing; use iotop to check per-process I/O. (2) Filesystem journaling overhead — EXT4 with data=journal doubles write amplification. (3) RAID rebuild in progress — cat /proc/mdstat to check. (4) Thin-provisioned storage doing copy-on-write (LVM thin pools, ZFS, cloud EBS) — first write to a block is slower. Also check for NFS masquerading as local disk (mount | grep nfs).	training/library/topics/ops-war-stories/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [Ops War Stories & Pattern Recognition](../../../../library/topics/ops-war-stories/index.md) (Topic Pack, L2) — Ops War Stories
+
+<!-- wiki:related:end -->

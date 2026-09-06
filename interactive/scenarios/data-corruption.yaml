@@ -1,0 +1,162 @@
+# Data Corruption Scenario Drills
+# Structured scenarios for practicing data integrity incident response.
+# Schema: id, topic, difficulty, scenario, expected_actions, pitfalls, source_path
+
+scenarios:
+
+  - id: dc-scenario-001
+    topic: database_ops
+    difficulty: hard
+    scenario: >
+      A migration script intended for the staging database was accidentally run
+      against production. The script altered 3 table schemas, dropped 2 columns,
+      and added 3 new columns with default values. The application is throwing
+      errors because it references the dropped columns. The last full backup
+      was 4 hours ago. Point-in-time recovery is enabled.
+    expected_actions:
+      - Assess the immediate impact — which application features are broken
+      - Check if point-in-time recovery (PITR) can restore to just before the migration
+      - Do NOT restore PITR over the production database — restore to a separate instance
+      - From the PITR restore, extract the dropped column data
+      - Create a reverse migration script to re-add the dropped columns with the original data
+      - Apply the reverse migration to production, re-adding columns and restoring data
+      - Verify the application returns to normal operation
+      - Implement safeguards — separate database credentials for staging and production
+      - Add a pre-migration check that verifies the target database before executing
+      - Audit the migration tool's connection configuration
+    pitfalls:
+      - Restoring the full backup over production (loses 4 hours of all other changes)
+      - Running another migration to "fix" the schema without recovering the dropped data
+      - Not using PITR and falling back to the 4-hour-old backup unnecessarily
+      - Panicking and taking the application offline before assessing the actual impact
+    source_path: training/interactive/scenarios/data-corruption.yaml
+
+  - id: dc-scenario-002
+    topic: database_ops
+    difficulty: medium
+    scenario: >
+      An ETL pipeline has been silently inserting malformed data into a production
+      table for the past 2 weeks. A currency conversion function had a bug that
+      multiplied amounts by 100 instead of the exchange rate. Roughly 500,000 rows
+      are affected. Reports generated during this period contain incorrect financial
+      data. Some of these reports were sent to customers.
+    expected_actions:
+      - Identify the exact date range and rows affected by the bug
+      - Fix the ETL pipeline code to use the correct conversion formula
+      - Write a data correction script to recalculate the affected rows using the correct exchange rates
+      - Validate the correction script on a subset before running on all 500K rows
+      - Run the correction in batches to avoid locking the table during production hours
+      - Regenerate all affected reports for the 2-week period
+      - Notify customers who received incorrect reports with corrected versions
+      - Add data quality checks to the ETL pipeline (sanity checks on currency values)
+      - Implement automated anomaly detection on financial data columns
+    pitfalls:
+      - Reprocessing all data from scratch instead of surgically fixing affected rows
+      - Running the correction script without testing on a subset first
+      - Not notifying customers who received incorrect reports
+      - Only fixing the code without correcting the already-corrupted data
+    source_path: training/interactive/scenarios/data-corruption.yaml
+
+  - id: dc-scenario-003
+    topic: database_ops
+    difficulty: hard
+    scenario: >
+      A Kubernetes persistent volume backed by EBS experiences data corruption
+      after a node crash. The PostgreSQL database on the PV reports "could not
+      read block" errors and refuses to start. The database has WAL archiving
+      enabled to S3. The last consistent base backup is from 12 hours ago.
+      The application has been down for 20 minutes.
+    expected_actions:
+      - Do NOT attempt to repair the corrupted data files in place
+      - Restore the base backup from S3 to a new PV
+      - Apply WAL archives from S3 to bring the restored database to the most recent consistent point
+      - Specify a recovery target time just before the crash (recovery_target_time in recovery.conf)
+      - Verify data integrity after restoration (run pg_catalog consistency checks)
+      - Switch the application to the restored database
+      - Investigate why the EBS volume corrupted — check for missing flush barriers or async I/O issues
+      - Verify the PV's storage class uses gp3/io2 with appropriate IOPS for write-heavy workloads
+      - Ensure the PostgreSQL data directory has fsync=on (never disable for production)
+    pitfalls:
+      - Trying to start PostgreSQL with zero_damaged_pages=on (hides corruption, causes data loss)
+      - Not using WAL archives and falling back to the 12-hour-old base backup
+      - Restoring to the original corrupted PV instead of a new clean volume
+      - Not investigating the root cause of the node crash and data corruption
+    source_path: training/interactive/scenarios/data-corruption.yaml
+
+  - id: dc-scenario-004
+    topic: database_ops
+    difficulty: medium
+    scenario: >
+      An application uses Redis as a cache in front of PostgreSQL. After a
+      Redis restart, users report seeing stale data that does not match the
+      database. Investigation reveals the application uses a cache-aside
+      pattern but the cache invalidation has a race condition: two concurrent
+      requests can read the old DB value and write it to cache after an update
+      completes, overwriting the correct cached value.
+    expected_actions:
+      - Flush the entire Redis cache to eliminate all stale entries immediately
+      - Verify users see correct data after the cache flush
+      - Analyze the race condition in the cache invalidation code
+      - Implement cache invalidation with version stamps or CAS (Compare-and-Swap)
+      - Consider using write-through caching instead of cache-aside for this data
+      - Add TTL to all cache entries as a safety net against stale data
+      - Implement a cache validation test that detects staleness by comparing random samples
+      - Add monitoring to detect cache-database divergence
+    pitfalls:
+      - Only flushing the cache without fixing the race condition (will recur)
+      - Adding very long TTLs that mask the invalidation bug without fixing it
+      - Disabling caching entirely as a permanent fix (performance regression)
+      - Not understanding the difference between cache-aside and write-through patterns
+    source_path: training/interactive/scenarios/data-corruption.yaml
+
+  - id: dc-scenario-005
+    topic: database_ops
+    difficulty: easy
+    scenario: >
+      An automated backup restoration test fails. The S3 backup file downloads
+      successfully but pg_restore reports "unsupported version" and "invalid
+      archive header." The backup was created with PostgreSQL 16 but the
+      restoration test environment runs PostgreSQL 14. The backup script uses
+      pg_dump in custom format. This mismatch has existed for 3 months since
+      the production database was upgraded.
+    expected_actions:
+      - Verify the PostgreSQL version mismatch between backup and restore environments
+      - Upgrade the restoration test environment to PostgreSQL 16 to match production
+      - Run the restore test again with the matching version
+      - Audit all backup restoration environments for version parity with production
+      - Add version checking to the backup test script (compare pg_dump version header)
+      - Consider using pg_dump in plain SQL format for cross-version portability
+      - Document the PostgreSQL version in the backup metadata or filename
+      - Add the version check as a pre-step in the disaster recovery runbook
+    pitfalls:
+      - Assuming the backup is corrupted when the issue is a version mismatch
+      - Downgrading the backup format without testing if plain SQL captures everything
+      - Only fixing the one test environment without auditing others
+      - Not discovering the issue for 3 months because restore tests were not running
+    source_path: training/interactive/scenarios/data-corruption.yaml
+
+  - id: dc-scenario-006
+    topic: database_ops
+    difficulty: hard
+    scenario: >
+      A MongoDB replica set primary experiences a disk full condition and crashes.
+      The secondaries elect a new primary. When the old primary recovers, it
+      discovers its oplog was truncated during the crash. The old primary cannot
+      sync from the new primary because the required oplog entries are no longer
+      available. The old primary enters RECOVERING state and cannot rejoin the
+      replica set.
+    expected_actions:
+      - Check the new primary's health and confirm it is serving traffic correctly
+      - Do NOT try to force the old primary back to primary status
+      - Perform an initial sync on the old primary (delete data directory and let it resync)
+      - Monitor the initial sync progress — it can take hours for large datasets
+      - Investigate what caused the disk to fill (logs, data growth, journal files)
+      - Increase the oplog size to cover longer recovery windows (replSetResizeOplog)
+      - Add disk space monitoring with alerts well before 100% capacity
+      - Verify the replica set has sufficient members for quorum during the resync
+    pitfalls:
+      - Trying to repair the truncated oplog manually (impossible and risks further corruption)
+      - Forcing the old primary to become primary again (it has incomplete data)
+      - Not increasing the oplog size after recovery (same scenario will repeat)
+      - Running initial sync during peak hours without considering the I/O impact on the new primary
+    source_path: training/interactive/scenarios/data-corruption.yaml

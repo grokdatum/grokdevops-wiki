@@ -1,0 +1,28 @@
+---
+- name: Application deployment with check mode support
+  hosts: appservers
+  become: true
+  tasks:
+    - name: Get current application version
+      ansible.builtin.shell:
+        cmd: cat /opt/app/VERSION
+      register: current_version
+      changed_when: false
+
+    - name: Download new version
+      ansible.builtin.get_url:
+        url: "https://releases.example.com/app-latest.tar.gz"
+        dest: /tmp/app-latest.tar.gz
+        mode: '0644'
+
+    - name: Check if deploy is needed
+      ansible.builtin.shell:
+        cmd: test "$(cat /opt/app/VERSION)" != "2.0.0" && echo "needs_update"
+      register: needs_deploy
+      changed_when: false
+      check_mode: false
+
+    - name: Deploy application
+      ansible.builtin.shell:
+        cmd: tar xzf /tmp/app-latest.tar.gz -C /opt/app/
+      when: needs_deploy.stdout == "needs_update"

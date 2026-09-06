@@ -1,0 +1,94 @@
+---
+- name: Production infrastructure deployment
+  hosts: webservers
+  become: true
+  gather_facts: true
+  vars:
+    app_name: production-webapp
+    app_port: 8080
+    db_host: db.internal.example.com
+    db_port: 5432
+    allowed_cidrs:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+
+  tasks:
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - nginx
+          - python3
+          - python3-pip
+          - certbot
+        state: present
+        update_cache: true
+
+    - name: Create application user
+      ansible.builtin.user:
+        name: "{{ app_name }}"
+        shell: /bin/bash
+        system: true
+        create_home: false
+
+    - name: Create application directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ app_name }}"
+        group: "{{ app_name }}"
+        mode: '0755'
+      loop:
+        - "/opt/{{ app_name }}"
+        - "/var/log/{{ app_name }}"
+        - "/etc/{{ app_name }}"
+
+    - name: Deploy application configuration
+      ansible.builtin.copy:
+        content: |
+          [application]
+          name={{ app_name }}
+          port={{ app_port }}
+          db_host={{ db_host }}
+          db_port={{ db_port }}
+          allowed_networks={{ allowed_cidrs | to_yaml }}
+        dest: "/etc/{{ app_name }}/app.conf"
+        owner: "{{ app_name }}"
+        mode: '0600'
+      notify: Restart webapp
+
+    - name: Deploy nginx virtual host
+      ansible.builtin.template:
+        src: nginx-vhost.conf.j2
+        dest: /etc/nginx/sites-available/{{ app_name }}.conf
+      notify: Reload nginx
+
+    - name: Enable nginx virtual host
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/{{ app_name }}.conf
+        dest: /etc/nginx/sites-enabled/{{ app_name }}.conf
+        state: link
+      notify: Reload nginx
+
+    - name: Deploy systemd service file
+      ansible.builtin.template:
+        src: webapp.service.j2
+        dest: /etc/systemd/system/{{ app_name }}.service
+      notify: Restart webapp
+
+    - name: Enable and start application
+      ansible.builtin.systemd:
+        name: "{{ app_name }}"
+        state: started
+        enabled: true
+        daemon_reload: true
+
+  handlers:
+    - name: Restart webapp
+      ansible.builtin.systemd:
+        name: "{{ app_name }}"
+        state: restarted
+
+    - name: Reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded

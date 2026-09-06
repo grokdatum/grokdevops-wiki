@@ -1,0 +1,36 @@
+$ getenforce
+Enforcing
+
+$ sestatus
+SELinux status:                 enabled
+SELinuxfs mount:                /sys/fs/selinux
+SELinux root directory:         /etc/selinux
+Loaded policy name:             targeted
+Current mode:                   enforcing
+Mode from config file:          enforcing
+Policy MLS status:              enabled
+Policy deny_unknown status:     allowed
+Memory protection checking:     actual (secure)
+Max kernel policy version:      33
+
+$ ls -lZ /opt/inventory-api/bin/server
+-rwxr-xr-x. 1 inventory inventory unconfined_u:object_r:usr_t:s0 23847920 Mar 03 10:15 /opt/inventory-api/bin/server
+
+$ ls -ldZ /opt/inventory-api/
+drwxr-xr-x. 5 inventory inventory unconfined_u:object_r:usr_t:s0 4096 Mar 03 10:15 /opt/inventory-api/
+
+$ ausearch -m AVC -ts recent
+----
+time->Thu Mar  5 14:25:12 2026
+type=AVC msg=audit(1741187112.456:8901): avc:  denied  { execute } for  pid=24567 comm="systemd" name="server" dev="sda1" ino=1234567 scontext=system_u:system_r:init_t:s0 tcontext=unconfined_u:object_r:usr_t:s0 tclass=file permissive=0
+----
+time->Thu Mar  5 14:25:12 2026
+type=AVC msg=audit(1741187112.457:8902): avc:  denied  { execute_no_trans } for  pid=24567 comm="systemd" path="/opt/inventory-api/bin/server" dev="sda1" ino=1234567 scontext=system_u:system_r:init_t:s0 tcontext=unconfined_u:object_r:usr_t:s0 tclass=file permissive=0
+
+$ ausearch -m AVC -ts recent | audit2why
+type=AVC msg=audit(1741187112.456:8901): avc:  denied  { execute } for  pid=24567 comm="systemd" name="server" dev="sda1" ino=1234567 scontext=system_u:system_r:init_t:s0 tcontext=unconfined_u:object_r:usr_t:s0 tclass=file permissive=0
+
+        Was caused by:
+                Missing type enforcement (TE) allow rule.
+
+                You can use audit2allow to generate a loadable module to allow this access.

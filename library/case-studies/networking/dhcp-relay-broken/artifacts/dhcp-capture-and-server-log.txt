@@ -1,0 +1,33 @@
+### tcpdump on VLAN 50 host (client attempting DHCP) ###
+
+$ tcpdump -i eth0 -nn port 67 or port 68
+10:14:01.234567 IP 0.0.0.0.68 > 255.255.255.255.67: BOOTP/DHCP, Request from 00:50:56:ab:ee:ff, length 300
+10:14:05.235123 IP 0.0.0.0.68 > 255.255.255.255.67: BOOTP/DHCP, Request from 00:50:56:ab:ee:ff, length 300
+10:14:13.236789 IP 0.0.0.0.68 > 255.255.255.255.67: BOOTP/DHCP, Request from 00:50:56:ab:ee:ff, length 300
+10:14:29.238456 IP 0.0.0.0.68 > 255.255.255.255.67: BOOTP/DHCP, Request from 00:50:56:ab:ee:ff, length 300
+
+# Note: Only DHCPDISCOVER broadcasts, no DHCPOFFER responses.
+# The retransmit intervals (4s, 8s, 16s) show exponential backoff -- classic DHCP timeout.
+
+### DHCP server log (on 10.10.10.5) ###
+
+$ grep "DHCPDISCOVER" /var/log/dhcpd.log | tail -10
+Mar  5 10:01:12 dhcp-srv dhcpd[1234]: DHCPDISCOVER from 00:50:56:ab:aa:bb via 10.20.0.1
+Mar  5 10:01:12 dhcp-srv dhcpd[1234]: DHCPOFFER on 10.20.0.115 to 00:50:56:ab:aa:bb via 10.20.0.1
+Mar  5 10:03:45 dhcp-srv dhcpd[1234]: DHCPDISCOVER from 00:50:56:ab:cc:dd via 10.30.0.1
+Mar  5 10:03:45 dhcp-srv dhcpd[1234]: DHCPOFFER on 10.30.0.142 to 00:50:56:ab:cc:dd via 10.30.0.1
+
+# Note: DHCPDISCOVER messages arrive via relay (via 10.20.0.1, via 10.30.0.1) for
+# VLANs 20 and 30, but there are NO entries "via 10.50.0.1" -- confirming the
+# relay is not forwarding from VLAN 50.
+
+### DHCP server pool config ###
+
+$ cat /etc/dhcp/dhcpd.conf | grep -B1 -A5 "subnet 10.50"
+subnet 10.50.0.0 netmask 255.255.255.0 {
+  range 10.50.0.100 10.50.0.200;
+  option routers 10.50.0.1;
+  option domain-name-servers 10.10.10.2, 10.10.10.3;
+  default-lease-time 86400;
+}
+# Pool exists -- the problem is purely that requests never reach the server.

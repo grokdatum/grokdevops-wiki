@@ -1,0 +1,24 @@
+$ kubectl exec web-app-6b8c9d7f5-tm4k2 -- cat /etc/resolv.conf
+search prod.svc.cluster.local svc.cluster.local cluster.local ec2.internal
+nameserver 10.96.0.10
+options ndots:5
+
+$ kubectl exec web-app-6b8c9d7f5-tm4k2 -- nslookup api.stripe.com
+;; connection timed out; no servers could be reached
+
+$ kubectl exec web-app-6b8c9d7f5-tm4k2 -- nslookup api.stripe.com.
+Server:    10.96.0.10
+Address:   10.96.0.10#53
+
+Non-authoritative answer:
+Name:   api.stripe.com
+Address: 54.187.174.169
+
+# NOTE: With trailing dot (FQDN), lookup succeeds because it skips search domains.
+
+$ kubectl logs -n default web-app-6b8c9d7f5-tm4k2 --tail=10
+2026-03-05T10:15:32Z ERROR dial tcp: lookup api.stripe.com on 10.96.0.10:53: i/o timeout
+2026-03-05T10:15:33Z ERROR payment webhook failed: dns resolution timeout
+2026-03-05T10:15:45Z INFO  request completed path=/api/users duration=12ms
+2026-03-05T10:16:01Z ERROR dial tcp: lookup events.pagerduty.com on 10.96.0.10:53: i/o timeout
+2026-03-05T10:16:15Z INFO  request completed path=/api/orders duration=8ms

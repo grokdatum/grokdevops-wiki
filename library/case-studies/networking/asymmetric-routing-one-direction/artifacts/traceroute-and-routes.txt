@@ -1,0 +1,29 @@
+# Traceroute and routing tables collected 2026-02-20 09:15 UTC
+
+### From Host A (web-prod-01, 10.1.10.25):
+
+$ traceroute -n 10.2.20.40
+traceroute to 10.2.20.40 (10.2.20.40), 30 hops max, 60 byte packets
+ 1  10.1.0.1      0.452 ms  0.418 ms  0.391 ms    # fw-01
+ 2  10.2.20.40    0.891 ms  0.873 ms  0.856 ms    # db-prod-01
+
+$ ip route show
+default via 10.1.0.1 dev eth0 proto static metric 100
+10.1.10.0/24 dev eth0 proto kernel scope link src 10.1.10.25 metric 100
+
+### From Host B (db-prod-01, 10.2.20.40):
+
+$ traceroute -n 10.1.10.25
+traceroute to 10.1.10.25 (10.1.10.25), 30 hops max, 60 byte packets
+ 1  10.2.0.1      0.511 ms  0.489 ms  0.472 ms    # fw-02 (NOT fw-01!)
+ 2  * * *
+ 3  * * *
+ 4  * * *
+
+$ ip route show
+default via 10.2.0.1 dev eth0 proto static metric 100
+10.2.20.0/24 dev eth0 proto kernel scope link src 10.2.20.40 metric 100
+
+# Note: Host A routes through fw-01 (10.1.0.1)
+# Note: Host B routes through fw-02 (10.2.0.1)
+# These are independent stateful firewalls with no state sync

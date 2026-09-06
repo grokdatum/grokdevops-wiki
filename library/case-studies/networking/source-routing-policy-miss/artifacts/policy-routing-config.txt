@@ -1,0 +1,40 @@
+### Route-map configuration ###
+
+Router# show route-map POLICY-ISP-B
+route-map POLICY-ISP-B, permit, sequence 10
+  Match clauses:
+    ip address (access-lists): 150
+  Set clauses:
+    ip next-hop 203.0.113.1
+  Policy routing matches: 0 packets, 0 bytes          <--- zero matches!
+
+### Access list 150 (THE BUG -- wrong source network) ###
+
+Router# show access-lists 150
+Extended IP access list 150
+    10 permit ip 10.10.0.0 0.0.0.255 any (0 matches)  <--- 10.10.0.0, NOT 10.100.0.0
+
+### Interface configuration ###
+
+Router# show running-config interface GigabitEthernet0/0
+interface GigabitEthernet0/0
+ description LAN-interface
+ ip address 10.100.0.1 255.255.255.0
+ ip policy route-map POLICY-ISP-B        <--- route-map IS applied correctly
+ no shutdown
+
+### Default route (what traffic actually uses) ###
+
+Router# show ip route 0.0.0.0
+Routing entry for 0.0.0.0/0, supernet
+  Known via "static", distance 1, metric 0
+  Routing Descriptor Blocks:
+    198.51.100.1         <--- ISP-A next-hop (not ISP-B)
+      Route metric is 0, traffic share count is 1
+
+### ISP-B next-hop (what PBR should use) ###
+
+Router# show ip route 203.0.113.1
+Routing entry for 203.0.113.0/30
+  Known via "connected", distance 0, metric 0
+  Directly connected, GigabitEthernet0/2

@@ -1,0 +1,32 @@
+$ semanage fcontext -l | grep /opt
+/opt(/.*)?                                         all files          system_u:object_r:usr_t:s0
+
+# NOTE: The default policy for /opt assigns usr_t to all files.
+# Binaries need bin_t to be executable by system services.
+
+$ ls -lZ /opt/inventory-api/
+drwxr-xr-x. 2 inventory inventory unconfined_u:object_r:usr_t:s0  4096 Mar 03 10:15 bin
+drwxr-xr-x. 2 inventory inventory unconfined_u:object_r:usr_t:s0  4096 Mar 03 10:15 config
+drwxr-xr-x. 2 inventory inventory unconfined_u:object_r:usr_t:s0  4096 Mar 05 14:25 data
+drwxr-xr-x. 2 inventory inventory unconfined_u:object_r:usr_t:s0  4096 Mar 03 10:15 logs
+
+$ ls -lZ /usr/bin/httpd
+-rwxr-xr-x. 1 root root system_u:object_r:httpd_exec_t:s0 576400 Jan 15  2026 /usr/bin/httpd
+
+# NOTE: Compare with httpd -- system binaries have proper exec types like httpd_exec_t.
+# The inventory-api binary has usr_t which is not an executable type for system services.
+
+$ sesearch --allow -s init_t -t usr_t -c file | grep execute
+(no output)
+
+# NOTE: No allow rule exists for init_t to execute files labeled usr_t.
+# This confirms the denial is expected behavior under the targeted policy.
+
+$ semanage port -l | grep 9090
+(no output)
+
+# NOTE: Port 9090 is not assigned to any SELinux port type.
+# The service will also be denied binding to this port.
+
+$ semanage port -l | grep http_port_t
+http_port_t                    tcp      80, 81, 443, 488, 8008, 8009, 8443, 9000

@@ -1,0 +1,34 @@
+---
+tags:
+- devops
+- l1
+- flashcard-deck
+- systems-thinking
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [Systems Thinking](../../../../library/portal/topics.md) | **Domain:** DevOps & Tooling
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+systems-thinking/b530d0e606f2	systems-thinking	easy	systems, feedback-loops	What is the difference between a negative (balancing) and positive (reinforcing) feedback loop in infrastructure?	A negative feedback loop maintains stability (e.g., autoscaler adds pods when request rate rises, then removes pods when it drops). A positive feedback loop amplifies change until something breaks (e.g., retry storm: timeouts cause retries, retries increase load, more timeouts, more retries, total failure).\n\nRemember: "Systems thinking = see the forest, not just the trees." Focus on relationships and feedback loops, not isolated components.	training/library/topics/systems-thinking/primer.md
+systems-thinking/2e5591772d39	systems-thinking	easy	systems, component-vs-system	How does component thinking differ from systems thinking when diagnosing issues?	Component thinking: "The database is slow" and "The API has high latency" — two separate problems. Systems thinking: "The API retries on database timeouts, increasing database load, making it slower, causing more retries" — one feedback loop, one problem, fix the loop.\n\nRemember: "Feedback loops: positive = amplifying, negative = stabilizing." A thermostat is a negative feedback loop (stabilizes temperature). Viral growth is positive (amplifying).\n\nGotcha: "Positive" doesn't mean good — it means self-reinforcing.	training/library/topics/systems-thinking/primer.md
+systems-thinking/a3c8fc8d930f	systems-thinking	easy	systems, coupling	What is the difference between tight and loose coupling in infrastructure?	Tight coupling: Service A directly calls Service B synchronously — A breaks when B breaks. Loose coupling: Service A puts a message on a queue, Service B reads when ready — A survives B's failure. The queue absorbs the shock.	training/library/topics/systems-thinking/primer.md
+systems-thinking/b9edbd90fe25	systems-thinking	medium	systems, retry, paradox	Why can adding retries to fix a 10% error rate actually cause a total outage?	If Service B is failing because it's overloaded, adding 3 retries to Service A increases load on B by up to 3x. B's failure rate goes from 10% to 40%, then with retries the effective load becomes 4x, and B crashes completely. The fix was correct in component thinking but catastrophic in systems thinking. Use a retry budget instead: only retry if total retry rate is below 10% of requests.	training/library/topics/systems-thinking/primer.md
+systems-thinking/973be872270b	systems-thinking	medium	systems, emergent	What is emergent behavior and how does the "thundering herd" illustrate it?	Emergent behavior is system-level behavior no individual component was designed to produce. Thundering herd: each server individually does "when cache is empty, fetch from database" — correct for one server. But 100 servers simultaneously discover the cache is empty, fire 100 identical queries, and collapse the database. No single server did anything wrong; the failure emerged from correct individual behaviors at scale.	training/library/topics/systems-thinking/primer.md
+systems-thinking/0d930460dfb2	systems-thinking	medium	systems, littles-law	Explain Little's Law and why a small latency increase can cause a total outage.	L = lambda * W (concurrent requests = arrival rate x average latency). At 100 RPS and 200ms latency, L=20. If latency doubles to 400ms, L=40 — you need twice the connection pool. At 2 seconds latency, L=200 — a pool of 50 is exhausted, requests queue, latency increases further, creating a positive feedback loop that kills the system.	training/library/topics/systems-thinking/primer.md
+systems-thinking/cb4104d007e9	systems-thinking	medium	systems, cascading-failure	Describe the typical cascade that takes a system from a single database lock to total user-facing failure.	(1) Database runs a long query with table lock. (2) API connections queue. (3) Connection pool exhausts. (4) API returns 503s. (5) Load balancer marks API unhealthy. (6) Traffic shifts to remaining instances. (7) They get 2x traffic and also exhaust. (8) All API instances down. (9) Users refresh, adding more traffic. This can take under 60 seconds.	training/library/topics/systems-thinking/primer.md
+systems-thinking/0ce1cd49608b	systems-thinking	hard	systems, circuit-breaker	How do circuit breakers prevent cascading failures, and what are their three states?	Circuit breakers sit between client and service. Three states: CLOSED (normal, requests pass through), OPEN (errors exceeded threshold, requests fail immediately without calling the backend — prevents pile-up), HALF-OPEN (after cooldown, lets one test request through; if it succeeds, closes the circuit; if it fails, stays open). This prevents cascading failures by failing fast instead of amplifying load.	training/library/topics/systems-thinking/primer.md
+systems-thinking/bdc25cf7117e	systems-thinking	hard	systems, queue-theory	Why do systems become nonlinear near capacity, and what is the critical insight about utilization?	Queue theory shows that latency is not linear with load. Going from 70% to 80% utilization might add 10ms. From 80% to 90% adds 100ms. From 90% to 95% adds 500ms. Most production systems live at 70-80% capacity, where small load increases cause disproportionate latency spikes. This is why capacity planning must leave headroom.	training/library/topics/systems-thinking/primer.md
+systems-thinking/4efe2e4d95fb	systems-thinking	hard	systems, fix-induced-failure	What is "fix-induced failure" and what six questions should you ask before implementing a fix?	Fix-induced failure is when each fix solves the local problem but creates a new one elsewhere (e.g., increase memory limit -> fewer pods per node -> can't scale -> add nodes -> more DNS queries -> CoreDNS overload). Before fixing, ask: (1) What else depends on what I'm changing? (2) What are second-order effects? (3) Am I treating symptom or cause? (4) Will this work at 2x scale? (5) Am I tightening or loosening coupling? (6) Am I adding capacity or reducing demand?	training/library/topics/systems-thinking/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [Debugging Methodology](../../../../library/topics/debugging-methodology/index.md) (Topic Pack, L1) — Systems Thinking
+- [Systems Thinking for Engineers](../../../../library/topics/systems-thinking/index.md) (Topic Pack, L1) — Systems Thinking
+
+<!-- wiki:related:end -->

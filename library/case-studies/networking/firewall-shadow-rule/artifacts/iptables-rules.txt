@@ -1,0 +1,32 @@
+# iptables INPUT chain on host 10.60.5.30 (notification-svc host)
+# Collected: 2026-02-28 16:10 UTC
+
+$ sudo iptables -L INPUT -n -v --line-numbers
+Chain INPUT (policy DROP 0 packets, 0 bytes)
+num   pkts bytes target     prot opt in     out     source               destination
+1    89201 7.1M  ACCEPT     all  --  lo     *       0.0.0.0/0            0.0.0.0/0
+2    45102 3.6M  ACCEPT     all  --  *      *       0.0.0.0/0            0.0.0.0/0            state RELATED,ESTABLISHED
+3     1204  96K  ACCEPT     tcp  --  *      *       10.60.0.0/16         0.0.0.0/0            tcp dpt:22
+4      892  71K  ACCEPT     tcp  --  *      *       10.60.10.0/24        0.0.0.0/0            tcp dpt:443
+5      501  40K  ACCEPT     tcp  --  *      *       10.60.10.0/24        0.0.0.0/0            tcp dpt:8080
+6      312  25K  ACCEPT     tcp  --  *      *       10.60.20.0/24        0.0.0.0/0            tcp dpt:5432
+7      201  16K  ACCEPT     icmp --  *      *       10.60.0.0/16         0.0.0.0/0            icmp type 8
+8       45   3K  ACCEPT     tcp  --  *      *       10.60.1.10           0.0.0.0/0            tcp dpt:9100
+9       38   3K  ACCEPT     tcp  --  *      *       10.60.1.10           0.0.0.0/0            tcp dpt:9090
+10      22   1K  ACCEPT     tcp  --  *      *       10.60.1.11           0.0.0.0/0            tcp dpt:9100
+11     180  14K  ACCEPT     udp  --  *      *       10.60.1.0/24         0.0.0.0/0            udp dpt:514
+12   14892 1.2M  DROP       tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpts:8000:9999
+...
+[rules 13-46 omitted for brevity -- various ACCEPT/DROP rules for other services]
+...
+47       0     0 ACCEPT     tcp  --  *      *       10.60.10.0/24        0.0.0.0/0            tcp dpt:8443
+
+# ANALYSIS:
+# Rule 12: DROP all TCP to ports 8000-9999 from ANY source -- 14,892 packets matched
+#   This was added a year ago to block "dev ports" and was forgotten.
+#   It matches port 8443 traffic BEFORE rule 47 is evaluated.
+#
+# Rule 47: ACCEPT from API gateway to port 8443 -- 0 packets matched
+#   This rule is SHADOWED by rule 12. It will never match any traffic.
+#
+# Note: Rules 5 (port 8080) works because it's at position 5, ABOVE rule 12.

@@ -1,0 +1,83 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+# 💡 HINT 1: Check PDB Status
+
+```bash
+kubectl get pdb web-pdb -n k8squest
+```
+
+Look at `ALLOWED DISRUPTIONS` - if 0, drain is blocked.
+
+```bash
+kubectl describe pdb web-pdb -n k8squest
+```
+
+Error: `minAvailable (3) > replicas (2)`
+
+The PDB requires more pods than the deployment has!
+
+---
+**Next hint** explains PodDisruptionBudget.
+
+## Hint 2
+# 💡 HINT 2: Understanding PDB
+
+## PodDisruptionBudget
+
+Ensures minimum availability during voluntary disruptions (drains, updates).
+
+```yaml
+spec:
+  minAvailable: 2  # Keep 2 pods running
+  # OR
+  maxUnavailable: 1  # Max 1 pod down
+```
+
+## Your Problem
+
+- Deployment: 2 replicas
+- PDB: minAvailable 3
+- 3 > 2 = Impossible!
+
+## Solutions
+
+1. **Increase replicas** to 3+
+2. **Reduce minAvailable** to ≤ 2
+3. **Use maxUnavailable** instead
+
+---
+**Next hint** shows the solution.
+
+## Hint 3
+# 💡 HINT 3: Solution
+
+## Fix: Scale Deployment + Adjust PDB
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  replicas: 3  # ✅ Increased from 2
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+spec:
+  minAvailable: 2  # ✅ Reduced from 3
+  selector:
+    matchLabels:
+      app: web
+```
+
+Now: 3 replicas, need 2 minimum = ✅ Can lose 1 during drain
+
+## Apply
+```bash
+kubectl apply -f solution.yaml
+./validate.sh
+```
+
+**Success!** Node drain now allowed.
+

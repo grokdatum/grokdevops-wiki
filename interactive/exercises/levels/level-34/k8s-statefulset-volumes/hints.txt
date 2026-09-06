@@ -1,0 +1,125 @@
+## Objective
+Fix the broken resources and make the validation pass
+
+## Hint 1
+🔍 HINT 1: Observing the Problem
+
+Let's investigate the StatefulSet storage issue:
+
+1️⃣ Check the StatefulSet:
+   kubectl get statefulset postgres-cluster -n k8squest
+   kubectl describe statefulset postgres-cluster -n k8squest
+
+   How many replicas are there?
+
+2️⃣ Check the pods:
+   kubectl get pods -n k8squest -l app=postgres
+
+   Are all pods running?
+
+3️⃣ Check PVCs:
+   kubectl get pvc -n k8squest
+
+   How many PVCs exist? One or multiple?
+
+4️⃣ Look at the StatefulSet spec:
+   kubectl get statefulset postgres-cluster -n k8squest -o yaml | grep -A 10 volumes
+
+   Is volumeClaimTemplates defined?
+
+📝 Key Observation:
+All pods are trying to share a SINGLE PVC instead of each having their own!
+
+🤔 Questions:
+• Should database pods share the same storage?
+• What is volumeClaimTemplates?
+• How does StatefulSet provide per-pod storage?
+
+## Hint 2
+🎯 HINT 2: Understanding StatefulSet Storage
+
+The problem is using a static PVC instead of volumeClaimTemplates!
+
+📚 StatefulSet Storage Patterns:
+
+**Wrong: Shared PVC (Current)**
+```yaml
+spec:
+  volumes:
+  - name: data
+    persistentVolumeClaim:
+      claimName: database-storage  # All pods share this!
+```
+
+Result: All 3 postgres pods write to SAME database files = corruption!
+
+**Correct: volumeClaimTemplates**
+```yaml
+spec:
+  volumeClaimTemplates:  # Each pod gets own PVC
+  - metadata:
+      name: database-storage
+    spec:
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 5Gi
+```
+
+Result:
+- postgres-cluster-0 gets database-storage-postgres-cluster-0
+- postgres-cluster-1 gets database-storage-postgres-cluster-1
+- postgres-cluster-2 gets database-storage-postgres-cluster-2
+
+Each pod has its own isolated database!
+
+Action: Remove the static PVC and `volumes`, then add `volumeClaimTemplates`.
+
+## Hint 3
+✅ HINT 3: Complete Solution
+
+Fix: Use volumeClaimTemplates instead of static PVC
+
+📝 Key Changes:
+
+Remove the separate PVC definition and volumes section:
+```yaml
+# ❌ Delete these:
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: database-storage
+
+# And delete from spec:
+volumes:
+- name: database-storage
+  persistentVolumeClaim:
+    claimName: database-storage
+```
+
+Add volumeClaimTemplates to StatefulSet:
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+spec:
+  volumeClaimTemplates:  # ✅ Add this at spec level
+  - metadata:
+      name: database-storage
+    spec:
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: standard
+```
+
+🚀 Apply:
+```bash
+kubectl delete -f broken.yaml
+kubectl apply -f solution.yaml
+kubectl get pvc -n k8squest
+# Should see 3 PVCs: one per pod
+```
+
+💡 volumeClaimTemplates automatically creates a PVC for each pod!

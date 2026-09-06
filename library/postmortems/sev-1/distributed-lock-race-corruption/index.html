@@ -1,0 +1,1790 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="On 2025-05-21, a race condition in the company's hand-rolled distributed lock manager caused two concurrent writers to simultaneously acquire the same.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/sev-1/distributed-lock-race-corruption/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Postmortem: Race Condition in Distributed Lock Manager Corrupts Shared State - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Postmortem: Race Condition in Distributed Lock Manager Corrupts Shared State - GrokDevOps Wiki" />
+<meta property="og:description" content="On 2025-05-21, a race condition in the company's hand-rolled distributed lock manager caused two concurrent writers to simultaneously acquire the same." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/sev-1/distributed-lock-race-corruption.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/postmortems/sev-1/distributed-lock-race-corruption/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Postmortem: Race Condition in Distributed Lock Manager Corrupts Shared State - GrokDevOps Wiki" />
+<meta property="twitter:description" content="On 2025-05-21, a race condition in the company's hand-rolled distributed lock manager caused two concurrent writers to simultaneously acquire the same." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/postmortems/sev-1/distributed-lock-race-corruption.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#postmortem-race-condition-in-distributed-lock-manager-corrupts-shared-state" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Postmortem: Race Condition in Distributed Lock Manager Corrupts Shared State
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../lessons/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../lessons/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-all-times-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline (All times UTC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Impact">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customer-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customer Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Impact
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Cause
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root Cause">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happened-technical" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Happened (Technical)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributing-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contributing Factors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-we-got-lucky-about" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What We Got Lucky About
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Detection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-we-detected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How We Detected
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-we-didnt-detect-sooner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why We Didn't Detect Sooner
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-went-well" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Well
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-went-poorly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Went Poorly
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#action-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Items
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lessons-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lessons Learned
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../../portal/tags/#tag:postmortem" class="md-tag">postmortem</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="postmortem-race-condition-in-distributed-lock-manager-corrupts-shared-state">Postmortem: Race Condition in Distributed Lock Manager Corrupts Shared State<a class="headerlink" href="#postmortem-race-condition-in-distributed-lock-manager-corrupts-shared-state" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ID</strong></td>
+<td>PM-003</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2025-05-21</td>
+</tr>
+<tr>
+<td><strong>Severity</strong></td>
+<td>SEV-1</td>
+</tr>
+<tr>
+<td><strong>Duration</strong></td>
+<td>6h 15m (detection to resolution)</td>
+</tr>
+<tr>
+<td><strong>Time to Detect</strong></td>
+<td>14m</td>
+</tr>
+<tr>
+<td><strong>Time to Mitigate</strong></td>
+<td>6h 15m</td>
+</tr>
+<tr>
+<td><strong>Customer Impact</strong></td>
+<td>Order processing failed or produced incorrect results for 4h 22m during active contention. Approximately 9,400 orders entered an inconsistent state; 2,100 were visibly incorrect to customers (wrong status, duplicate line items, or missing fulfillment records). Manual reconciliation required for all 9,400.</td>
+</tr>
+<tr>
+<td><strong>Revenue Impact</strong></td>
+<td>~$420,000 estimated (direct: ~$95k in refunds and credits issued; indirect: ~$325k in delayed fulfillment and engineering time for reconciliation)</td>
+</tr>
+<tr>
+<td><strong>Teams Involved</strong></td>
+<td>Order Platform, Distributed Systems, SRE, Data Engineering, Customer Success, Legal</td>
+</tr>
+<tr>
+<td><strong>Postmortem Author</strong></td>
+<td>Ingrid Solberg (Staff Engineer, Order Platform)</td>
+</tr>
+<tr>
+<td><strong>Postmortem Date</strong></td>
+<td>2025-05-25</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>On 2025-05-21, a race condition in the company's hand-rolled distributed lock manager caused two concurrent writers to simultaneously acquire the same lock for the same order record during a GC pause in one of the lock holder processes. The race corrupted shared state in the order processing pipeline across three services (order service, inventory service, and fulfillment service), causing ~9,400 orders to enter inconsistent states. The underlying TOCTOU (time-of-check to time-of-use) flaw had existed in the codebase for over two years but was masked at normal traffic volumes; a marketing campaign on the day of the incident increased contention 10× above baseline, surfacing the bug. Full recovery required 6 hours 15 minutes due to the complexity of three-service data reconciliation. No payment records were corrupted.</p>
+<hr />
+<h2 id="timeline-all-times-utc">Timeline (All times UTC)<a class="headerlink" href="#timeline-all-times-utc" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>09:00</td>
+<td>Marketing campaign "Summer Kickoff" launches, sending promotional email to 1.4M subscribers. Order ingestion rate climbs from baseline 420 orders/min to 4,100 orders/min over 40 minutes.</td>
+</tr>
+<tr>
+<td>09:41</td>
+<td>Order processing error rate begins rising (3% → 8%) on <code>POST /v2/orders/fulfill</code>. SRE on-call (Bastian Richter) begins investigation.</td>
+</tr>
+<tr>
+<td>09:47</td>
+<td>Application logs show interleaved writes from two goroutines on the same order ID: <code>[order-svc] LOCK ACQUIRED order_id=ord-9927431 worker=pod-7f</code> and <code>[order-svc] LOCK ACQUIRED order_id=ord-9927431 worker=pod-3c</code>. Lock invariant violated.</td>
+</tr>
+<tr>
+<td>09:51</td>
+<td>Bastian pages Distributed Systems on-call (Chen Wei). SEV-1 declared. War room opened in Slack.</td>
+</tr>
+<tr>
+<td>09:55</td>
+<td>Chen Wei reviews lock manager code. Identifies that lock acquisition uses Redis <code>SET NX EX</code> (set if not exists, with TTL) but the check-and-act sequence is not atomic: the code reads the key, checks if it is empty, then sets it — three separate Redis operations. Under GC pause, the TTL can expire between the check and the set.</td>
+</tr>
+<tr>
+<td>10:02</td>
+<td>First hypothesis: Redis connection pool exhaustion causing delayed NX responses. Redis metrics show pool healthy, latency p99 at 4ms. Hypothesis rejected.</td>
+</tr>
+<tr>
+<td>10:08</td>
+<td>Chen Wei confirms TOCTOU: a JVM GC pause of 280–400ms in the order service is causing the TTL to expire between <code>GET</code> and <code>SET NX</code>. Both callers then succeed on <code>SET NX</code> because the key is absent.</td>
+</tr>
+<tr>
+<td>10:14</td>
+<td>Order Platform on-call (Lena Fischer) joins. Confirms state corruption in database: <code>orders</code> table has rows with <code>status=PROCESSING</code> and <code>status=FULFILLED</code> for the same order ID in the audit log — both written within 200ms of each other.</td>
+</tr>
+<tr>
+<td>10:19</td>
+<td>Mitigation option A considered: roll back lock manager to previous version. No previous version — hand-rolled implementation has not been meaningfully changed in 2.1 years.</td>
+</tr>
+<tr>
+<td>10:23</td>
+<td>Mitigation option B considered: implement Redlock across 3 Redis nodes to make lock acquisition atomic. Estimated implementation time: 3–4 hours. Rejected for immediate mitigation; flagged for permanent fix.</td>
+</tr>
+<tr>
+<td>10:28</td>
+<td>Mitigation option C selected: temporarily route all order traffic through a single order service pod (disable horizontal scaling, force serial processing). Lena begins draining all but one replica.</td>
+</tr>
+<tr>
+<td>10:41</td>
+<td>Order service scaled to 1 replica. Contention eliminated. Error rate drops from 18% to 0.2% (residual errors from in-flight corrupted orders).</td>
+</tr>
+<tr>
+<td>10:44</td>
+<td>Decision: leave single-replica mode in place while Data Engineering identifies the full scope of corrupted orders. Marketing campaign traffic is declining naturally.</td>
+</tr>
+<tr>
+<td>11:03</td>
+<td>Data Engineering (Prisha Mehta) runs reconciliation query across <code>orders</code>, <code>inventory_reservations</code>, and <code>fulfillment_records</code> tables. Identifies 9,412 orders with state inconsistencies.</td>
+</tr>
+<tr>
+<td>11:20</td>
+<td>Legal joins war room to assess customer notification obligations.</td>
+</tr>
+<tr>
+<td>11:35</td>
+<td>Customer Success begins individual outreach to customers with visibly incorrect order states (2,143 orders).</td>
+</tr>
+<tr>
+<td>12:10</td>
+<td>Data Engineering completes reconciliation script for non-visible inconsistencies (7,269 orders with internal metadata mismatches but no customer-visible error). Script validated in staging.</td>
+</tr>
+<tr>
+<td>12:44</td>
+<td>Reconciliation script run against production. 7,241 of 7,269 orders corrected automatically. 28 orders require manual review (conflicting inventory signals).</td>
+</tr>
+<tr>
+<td>14:18</td>
+<td>28 manually reconciled orders resolved by Order Platform team in coordination with Inventory team.</td>
+</tr>
+<tr>
+<td>15:41</td>
+<td>Data Engineering confirms all 9,412 orders are in consistent state. Order service scaled back to 8 replicas. Monitoring shows normal contention levels under reduced post-campaign traffic. Incident resolved.</td>
+</tr>
+<tr>
+<td>16:00</td>
+<td>Post-incident monitoring watch begins (48h extended watch given data corruption severity).</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="impact">Impact<a class="headerlink" href="#impact" title="Permanent link">&para;</a></h2>
+<h3 id="customer-impact">Customer Impact<a class="headerlink" href="#customer-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>9,412 orders</strong> entered inconsistent state during active contention window (09:41–10:41 UTC)</li>
+<li><strong>2,143 customers</strong> received visibly incorrect order state: wrong status (e.g., "Delivered" while still in warehouse), duplicate line items, or missing fulfillment confirmation emails</li>
+<li><strong>~7,269 orders</strong> had internal metadata inconsistencies not visible to customers but requiring automated reconciliation</li>
+<li>Customer refunds and goodwill credits issued: ~$95,000 (tracked by Customer Success)</li>
+<li>3 business accounts with high order volumes flagged for dedicated account manager follow-up</li>
+</ul>
+<h3 id="internal-impact">Internal Impact<a class="headerlink" href="#internal-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Order Platform: 4 engineers × 7h = 28 engineer-hours on incident response + reconciliation</li>
+<li>Distributed Systems: 2 engineers × 5h = 10 engineer-hours</li>
+<li>Data Engineering: 3 engineers × 6h = 18 engineer-hours on reconciliation queries and scripting</li>
+<li>SRE: 2 engineers × 6h = 12 engineer-hours</li>
+<li>Customer Success: 8 agents × 4h = 32 engineer-hours on outreach</li>
+<li>Legal: 2h consultation</li>
+<li>Q2 Distributed Systems sprint effectively consumed by Redlock implementation (displaced 2 planned features)</li>
+</ul>
+<h3 id="data-impact">Data Impact<a class="headerlink" href="#data-impact" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>9,412 order records</strong> corrupted across three tables (<code>orders</code>, <code>inventory_reservations</code>, <code>fulfillment_records</code>)</li>
+<li>All 9,412 records were reconciled to a consistent state within 6h 15m of incident declaration</li>
+<li><strong>No payment data was corrupted.</strong> Payment records are stored in a separate service (<code>payment-svc</code>) backed by its own isolated PostgreSQL instance; the distributed lock manager does not govern payment state</li>
+<li>28 orders required manual business judgment to reconcile (ambiguous inventory signal); all were resolved conservatively (order honored, inventory re-checked manually)</li>
+<li>No permanent data loss; all corruption was within order metadata, not financial or personally identifiable data</li>
+</ul>
+<hr />
+<h2 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h2>
+<h3 id="what-happened-technical">What Happened (Technical)<a class="headerlink" href="#what-happened-technical" title="Permanent link">&para;</a></h3>
+<p>The distributed lock manager is a hand-rolled Go implementation that uses Redis as its backing store. The lock acquisition sequence is as follows: (1) issue a <code>GET &lt;lock_key&gt;</code> command, (2) if the returned value is empty, issue a <code>SET &lt;lock_key&gt; &lt;worker_id&gt; NX EX &lt;ttl_seconds&gt;</code> command. This two-step sequence has a classic TOCTOU (time-of-check to time-of-use) vulnerability: if the key expires between step 1 and step 2, a second caller can complete step 1 (seeing an empty key), and both callers then successfully complete step 2, both setting the key and believing they have the lock.</p>
+<p>Under normal operating conditions at 420 orders/minute, lock contention is low enough that the TTL expiry window (200ms) is never occupied by a second caller. The GC pause duration in the JVM-based services (order service runs on JVM despite the lock manager being written in Go — the lock manager is a sidecar) averaged 40–80ms at baseline traffic, well below the risk threshold.</p>
+<p>At 4,100 orders/minute — a 10× increase from the marketing campaign — lock contention increased dramatically. Redis key churn increased, and more importantly, multiple goroutines were queueing on the same lock keys simultaneously. Under these conditions, a GC pause of 280–400ms in the order service JVM was sufficient to expire the lock TTL between check and set. Two workers — <code>pod-7f</code> and <code>pod-3c</code> — simultaneously acquired the lock for order <code>ord-9927431</code>, both wrote to the order record, and both wrote to the inventory reservation table. The duplicate writes produced contradictory state: two different inventory lot IDs reserved for the same order, and two different fulfillment records created.</p>
+<p>Because the fulfillment service consumes order state asynchronously via a message queue, the corruption propagated downstream before the lock manager detected any anomaly. The fulfillment service has no idempotency guard at the record creation layer; it created a fulfillment record for each valid-looking message it received.</p>
+<p>The proper solution for Redis-based distributed locking is either the Redlock algorithm (acquire lock on N/2+1 independent Redis nodes) or, more simply, the atomic <code>SET NX</code> command issued as a single operation (not preceded by a <code>GET</code>). The existing implementation's <code>GET</code> + <code>SET NX</code> pattern is documented as an anti-pattern in the Redis documentation for exactly this reason.</p>
+<h3 id="contributing-factors">Contributing Factors<a class="headerlink" href="#contributing-factors" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Lock implementation used a non-atomic GET + SET NX pattern:</strong> The implementation was written against Redis documentation that predates the single-command atomic <code>SET key value NX EX ttl</code> syntax (available since Redis 2.6.12). The original author may not have known about the atomic form, or the code predated it. The implementation was never reviewed against current Redis best practices.</p>
+</li>
+<li>
+<p><strong>No fencing tokens:</strong> A robust distributed lock implementation issues a monotonically increasing fencing token with each lock grant. Writers must pass the token to the data store, which rejects writes from stale token holders. Without fencing tokens, a second lock holder can write after the first without any rejection at the storage layer. The order service's database write path had no such guard.</p>
+</li>
+<li>
+<p><strong>10× traffic spike was not modeled in capacity planning or load tests:</strong> The marketing team launched the Summer Kickoff campaign without filing a capacity review with Platform Engineering. The order platform's load tests topped out at 2× baseline (840 orders/min). The 10× spike was entirely outside tested operational parameters. Had the campaign been flagged in advance, the lock contention issue might have been identified during load testing.</p>
+</li>
+</ol>
+<h3 id="what-we-got-lucky-about">What We Got Lucky About<a class="headerlink" href="#what-we-got-lucky-about" title="Permanent link">&para;</a></h3>
+<ol>
+<li>The corruption was confined to order metadata (status, line items, fulfillment records) — all of which are correctable by replaying or reconciling from the audit log. Payment records, which would have required bank reconciliation and potential regulatory reporting, are stored in an entirely separate service with its own data store and were not touched by the lock manager.</li>
+<li>The audit log tables (<code>order_events</code>, <code>inventory_events</code>) use append-only writes with timestamps, which gave Data Engineering a reliable event stream to use for reconciliation. Had the application used destructive updates (UPDATE without audit), reconciliation would have been impossible rather than merely time-consuming.</li>
+</ol>
+<hr />
+<h2 id="detection">Detection<a class="headerlink" href="#detection" title="Permanent link">&para;</a></h2>
+<h3 id="how-we-detected">How We Detected<a class="headerlink" href="#how-we-detected" title="Permanent link">&para;</a></h3>
+<p>SRE's Datadog dashboard showed the order fulfillment error rate climbing from baseline (&lt; 0.5%) to 8% over approximately 6 minutes, triggering a P2 alert at T+14m. The on-call SRE pulled application logs and saw the lock acquisition collision messages within 4 minutes of alert acknowledgment. The log pattern — two different pod names claiming the same lock key within milliseconds — was unambiguous.</p>
+<h3 id="why-we-didnt-detect-sooner">Why We Didn't Detect Sooner<a class="headerlink" href="#why-we-didnt-detect-sooner" title="Permanent link">&para;</a></h3>
+<p>The error rate alert threshold was set at 5% for 3 consecutive minutes before firing. Under the traffic ramp, the threshold was crossed approximately 8 minutes after the first lock collision. An absolute error count alert (e.g., &gt;50 errors/minute regardless of rate) would have fired sooner during the ramp-up. Additionally, there was no Redis-level monitoring for concurrent lock holders on the same key — a metric that would have fired immediately on the first collision.</p>
+<hr />
+<h2 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h2>
+<h3 id="what-went-well">What Went Well<a class="headerlink" href="#what-went-well" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Log messages were sufficiently detailed to confirm the lock collision within minutes of the alert. Both the lock key and the acquiring worker identities were logged at INFO level, which meant the TOCTOU failure was visible in standard log output without enabling debug logging.</li>
+<li>The mitigation of scaling to a single replica, while operationally undesirable, was identified and implemented quickly (17 minutes from war room open to single-replica mode). It was a creative and effective short-circuit that eliminated contention without requiring a code change.</li>
+<li>Data Engineering's audit log tables provided a complete and reliable event history for reconciliation. The reconciliation script was developed, validated in staging, and run in production within approximately 3 hours of scope identification.</li>
+<li>The decision to keep the order service in single-replica mode until full reconciliation was complete — rather than restoring scale and re-exposing the bug — was correct and prevented further corruption during the recovery window.</li>
+</ol>
+<h3 id="what-went-poorly">What Went Poorly<a class="headerlink" href="#what-went-poorly" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Two mitigation options (rollback, Redlock implementation) were explored and rejected before the single-replica solution was identified. This consumed approximately 25 minutes of war room time. A pre-written emergency mitigation playbook for "suspected lock contention" would have listed traffic throttling and single-instance mode as immediate options.</li>
+<li>The marketing campaign launched with no capacity review or notification to Platform Engineering. If the traffic spike had been anticipated, the incident likely would have been prevented entirely.</li>
+<li>The 28 orders requiring manual business judgment took 4 hours to resolve because the process involved three teams (Order Platform, Inventory, Customer Success) with no pre-defined escalation path for ambiguous reconciliation cases.</li>
+</ol>
+<hr />
+<h2 id="action-items">Action Items<a class="headerlink" href="#action-items" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Action</th>
+<th>Priority</th>
+<th>Owner</th>
+<th>Status</th>
+<th>Due Date</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AI-001</td>
+<td>Replace hand-rolled lock manager with Redlock implementation using 3 independent Redis nodes; add fencing token support to all write paths that consume locks; ship with load test at 5× baseline</td>
+<td>P0</td>
+<td>Chen Wei (Distributed Systems)</td>
+<td>In Progress</td>
+<td>2025-06-13</td>
+</tr>
+<tr>
+<td>AI-002</td>
+<td>Require capacity review ticket (filed ≥48h in advance) for any marketing campaign expected to increase order rate &gt;50% above recent baseline; create intake form and SLA with Platform Engineering</td>
+<td>P0</td>
+<td>Lena Fischer (Order Platform) + Marketing Engineering</td>
+<td>Not Started</td>
+<td>2025-06-06</td>
+</tr>
+<tr>
+<td>AI-003</td>
+<td>Add Redis monitor for concurrent lock holders on same key (use Redis keyspace notifications + a Prometheus counter); alert immediately on &gt;1 holder</td>
+<td>P1</td>
+<td>Bastian Richter (SRE)</td>
+<td>Not Started</td>
+<td>2025-06-06</td>
+</tr>
+<tr>
+<td>AI-004</td>
+<td>Change order fulfillment error rate alert from percentage-based to absolute count (&gt;50 errors/min for 1 min = alert) to catch issues earlier during traffic ramps</td>
+<td>P1</td>
+<td>SRE</td>
+<td>Not Started</td>
+<td>2025-05-30</td>
+</tr>
+<tr>
+<td>AI-005</td>
+<td>Document emergency mitigation playbook for lock contention: immediate options are (1) scale to 1 replica, (2) rate-limit inbound traffic at API gateway, (3) enable Redis WATCH-based optimistic locking as interim</td>
+<td>P1</td>
+<td>Ingrid Solberg (Order Platform)</td>
+<td>Not Started</td>
+<td>2025-06-06</td>
+</tr>
+<tr>
+<td>AI-006</td>
+<td>Define and document the escalation path for ambiguous order reconciliation cases, including ownership, decision authority, and SLA (target: &lt;1h from identification to resolution)</td>
+<td>P2</td>
+<td>Order Platform + Data Engineering</td>
+<td>Not Started</td>
+<td>2025-06-13</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="lessons-learned">Lessons Learned<a class="headerlink" href="#lessons-learned" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>Hand-rolled distributed systems primitives accumulate hidden assumptions.</strong> The lock manager was written with a specific Redis command sequence that was subtly wrong from the start. Two years of passing tests and low-traffic operation provided false confidence. Standard libraries and algorithms (Redlock, Zookeeper leases, etcd distributed locks) have been battle-tested at scale and reviewed by the community. Building your own is rarely justified and requires the same rigor as a cryptographic implementation — which this did not receive.</p>
+</li>
+<li>
+<p><strong>Traffic spikes are a different operational regime, not just more of the same.</strong> A system that works at 1× can fail in qualitatively different ways at 10×, not just be slower. Race conditions, GC pressure, connection pool exhaustion, and queue depth all exhibit nonlinear behavior under high load. Load tests must cover the realistic upper bound of traffic, not just a comfortable multiple of baseline, and marketing campaigns are a predictable source of large spikes that must be part of that planning.</p>
+</li>
+<li>
+<p><strong>Audit logs are a recovery superpower if you have them.</strong> The difference between "we can reconcile this" and "we have irrecoverable data loss" was the presence of append-only audit log tables. The decision to implement audit logging years ago, for compliance reasons, turned out to be the single most important factor in limiting the incident's impact. Audit logs should be treated as critical infrastructure, not as a compliance checkbox.</p>
+</li>
+</ol>
+<hr />
+<h2 id="cross-references">Cross-References<a class="headerlink" href="#cross-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Failure Pattern:</strong> Software Bug — TOCTOU Race in Distributed Lock; Design Flaw — Missing Fencing Tokens; Process Gap — No Traffic Spike Communication Channel</li>
+<li><strong>Topic Packs:</strong> distributed-locking, redis-patterns, race-conditions, incident-response-data-corruption</li>
+<li><strong>Runbook:</strong> <code>runbooks/platform/order-service-lock-contention-mitigation.md</code> (to be created per AI-005)</li>
+<li><strong>Decision Tree:</strong> Triage path — "Order fulfillment errors rising, logs show duplicate lock acquisition on same key" → immediately scale order service to 1 replica to eliminate contention → page Distributed Systems → do not attempt to roll back application until scope of corruption is understood</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="April 8, 2026 23:43:45 UTC">April 8, 2026 23:43:45</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 19, 2026 23:53:02 UTC">March 19, 2026 23:53:02</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../../portal/js/random-content.js"></script>
+      
+        <script src="../../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../../portal/js/graph.js"></script>
+      
+        <script src="../../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

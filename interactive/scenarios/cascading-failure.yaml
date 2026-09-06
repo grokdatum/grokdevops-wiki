@@ -1,0 +1,161 @@
+# Cascading Failure Scenario Drills
+# Structured scenarios for practicing cascading and systemic failure response.
+# Schema: id, topic, difficulty, scenario, expected_actions, pitfalls, source_path
+
+scenarios:
+
+  - id: cf-scenario-001
+    topic: distributed_systems
+    difficulty: hard
+    scenario: >
+      A microservices architecture experiences a cascading failure originating
+      from a slow downstream payment service. The payment service response time
+      increased from 200ms to 15 seconds due to a database lock contention issue.
+      Upstream services have 30-second timeouts and no circuit breakers. Thread
+      pools across 4 upstream services are exhausted. The entire platform is
+      unresponsive even though only the payment service is slow.
+    expected_actions:
+      - Identify the root cause service by following the dependency chain from the most upstream failure
+      - Enable circuit breakers on the payment service calls to fail fast instead of waiting
+      - If circuit breakers are not implemented, add a much shorter timeout (e.g., 2 seconds)
+      - Restart upstream services to clear exhausted thread pools after the circuit breaker is in place
+      - Investigate the payment service database lock contention (pg_locks, slow query log)
+      - Implement bulkhead patterns to isolate payment calls from other service calls
+      - Add graceful degradation — allow the platform to work without payment processing
+      - Post-incident, implement circuit breakers, timeouts, and bulkheads across all service boundaries
+    pitfalls:
+      - Restarting all services without fixing the timeout/circuit breaker issue (they will exhaust again)
+      - Only fixing the payment service without implementing systemic resilience patterns
+      - Setting very aggressive timeouts without implementing retry with backoff
+      - Not implementing graceful degradation for non-critical downstream dependencies
+    source_path: training/interactive/scenarios/cascading-failure.yaml
+
+  - id: cf-scenario-002
+    topic: distributed_systems
+    difficulty: hard
+    scenario: >
+      A DNS provider experiences a partial outage affecting 30% of queries.
+      Applications with aggressive DNS caching continue working. Applications
+      without caching start failing. The retry logic in affected services
+      generates 10x normal DNS query volume, further degrading the DNS provider.
+      Services that were unaffected begin failing as the DNS provider buckles
+      under the amplified load.
+    expected_actions:
+      - Identify the DNS provider outage as the root cause (check provider status page)
+      - Reduce DNS query volume by increasing TTL on DNS caches and local resolvers
+      - If using a secondary DNS provider, shift queries to the secondary
+      - Deploy local DNS caching (dnsmasq, unbound) on application hosts to absorb retries
+      - Disable or reduce retry aggressiveness on DNS-dependent service calls
+      - If critical services need immediate relief, add /etc/hosts entries as a temporary bypass
+      - Monitor DNS resolution success rate to detect when the provider recovers
+      - Post-incident, implement multi-provider DNS, local caching, and sane retry policies
+    pitfalls:
+      - Retrying DNS queries aggressively, amplifying the load on an already degraded provider
+      - Not having a secondary DNS provider or local caching layer
+      - Restarting applications (which triggers a burst of DNS queries on startup)
+      - Adding /etc/hosts entries and forgetting to remove them after recovery
+    source_path: training/interactive/scenarios/cascading-failure.yaml
+
+  - id: cf-scenario-003
+    topic: distributed_systems
+    difficulty: medium
+    scenario: >
+      A configuration management push updates the connection pool size for a
+      database client library across all 200 application instances simultaneously.
+      The new configuration increases max_pool_size from 10 to 50 per instance.
+      The database, configured for max 1000 connections, is immediately overwhelmed
+      with 10,000 connection attempts (200 instances x 50). The database rejects
+      all new connections and existing connections are dropped.
+    expected_actions:
+      - Immediately revert the configuration change to the previous pool size
+      - Wait for existing connections to drain and the database to stabilize
+      - Calculate the correct pool size (database max_connections / number of instances with headroom)
+      - Roll out the configuration change gradually (canary, then percentage-based rollout)
+      - Never deploy connection pool changes to all instances simultaneously
+      - Set up database connection count monitoring with alerts at 80% of max_connections
+      - Add a connection pool size guardrail in the config management system
+      - Consider using a connection proxy (PgBouncer) to centralize pool management
+    pitfalls:
+      - Deploying configuration changes to all instances at once (thundering herd)
+      - Setting pool size per instance without considering total instance count
+      - Not reverting quickly and instead trying to increase database max_connections under load
+      - Not calculating the math — instances x pool_size must be less than database max_connections
+    source_path: training/interactive/scenarios/cascading-failure.yaml
+
+  - id: cf-scenario-004
+    topic: distributed_systems
+    difficulty: medium
+    scenario: >
+      A Kubernetes cluster upgrade from 1.27 to 1.28 proceeds node by node.
+      During the upgrade, a node running the cluster's only ingress controller
+      replica is cordoned and drained. All external traffic to the cluster stops.
+      Internal service-to-service communication continues working. The ingress
+      controller pod is rescheduled to an already-upgraded node but takes 3
+      minutes to become ready due to configuration loading.
+    expected_actions:
+      - Check if the ingress controller has a PodDisruptionBudget (PDB) — it should
+      - Verify the ingress controller deployment has multiple replicas (minimum 2, ideally 3)
+      - Ensure replicas are spread across nodes using pod anti-affinity rules
+      - During the outage, monitor and communicate the expected recovery time
+      - After the pod is ready, verify external traffic is flowing again
+      - Post-incident, configure the ingress controller with minAvailable PDB
+      - Add pod anti-affinity to prevent all replicas from landing on the same node
+      - Plan node upgrades to drain nodes without critical single-replica workloads first
+    pitfalls:
+      - Running a single replica of a critical infrastructure component (ingress controller)
+      - Not having a PodDisruptionBudget that prevents draining the last replica
+      - Upgrading nodes in alphabetical order without checking which workloads are on each
+      - Not testing the upgrade procedure in a staging cluster first
+    source_path: training/interactive/scenarios/cascading-failure.yaml
+
+  - id: cf-scenario-005
+    topic: distributed_systems
+    difficulty: hard
+    scenario: >
+      A message queue (Kafka) broker goes down during a peak traffic period.
+      Producers with acks=1 continue sending messages that land on the remaining
+      brokers. Consumers rebalance and catch up. However, one consumer group
+      enters a rebalance storm — completing rebalance, then immediately
+      triggering another. The consumer lag grows unboundedly. Downstream
+      systems that depend on this consumer group start showing stale data.
+    expected_actions:
+      - Identify the consumer group in the rebalance storm (kafka-consumer-groups --describe)
+      - Check if a consumer instance is repeatedly joining and leaving (health check failures, OOM)
+      - Check the session.timeout.ms and heartbeat.interval.ms settings
+      - Increase max.poll.interval.ms if consumers are timing out during processing
+      - If a specific consumer instance is unhealthy, remove it from the group
+      - Consider using static group membership (group.instance.id) to reduce rebalance frequency
+      - Monitor consumer lag and alert downstream systems about potential stale data
+      - After stabilizing, bring the failed broker back and verify partition rebalancing
+    pitfalls:
+      - Restarting all consumers at once (triggers another full rebalance)
+      - Not identifying the specific consumer causing the rebalance storm
+      - Increasing timeouts too aggressively (delays detection of genuinely failed consumers)
+      - Ignoring the downstream impact of growing consumer lag
+    source_path: training/interactive/scenarios/cascading-failure.yaml
+
+  - id: cf-scenario-006
+    topic: distributed_systems
+    difficulty: medium
+    scenario: >
+      A cloud provider AZ experiences degraded network performance (not a full
+      outage). The application runs across 3 AZs with equal traffic distribution.
+      Health checks pass because services respond, but response times from the
+      degraded AZ are 10x normal. The load balancer continues sending 33% of
+      traffic to the degraded AZ. Overall P99 latency spikes and error rates
+      increase due to timeouts.
+    expected_actions:
+      - Identify the degraded AZ from latency metrics (per-AZ dashboard or load balancer access logs)
+      - Reduce traffic to the degraded AZ (adjust load balancer weights or remove AZ targets)
+      - Verify the remaining 2 AZs can handle the increased load before removing the degraded AZ
+      - Scale up instances in the healthy AZs to absorb the redirected traffic
+      - Monitor the degraded AZ for recovery (latency returning to baseline)
+      - Gradually re-introduce traffic to the degraded AZ once performance normalizes
+      - Post-incident, implement latency-based health checks (not just pass/fail)
+      - Configure the load balancer to use outlier detection that removes slow backends
+    pitfalls:
+      - Relying only on pass/fail health checks that miss latency degradation
+      - Removing the degraded AZ without scaling up healthy AZs (causes overload)
+      - Waiting for a full AZ outage before acting — degradation causes more subtle damage
+      - Not gradually re-introducing traffic after recovery (sudden shift can cause a spike)
+    source_path: training/interactive/scenarios/cascading-failure.yaml

@@ -1,0 +1,28 @@
+---
+- name: Rolling update of web servers
+  hosts: webservers
+  become: true
+  serial: 2
+  tasks:
+    - name: Stop application service
+      ansible.builtin.service:
+        name: myapp
+        state: stopped
+
+    - name: Update application binary
+      ansible.builtin.copy:
+        src: /opt/releases/myapp-latest
+        dest: /usr/local/bin/myapp
+        mode: '0755'
+
+    - name: Start application service
+      ansible.builtin.service:
+        name: myapp
+        state: started
+
+    - name: Verify application health
+      ansible.builtin.uri:
+        url: "http://localhost:8080/health"
+        status_code: 200
+      retries: 5
+      delay: 3

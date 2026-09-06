@@ -1,0 +1,25 @@
+$ cat /var/lib/logrotate/status | grep webapp
+"/var/log/webapp/access.log" 2026-1-19-0:0:0
+
+# NOTE: Last rotation was January 19 -- 45 days ago.
+# The rotated file was created, but the application kept writing to the old fd.
+
+$ ls -lh /var/log/webapp/access.log.*
+-rw-r--r-- 1 www-data www-data 24G Jan 19 00:00 /var/log/webapp/access.log.1.gz
+
+# Wait -- where did the 72G come from then?
+$ lsof +L1 | grep webapp
+java    8421 www-data  12w   REG  8,1 77309411328  0 /var/log/webapp/access.log (deleted)
+
+# The REAL culprit: the old access.log was rotated (renamed), but the Java
+# process still has the old (now deleted) file open, consuming 72GB.
+# The visible 72G access.log is the current file that has been accumulating
+# since the last rotation.
+
+$ logrotate -d /etc/logrotate.d/webapp
+reading config file /etc/logrotate.d/webapp
+Handling 1 logs
+rotating pattern: /var/log/webapp/access.log  after 1 week (4 rotations)
+empty log file, skipping
+# NOTE: logrotate sees the NEW (small) access.log created after rename,
+# which may appear small. But the process writes to the deleted old file.

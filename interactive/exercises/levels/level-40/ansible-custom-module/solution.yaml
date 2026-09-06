@@ -1,0 +1,24 @@
+---
+- name: Use custom module for application deployment
+  hosts: appservers
+  become: true
+  tasks:
+    - name: Deploy application using custom module
+      my_custom_deploy:
+        app_name: mywebapp
+        version: "2.1.0"
+        deploy_path: /opt/apps
+        config:
+          port: 8080
+          workers: 4
+      register: deploy_result
+
+    - name: Display deployment result
+      ansible.builtin.debug:
+        msg: "Deployed version {{ deploy_result.version }} to {{ deploy_result.path }}"
+
+    - name: Verify deployment
+      ansible.builtin.uri:
+        url: "http://localhost:{{ deploy_result.port }}/health"
+        status_code: 200
+      when: deploy_result.changed == true

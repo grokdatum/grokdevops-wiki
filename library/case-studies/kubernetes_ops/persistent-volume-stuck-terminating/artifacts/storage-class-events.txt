@@ -1,0 +1,13 @@
+$ kubectl get storageclass ebs-gp3
+NAME      PROVISIONER       RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+ebs-gp3   ebs.csi.aws.com   Retain          WaitForFirstConsumer   true                   180d
+
+$ kubectl get events --field-selector involvedObject.name=pv-data-warehouse-01
+LAST SEEN   TYPE      REASON                    OBJECT                            MESSAGE
+3h          Normal    VolumeDelete              persistentvolume/pv-data-warehouse-01   Skipping deletion: reclaimPolicy is Retain
+3h          Warning   VolumeFailedDelete        persistentvolume/pv-data-warehouse-01   finalizer external-provisioner.volume.kubernetes.io/finalizer is not being processed
+
+$ kubectl logs -n kube-system -l app=ebs-csi-controller -c csi-provisioner --tail=10
+I0305 11:00:05.123456       1 controller.go:1366] delete "pv-data-warehouse-01": volume is retained, skipping deletion
+I0305 11:00:05.123789       1 controller.go:1380] delete "pv-data-warehouse-01": retainPolicy=Retain, not removing finalizer automatically
+W0305 11:00:05.124012       1 controller.go:1395] delete "pv-data-warehouse-01": PV has Retain policy; manual finalizer removal required

@@ -1,0 +1,32 @@
+---
+# This playbook uses a role where configurable values are in vars/main.yml
+# instead of defaults/main.yml, making them impossible to override
+
+- name: Deploy nginx with custom settings
+  hosts: webservers
+  become: true
+  vars:
+    nginx_port: 9090
+    nginx_worker_processes: 8
+  roles:
+    - role: nginx
+
+# roles/nginx/vars/main.yml (wrong location - these should be defaults):
+# nginx_port: 80
+# nginx_worker_processes: 4
+# nginx_user: www-data
+
+# The variables from vars/main.yml have higher precedence than play vars,
+# so nginx_port will be 80 instead of the desired 9090
+
+# FIX: Move to roles/nginx/defaults/main.yml
+- name: Simulate the role variable file
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    var_location: "vars/main.yml"
+  tasks:
+    - name: Show variable location
+      ansible.builtin.debug:
+        msg: "Role variables are in: {{ var_location }} - should be in defaults/main.yml"

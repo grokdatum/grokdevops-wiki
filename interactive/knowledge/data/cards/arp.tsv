@@ -1,0 +1,35 @@
+---
+tags:
+- networking
+- l1
+- flashcard-deck
+- arp
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [ARP](../../../../library/portal/topics.md) | **Domain:** Networking
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+arp/49e4a806b02a	arp	easy	arp, networking, basics	What does ARP (Address Resolution Protocol) do in networking?	ARP (Address Resolution Protocol) maps Layer 3 IP addresses to Layer 2 MAC addresses so that Ethernet frames can be addressed to the correct next-hop device on a local network segment.\n\nRemember: ARP = 'Address Resolution Protocol' — resolves IP (Layer 3) to MAC (Layer 2). Think 'I know your name, what's your face?'\n\nFun fact: ARP only works within a single broadcast domain (LAN segment). Routers do not forward ARP broadcasts.	training/library/topics/arp/primer.md
+arp/1e8d1af7eb0b	arp	easy	arp, commands, linux	What command shows the ARP table on a modern Linux system?	ip neigh show (from the iproute2 package). The legacy equivalent is arp -a.\n\nRemember: 'ip neigh' replaced 'arp -a' — both show the ARP cache, but ip neigh is the modern iproute2 way.\n\nExample: ip neigh show | grep REACHABLE shows only active entries. States: REACHABLE, STALE, DELAY, PROBE, FAILED.\n\nGotcha: 'arp' command may not be installed on minimal distros. iproute2 (ip neigh) is always available on modern Linux.	training/library/topics/arp/primer.md
+arp/5ad80f99f3fa	arp	easy	arp, networking, broadcast	How does a host resolve an IP address to a MAC address using ARP?	"The host broadcasts an ARP request asking ""Who has <IP>? Tell <my-IP>."" The target host responds with a unicast ARP reply containing its MAC address. The requester caches the mapping.\n\nUnder the hood: ARP requests use Ethernet broadcast (ff:ff:ff:ff:ff:ff). Replies are unicast directly to the requester's MAC.\n\nRemember: 'Broadcast the question, unicast the answer.' Like shouting in a room vs. whispering back."	training/library/topics/arp/primer.md
+arp/b60f878878f1	arp	medium	arp, gratuitous-arp, failover	What is a gratuitous ARP and when is it used?	A gratuitous ARP is an unsolicited ARP reply announcing a host's own IP-to-MAC mapping. It is used for IP failover (VRRP/keepalived), duplicate IP detection on boot, and updating neighbor caches after NIC replacement.\n\nRemember: 'Gratuitous = unsolicited announcement.' The host says 'I am 10.0.0.1 at MAC aa:bb:cc:dd:ee:ff' without anyone asking.\n\nExample: keepalived sends gratuitous ARPs when a VIP fails over, updating all neighbors' caches instantly.	training/library/topics/arp/primer.md
+arp/a50574b91151	arp	medium	arp, proxy-arp, routing	What is proxy ARP and what problem does it solve?	Proxy ARP allows a router to answer ARP requests on behalf of hosts on another subnet, enabling communication between hosts that lack proper routing configuration. It is common in legacy networks and VPN setups.\n\nRemember: 'Proxy ARP = router answers on behalf of a remote host.' The router pretends to be the destination.\n\nGotcha: proxy ARP can mask routing misconfigurations. It makes things 'just work' but hides the real problem.	training/library/topics/arp/primer.md
+arp/c0dc267b1469	arp	medium	arp, arp-flux, multi-homed	What is ARP flux and how do you fix it on Linux?	ARP flux occurs on multi-homed Linux hosts where the kernel responds to ARP requests on the wrong interface. Fix with sysctl: set net.ipv4.conf.all.arp_ignore=1 (only respond if address is on the receiving interface) or net.ipv4.conf.all.arp_filter=1.\n\nRemember: arp_ignore=1 means 'only reply if the IP is on this interface.' Default (0) replies on any interface, causing flux.\n\nExample: a server with eth0 (10.0.0.1) and eth1 (10.0.1.1) replies to ARP for 10.0.1.1 on eth0 — that's ARP flux.	training/library/topics/arp/primer.md
+arp/1ac163f2a8c5	arp	medium	arp, debugging, tcpdump	How do you capture and inspect ARP traffic on a Linux host?	Use tcpdump: tcpdump -i eth0 -nn arp. This shows all ARP requests and replies on the interface, including the IP and MAC addresses involved.\n\nExample: tcpdump -i eth0 -nn arp shows output like 'ARP, Request who-has 10.0.0.1 tell 10.0.0.2, length 28'.\n\nGotcha: use -nn to avoid DNS lookups that slow down capture and can trigger more ARP requests.	training/library/topics/arp/primer.md
+arp/e7dbb852826d	arp	hard	arp, table-overflow, sysctl	What happens when the Linux ARP table overflows and how do you fix it?	"The kernel logs ""neighbour table overflow"" in dmesg and drops ARP entries, causing random connectivity failures. Fix by increasing gc_thresh values: sysctl -w net.ipv4.neigh.default.gc_thresh3=16384 (hard max). This commonly occurs in large flat networks with 1000+ hosts.\n\nRemember: gc_thresh1 < gc_thresh2 < gc_thresh3. thresh1=soft min, thresh2=goal, thresh3=hard max. Default thresh3=1024 is too low for large networks.\n\nExample: sysctl -w net.ipv4.neigh.default.gc_thresh3=16384 raises the hard limit. Set thresh1=4096 and thresh2=8192 proportionally."	training/library/topics/arp/primer.md
+arp/045b25f75fc0	arp	hard	arp, security, spoofing	What is ARP spoofing and how is it mitigated in a datacenter?	ARP spoofing is an attack where a malicious host sends fake ARP replies to redirect traffic through itself (man-in-the-middle). It is mitigated by enabling Dynamic ARP Inspection (DAI) on managed switches, which validates ARP packets against a trusted binding table.\n\nRemember: DAI = Dynamic ARP Inspection. The switch checks ARP packets against a DHCP snooping binding table. No match = drop.\n\nFun fact: ARP spoofing is the basis of many MITM tools (ettercap, arpspoof, bettercap). DAI and 802.1X are the primary defenses.	training/library/topics/arp/primer.md
+arp/c7a9ddb01c6f	arp	hard	arp, duplicate-ip, arping	How do you detect duplicate IP addresses on a network using arping?	Run arping -D -I eth0 <IP>. The -D flag enables duplicate address detection mode. If another host replies, there is an IP conflict. This sends a DAD probe (source IP 0.0.0.0) and reports if a response is received.\n\nRemember: arping -D = Duplicate Address Detection. Source IP is 0.0.0.0 (DAD probe). If anyone replies, there's a conflict.\n\nExample: arping -D -I eth0 10.0.0.50 && echo 'No conflict' || echo 'IP conflict detected!'	training/library/topics/arp/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [ARP](../../../../library/topics/arp/index.md) (Topic Pack, L1) — ARP
+- [Case Study: ARP Flux Duplicate IP](../../../../library/case-studies/networking/arp-flux-duplicate-ip/README.md) (Case Study, L2) — ARP
+- [Case Study: Proxy ARP Causing Issues](../../../../library/case-studies/networking/proxy-arp-causing-issues/README.md) (Case Study, L2) — ARP
+
+<!-- wiki:related:end -->

@@ -1,0 +1,7327 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Explains BGP routing, autonomous systems, internet architecture, prefix hijacking, and how BGP applies to datacenter and Kubernetes networking.">
+      
+      
+      
+        <link rel="canonical" href="https://grokdatum.github.io/grokdevops-wiki/library/lessons/bgp-how-the-internet-routes-your-packets/">
+      
+      
+        <link rel="prev" href="../s3-the-object-store-that-runs-the-internet/">
+      
+      
+        <link rel="next" href="../slos-when-good-enough-is-a-number/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>BGP: How the Internet Routes Your Packets - GrokDevOps Wiki</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../_pagefind/pagefind-ui.css">
+    
+      <link rel="stylesheet" href="../../../assets/css/search-fix.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="BGP: How the Internet Routes Your Packets - GrokDevOps Wiki" />
+<meta property="og:description" content="Explains BGP routing, autonomous systems, internet architecture, prefix hijacking, and how BGP applies to datacenter and Kubernetes networking." />
+<meta property="og:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/bgp-how-the-internet-routes-your-packets.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://grokdatum.github.io/grokdevops-wiki/library/lessons/bgp-how-the-internet-routes-your-packets/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="BGP: How the Internet Routes Your Packets - GrokDevOps Wiki" />
+<meta property="twitter:description" content="Explains BGP routing, autonomous systems, internet architecture, prefix hijacking, and how BGP applies to datacenter and Kubernetes networking." />
+<meta property="twitter:image" content="https://grokdatum.github.io/grokdevops-wiki/assets/images/social/library/lessons/bgp-how-the-internet-routes-your-packets.png" />
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#bgp-how-the-internet-routes-your-packets" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  300+ DevOps learning assets &mdash; <a href="../../portal/">start with the Portal</a>
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-header__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            GrokDevOps Wiki
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              BGP: How the Internet Routes Your Packets
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    <label class="md-header__button md-icon" for="__search">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+    </label>
+    <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <div id="pagefind-search" style="padding: 1rem;"></div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    var searchEl = document.querySelector('[data-md-component="search"]');
+    var container = document.getElementById("pagefind-search");
+    var searchInit = false;
+
+    // Material's JS will set searchEl.hidden = true when its search worker
+    // fails to load. Watch for that and immediately undo it.
+    if (searchEl) {
+      var obs = new MutationObserver(function() {
+        if (searchEl.hidden) {
+          searchEl.hidden = false;
+        }
+      });
+      obs.observe(searchEl, { attributes: true, attributeFilter: ["hidden"] });
+      // Also force it visible right now in case Material already hid it
+      searchEl.hidden = false;
+    }
+
+    function initPagefind() {
+      if (searchInit || !container) return;
+      searchInit = true;
+      new PagefindUI({
+        element: "#pagefind-search",
+        showSubResults: true,
+        showImages: false,
+        resetStyles: false
+      });
+    }
+
+    // Init Pagefind when search opens (toggle checked)
+    var toggle = document.getElementById("__search");
+    if (toggle) {
+      toggle.addEventListener("change", function() {
+        if (toggle.checked) {
+          initPagefind();
+          setTimeout(function() {
+            var input = container ? container.querySelector("input") : null;
+            if (input) input.focus();
+          }, 100);
+        }
+      });
+    }
+  });
+</script>
+    
+      <div class="md-header__source">
+        <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../.." class="md-tabs__link">
+          
+  
+  
+    
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../atoms/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Atoms
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Portal
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/interactive/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Practice
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Lessons
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/ansible-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Ansible
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../portal/security-plus-hub/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Security+
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../domains/linux/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Library
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="GrokDevOps Wiki" class="md-nav__button md-logo" aria-label="GrokDevOps Wiki" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1m0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1M9 5h1V3H9zm0 8h1v-2H9zm0 8h1v-2H9zM5 3v2h2V3zm0 8v2h2v-2zm0 8v2h2v-2z"/></svg>
+
+    </a>
+    GrokDevOps Wiki
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/grokdatum/grokdevops" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    grokdatum/grokdevops
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../.." class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../atoms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atoms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portal
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/interactive/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Practice
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lessons
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End-to-End Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    End-to-End Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-click-a-link/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Click a Link
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-press-power/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Press Power
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-docker-build/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `docker build`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-kubectl-apply/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `kubectl apply`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-helm-install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `helm install`
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-git-push-to-ci/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You `git push` to CI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pxe-boot-from-network-to-running-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PXE Boot: From Network to Running Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh-is-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SSH Is More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../strace-reading-the-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    strace: Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-you-type-a-regex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When You Type a Regex
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ebpf-the-linux-superpower/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    eBPF: The Linux Superpower
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-inside-a-linux-pipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens Inside a Linux Pipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-proc-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The /proc Filesystem: Linux's Hidden API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-to-read-a-flame-graph/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to Read a Flame Graph
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../iptables-following-a-packet-through-the-chains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    iptables: Following a Packet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-subnet-calculator-in-your-head/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Subnet Calculator in Your Head
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-kubernetes-evicts-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Kubernetes Evicts Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tmux-and-the-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tmux and the Terminal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../opentelemetry-following-a-request-across-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenTelemetry: Following a Request Across Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-services-how-traffic-finds-your-pod/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Services: How Traffic Finds Your Pod
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../log-pipelines-from-printf-to-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Pipelines: From printf to Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../container-registries-where-your-images-actually-live/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container Registries: Where Your Images Actually Live
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../envoy-the-proxy-thats-everywhere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Envoy: The Proxy That's Everywhere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-node-lifecycle-from-provision-to-decommission/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Node Lifecycle: From Provision to Decommission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-from-scratch-to-production-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes: From Scratch to Production Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Incident-Driven
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Incident-Driven
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-hanging-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Hanging Deploy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-disk-that-filled-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Disk That Filled Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-database-that-wouldnt-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Database That Wouldn't Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-mysterious-latency-spike/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Mysterious Latency Spike
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-terraform-state-disaster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Terraform State Disaster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cascading-timeout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cascading Timeout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-rollback-that-wasnt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Rollback That Wasn't
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../when-the-queue-backs-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When the Queue Backs Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-split-brain-nightmare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Split-Brain Nightmare
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-cloud-bill-surprise/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Cloud Bill Surprise
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-backup-nobody-tested/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Backup Nobody Tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-happens-when-your-certificate-expires/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Happens When Your Certificate Expires
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-load-balancer-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Load Balancer Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-monitoring-that-lied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Monitoring That Lied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../redis-in-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis in Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elasticsearch-for-people-who-didnt-choose-it/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Elasticsearch Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mysql-operations-the-database-you-inherited/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MySQL Operations: The Database You Inherited
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mongodb-the-document-database-that-surprised-everyone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MongoDB: The Document Database That Surprised Everyone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server-hardware-when-the-blinky-lights-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server Hardware: When the Blinky Lights Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../etcd-the-database-that-runs-kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    etcd: The Database That Runs Kubernetes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-lambda-the-function-that-runs-itself/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS Lambda: The Function That Runs Itself
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-rds-the-managed-database-tradeoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS RDS: The Managed Database Tradeoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-ec2-the-virtual-server-you-never-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS EC2: The Virtual Server You Never See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kafka-the-log-that-runs-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kafka: The Log That Runs Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Differential Diagnosis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Differential Diagnosis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connection-refused/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connection Refused
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permission-denied/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permission Denied
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../out-of-memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Out of Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-vs-ansible-vs-helm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform vs Ansible vs Helm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-nginx-config-that-broke-everything/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Nginx Config That Broke Everything
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-playbook-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible Playbook Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-iam-the-permissions-puzzle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS IAM: The Permissions Puzzle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kubernetes-debugging-when-pods-wont-behave/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes Debugging: When Pods Won't Behave
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dns-ops-when-nslookup-isnt-enough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DNS Operations: When nslookup Isn't Enough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-gateways-the-front-door-to-your-microservices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateways: The Front Door to Your Microservices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Archaeological
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Archaeological
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../from-init-scripts-to-systemd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    From Init Scripts to systemd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-dns-is-always-the-problem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why DNS Is Always the Problem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-everything-uses-json-now/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why Everything Uses JSON Now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-yaml-keeps-breaking-your-deploys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why YAML Keeps Breaking Your Deploys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-and-the-art-of-not-alerting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus and the Art of Not Alerting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../understanding-distributed-systems-without-a-phd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Understanding Distributed Systems Without a PhD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-service-mesh-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Service Mesh Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-ntp-matters-more-than-you-think/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why NTP Matters More Than You Think
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../raid-why-your-disks-will-fail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAID: Why Your Disks Will Fail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../make-and-makefiles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Make and Makefiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-kubernetes-migration-that-took-a-year/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Kubernetes Migration That Took a Year
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gitops-the-repo-is-the-truth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitOps: The Repo Is the Truth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../s3-the-object-store-that-runs-the-internet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    S3: The Object Store That Runs the Internet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BGP: How the Internet Routes Your Packets
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BGP: How the Internet Routes Your Packets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-what-is-bgp-actually" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1: What Is BGP, Actually?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1: What Is BGP, Actually?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-autonomous-system-the-internets-organizational-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Autonomous System: The Internet's Organizational Unit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#path-vector-bgps-core-idea" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path Vector: BGP's Core Idea
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-ibgp-vs-ebgp-two-flavors-same-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2: iBGP vs eBGP — Two Flavors, Same Protocol
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-the-bgp-route-selection-algorithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3: The BGP Route Selection Algorithm
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3: The BGP Route Selection Algorithm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-two-most-important-knobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Two Most Important Knobs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-route-announcements-withdrawals-and-the-pakistanyoutube-disaster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 4: Route Announcements, Withdrawals, and the Pakistan/YouTube Disaster
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 4: Route Announcements, Withdrawals, and the Pakistan/YouTube Disaster">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-routes-propagate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Routes Propagate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-longest-prefix-match-why-hijacking-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Longest Prefix Match: Why Hijacking Works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-defending-against-hijacks-rpki-roa-and-prefix-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 5: Defending Against Hijacks — RPKI, ROA, and Prefix Filtering
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5: Defending Against Hijacks — RPKI, ROA, and Prefix Filtering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-prefix-filtering-the-manual-seatbelt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Prefix Filtering (the manual seatbelt)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-rpki-and-roa-the-cryptographic-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. RPKI and ROA (the cryptographic fix)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-bgp-communities-signaling-without-new-protocols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. BGP Communities: Signaling Without New Protocols
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-bgp-in-the-datacenter-not-just-for-isps-anymore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 6: BGP in the Datacenter — Not Just for ISPs Anymore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6: BGP in the Datacenter — Not Just for ISPs Anymore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-clos-topology-and-ebgp-everywhere" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Clos Topology and eBGP Everywhere
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-not-ospf-inside-the-datacenter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Not OSPF Inside the Datacenter?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-7-bgp-and-kubernetes-calico-metallb-and-pod-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 7: BGP and Kubernetes — Calico, MetalLB, and Pod Routing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 7: BGP and Kubernetes — Calico, MetalLB, and Pod Routing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#calico-bgp-for-pod-networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calico: BGP for Pod Networking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metallb-loadbalancer-services-via-bgp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MetalLB: LoadBalancer Services via BGP
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-8-route-leaks-graceful-restart-and-other-things-that-break" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 8: Route Leaks, Graceful Restart, and Other Things That Break
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 8: Route Leaks, Graceful Restart, and Other Things That Break">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route-leaks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route Leaks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#graceful-restart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graceful Restart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-two-napkins-problem-37-years-later" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The "Two Napkins" Problem, 37 Years Later
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-read-a-bgp-looking-glass-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Read a BGP Looking Glass (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-check-rpki-validation-status-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Check RPKI Validation Status (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-trace-a-bgp-hijack-scenario-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Trace a BGP Hijack Scenario (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-4-inspect-calico-bgp-on-a-kubernetes-cluster-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Inspect Calico BGP on a Kubernetes Cluster (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slos-when-good-enough-is-a-number/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SLOs: When Good Enough Is a Number
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-internals-the-content-addressable-filesystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Git Internals: The Content-Addressable Filesystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-under-the-hood/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prometheus: Under the Hood
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adversarial
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Adversarial
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-container-escape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Container Escape
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-git-disaster-recovery-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Git Disaster Recovery Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chaos-engineering-breaking-things-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chaos Engineering: Breaking Things on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../supply-chain-security-trusting-your-dependencies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supply Chain Security: Trusting Your Dependencies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cgroups-and-namespaces-containers-are-a-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cgroups and Namespaces: Containers Are a Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-hardening-closing-the-doors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Hardening: Closing the Doors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bash-the-patterns-that-matter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bash: The Patterns That Matter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build-Up
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Build-Up
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deploy-a-web-app-from-nothing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy a Web App From Nothing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../secrets-management-without-tears/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets Management Without Tears
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-incident-response-actually-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Incident Response Actually Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-postmortem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Postmortem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../the-art-of-the-runbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Art of the Runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-vpc-the-network-you-cant-see/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AWS VPC: The Network You Can't See
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../load-testing-finding-the-breaking-point/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load Testing: Finding the Breaking Point
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packer-building-machine-images-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packer: Building Machine Images That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-networking-bridges-bonds-and-vlans/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Networking: Bridges, Bonds, and VLANs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kustomize-kubernetes-config-without-templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kustomize: Kubernetes Config Without Templates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vault-secrets-that-expire-on-purpose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vault: Secrets That Expire on Purpose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../github-actions-ci-cd-that-lives-in-your-repo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Actions: CI/CD That Lives in Your Repo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grafana-dashboards-that-dont-lie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grafana: Dashboards That Don't Lie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compliance-as-code-automating-the-auditor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compliance as Code: Automating the Auditor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-modules-building-infrastructure-legos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terraform Modules: Building Infrastructure LEGOs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-compose-the-local-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Compose: The Local Cluster
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../systemd-the-init-system-you-cant-avoid/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    systemd: The Init System You Can't Avoid
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nginx-the-swiss-army-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nginx: The Swiss Army Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-from-playbook-to-production/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible: From Playbook to Production
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capacity-planning-math-before-midnight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capacity Planning: Math Before Midnight
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-storage-lvm-filesystems-and-beyond/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux Storage: LVM, Filesystems, and Beyond
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parallel
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Parallel
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../text-processing-jq-awk-sed-in-the-trenches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Text Processing: jq, awk, and sed in the Trenches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_9" id="__nav_5_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python Learning Path
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python Learning Path
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-zero-to-script-for-the-terminal-native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Zero to Script for the Terminal Native
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-for-ops-the-bash-experts-bridge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python for Ops: The Bash Expert's Bridge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-data-wrangling-for-ops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Data Wrangling for Ops
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-automating-everything-apis-and-infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python: Automating Everything — APIs and Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_10" id="__nav_5_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    More Lessons
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    More Lessons
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ansible-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-ansible/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Ansible
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interview-cheatsheet-python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interview Cheatsheet Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-system-automation-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python System Automation Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-the-complete-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python The Complete Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/ansible-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansible
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    <a href="../../portal/security-plus-hub/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security+
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../domains/linux/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Library
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Mission
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-what-is-bgp-actually" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 1: What Is BGP, Actually?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1: What Is BGP, Actually?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-autonomous-system-the-internets-organizational-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Autonomous System: The Internet's Organizational Unit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#path-vector-bgps-core-idea" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path Vector: BGP's Core Idea
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-ibgp-vs-ebgp-two-flavors-same-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 2: iBGP vs eBGP — Two Flavors, Same Protocol
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #1
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-the-bgp-route-selection-algorithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 3: The BGP Route Selection Algorithm
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3: The BGP Route Selection Algorithm">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-two-most-important-knobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Two Most Important Knobs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-route-announcements-withdrawals-and-the-pakistanyoutube-disaster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 4: Route Announcements, Withdrawals, and the Pakistan/YouTube Disaster
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 4: Route Announcements, Withdrawals, and the Pakistan/YouTube Disaster">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-routes-propagate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Routes Propagate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-longest-prefix-match-why-hijacking-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Longest Prefix Match: Why Hijacking Works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-defending-against-hijacks-rpki-roa-and-prefix-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 5: Defending Against Hijacks — RPKI, ROA, and Prefix Filtering
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5: Defending Against Hijacks — RPKI, ROA, and Prefix Filtering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-prefix-filtering-the-manual-seatbelt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Prefix Filtering (the manual seatbelt)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-rpki-and-roa-the-cryptographic-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. RPKI and ROA (the cryptographic fix)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-bgp-communities-signaling-without-new-protocols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. BGP Communities: Signaling Without New Protocols
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-bgp-in-the-datacenter-not-just-for-isps-anymore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 6: BGP in the Datacenter — Not Just for ISPs Anymore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6: BGP in the Datacenter — Not Just for ISPs Anymore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-clos-topology-and-ebgp-everywhere" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Clos Topology and eBGP Everywhere
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-not-ospf-inside-the-datacenter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Not OSPF Inside the Datacenter?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-7-bgp-and-kubernetes-calico-metallb-and-pod-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 7: BGP and Kubernetes — Calico, MetalLB, and Pod Routing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 7: BGP and Kubernetes — Calico, MetalLB, and Pod Routing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#calico-bgp-for-pod-networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calico: BGP for Pod Networking
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metallb-loadbalancer-services-via-bgp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MetalLB: LoadBalancer Services via BGP
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-8-route-leaks-graceful-restart-and-other-things-that-break" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part 8: Route Leaks, Graceful Restart, and Other Things That Break
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 8: Route Leaks, Graceful Restart, and Other Things That Break">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route-leaks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Route Leaks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#graceful-restart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graceful Restart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-two-napkins-problem-37-years-later" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The "Two Napkins" Problem, 37 Years Later
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flashcard-check-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flashcard Check #3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercises" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercises
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercises">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exercise-1-read-a-bgp-looking-glass-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Read a BGP Looking Glass (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-2-check-rpki-validation-status-5-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Check RPKI Validation Status (5 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-3-trace-a-bgp-hijack-scenario-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Trace a BGP Hijack Scenario (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exercise-4-inspect-calico-bgp-on-a-kubernetes-cluster-15-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Inspect Calico BGP on a Kubernetes Cluster (15 minutes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheat Sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-lessons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Lessons
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Lessons
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../from-init-scripts-to-systemd/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Archaeological
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <nav class="md-tags" >
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:autonomous-systems" class="md-tag">autonomous-systems</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:bgp" class="md-tag">bgp</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:datacenter-networking" class="md-tag">datacenter-networking</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:internet-architecture" class="md-tag">internet-architecture</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:kubernetes-networking" class="md-tag">kubernetes-networking</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:lesson" class="md-tag">lesson</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:routing" class="md-tag">routing</a>
+      
+    
+      
+      
+      
+      
+        <a href="../../portal/tags/#tag:security" class="md-tag">security</a>
+      
+    
+  </nav>
+
+
+  
+  
+
+
+<h1 id="bgp-how-the-internet-routes-your-packets">BGP — How the Internet Routes Your Packets<a class="headerlink" href="#bgp-how-the-internet-routes-your-packets" title="Permanent link">&para;</a></h1>
+<p><strong>Topics:</strong> BGP, routing, autonomous systems, internet architecture, datacenter networking, Kubernetes networking, security
+<strong>Level:</strong> L1–L2 (Foundations → Operations)
+<strong>Time:</strong> 60–90 minutes
+<strong>Prerequisites:</strong> None (everything is explained from scratch)</p>
+<hr />
+<h2 id="the-mission">The Mission<a class="headerlink" href="#the-mission" title="Permanent link">&para;</a></h2>
+<p>It's Monday morning. Your monitoring lights up: customers in Europe can't reach your app.
+US traffic is fine. Nothing changed on your side — no deploys, no DNS updates, no infra
+changes. Your hosting provider says everything is green.</p>
+<p>Thirty minutes later you find it: someone else's network is announcing <em>your</em> IP prefix
+to the internet. Traffic destined for your servers is being swallowed by a network in
+Eastern Europe. Your IPs have been hijacked.</p>
+<p>This is not theoretical. It has happened to YouTube, Amazon, Google, and hundreds of smaller
+companies. It happens because BGP — the protocol that routes every packet on the internet —
+was built on trust, not verification.</p>
+<p>By the end of this lesson you'll understand:
+- What BGP actually does and why it matters even if you never configure a router
+- How a single misconfiguration can redirect traffic for millions of users
+- The route selection algorithm that determines where your packets go
+- How modern datacenters use BGP <em>inside</em> the building (not just between ISPs)
+- How Kubernetes uses BGP to route traffic to your pods
+- What RPKI and ROA are, and why they're the future of internet routing security</p>
+<hr />
+<h2 id="part-1-what-is-bgp-actually">Part 1: What Is BGP, Actually?<a class="headerlink" href="#part-1-what-is-bgp-actually" title="Permanent link">&para;</a></h2>
+<p>Every device on the internet needs to answer one question for every packet: <em>where do I
+send this next?</em></p>
+<p>Your laptop answers simply: "send everything to my default gateway." Your home router
+answers almost as simply: "send everything to my ISP." But your ISP? Your ISP has to know
+how to reach <em>every publicly routable IP address on the internet</em>. That's over a million
+distinct routes.</p>
+<p>BGP — Border Gateway Protocol — is how those million routes get distributed. Every major
+network on the internet runs BGP to tell its neighbors: "I can reach these IP addresses.
+Send me traffic for them."</p>
+<blockquote>
+<p><strong>Name Origin:</strong> <strong>BGP</strong> = <strong>B</strong>order <strong>G</strong>ateway <strong>P</strong>rotocol. The "border" refers to
+the boundary between networks. A "gateway" is old-school for "router." BGP runs at the
+borders between autonomous systems — the organizational boundaries of the internet. The
+current version, BGP-4, is defined in RFC 4271 (2006), but the protocol dates back to
+RFC 1105 (1989). Three engineers — Kirk Lougheed and Yakov Rekhter — sketched the first
+version on two napkins at an IETF meeting. Yes, the protocol that routes the entire
+internet was designed on napkins.</p>
+<p><strong>Trivia:</strong> Those "two napkins" are part of internet folklore. Lougheed and Rekhter
+needed a protocol to replace EGP (Exterior Gateway Protocol), which couldn't handle the
+growing internet's topology. Their napkin design became RFC 1105 within months. The napkin
+originals have not survived, but the story is referenced in multiple IETF histories and
+by Rekhter himself in conference talks.</p>
+</blockquote>
+<h3 id="the-autonomous-system-the-internets-organizational-unit">The Autonomous System: The Internet's Organizational Unit<a class="headerlink" href="#the-autonomous-system-the-internets-organizational-unit" title="Permanent link">&para;</a></h3>
+<p>The internet isn't one network — it's roughly 75,000 independently operated networks,
+each identified by an <strong>Autonomous System Number (ASN)</strong>.</p>
+<blockquote>
+<p><strong>Name Origin:</strong> <strong>AS</strong> = <strong>A</strong>utonomous <strong>S</strong>ystem. "Autonomous" because each AS sets
+its own internal routing policy — nobody outside tells it how to route within its borders.
+ASNs are assigned by Regional Internet Registries (RIRs): ARIN (North America), RIPE NCC
+(Europe/Middle East), APNIC (Asia-Pacific), AFRINIC (Africa), and LACNIC (Latin America).</p>
+</blockquote>
+<p>Examples you'll recognize:</p>
+<table>
+<thead>
+<tr>
+<th>ASN</th>
+<th>Operator</th>
+<th>What they carry</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AS15169</td>
+<td>Google</td>
+<td>Google services, YouTube, Cloud</td>
+</tr>
+<tr>
+<td>AS16509</td>
+<td>Amazon</td>
+<td>AWS, amazon.com</td>
+</tr>
+<tr>
+<td>AS13335</td>
+<td>Cloudflare</td>
+<td>CDN, DNS (1.1.1.1)</td>
+</tr>
+<tr>
+<td>AS32934</td>
+<td>Meta</td>
+<td>Facebook, Instagram, WhatsApp</td>
+</tr>
+<tr>
+<td>AS7018</td>
+<td>AT&amp;T</td>
+<td>Consumer and enterprise ISP</td>
+</tr>
+</tbody>
+</table>
+<p>Every public IP address on the internet belongs to an AS. When you browse a website, your
+packets traverse multiple autonomous systems to get there, and each AS uses BGP to decide
+the next hop.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>You → [Your ISP: AS7018] → [Transit: AS3356] → [Cloudflare: AS13335] → website
+</code></pre></div>
+<h3 id="path-vector-bgps-core-idea">Path Vector: BGP's Core Idea<a class="headerlink" href="#path-vector-bgps-core-idea" title="Permanent link">&para;</a></h3>
+<p>BGP is a <strong>path vector</strong> protocol. When a network announces a route, it includes the full
+list of autonomous systems the announcement has traversed. This AS path serves two purposes:</p>
+<ol>
+<li><strong>Loop prevention</strong> — if a router sees its own AS in the path, it rejects the route</li>
+<li><strong>Path selection</strong> — shorter AS paths are generally preferred</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a># What a BGP route looks like (simplified)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Prefix:   203.0.113.0/24
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>AS Path:  AS3356 → AS16509
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>Next Hop: 198.51.100.1
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>Origin:   IGP
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a># Translation: "To reach 203.0.113.0/24, send traffic to 198.51.100.1.
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a># It will cross AS3356 (Lumen/Level3) then AS16509 (Amazon)."
+</code></pre></div>
+<blockquote>
+<p><strong>Mental Model:</strong> Think of BGP like a postal system between countries. Each country
+(autonomous system) doesn't need to know the internal streets of every other country —
+it just needs to know which neighboring country to hand the mail to. BGP is the agreement
+between countries about which mail to accept and where to forward it.</p>
+</blockquote>
+<hr />
+<h2 id="part-2-ibgp-vs-ebgp-two-flavors-same-protocol">Part 2: iBGP vs eBGP — Two Flavors, Same Protocol<a class="headerlink" href="#part-2-ibgp-vs-ebgp-two-flavors-same-protocol" title="Permanent link">&para;</a></h2>
+<p>BGP comes in two modes that look the same on the wire but behave differently:</p>
+<p><strong>eBGP (external BGP)</strong> — sessions between routers in <em>different</em> autonomous systems. This
+is the BGP of the internet. When AT&amp;T peers with Google at an internet exchange point,
+that's eBGP.</p>
+<p><strong>iBGP (internal BGP)</strong> — sessions between routers in the <em>same</em> autonomous system. Used to
+distribute externally-learned routes to all routers within an organization.</p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>eBGP</th>
+<th>iBGP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Peers in</td>
+<td>Different ASes</td>
+<td>Same AS</td>
+</tr>
+<tr>
+<td>TTL default</td>
+<td>1 (directly connected)</td>
+<td>255 (can cross internal hops)</td>
+</tr>
+<tr>
+<td>AS path modified?</td>
+<td>Prepends own ASN</td>
+<td>Does not modify AS path</td>
+</tr>
+<tr>
+<td>Next-hop behavior</td>
+<td>Sets next-hop to self</td>
+<td>Preserves original next-hop</td>
+</tr>
+<tr>
+<td>Full mesh required?</td>
+<td>No</td>
+<td>Yes (or use route reflectors)</td>
+</tr>
+</tbody>
+</table>
+<p>The iBGP full-mesh requirement is the gotcha that catches everyone. If you have 5 iBGP
+routers, you need 10 sessions (n<em>(n-1)/2). With 50 routers, that's 1,225 sessions. This
+is why </em><em>route reflectors</em>* exist — a designated router that receives routes from all iBGP
+peers and reflects them to everyone else, reducing the mesh to a hub-and-spoke.</p>
+<blockquote>
+<p><strong>Gotcha:</strong> iBGP does NOT modify the AS path when advertising routes to other iBGP peers.
+This means iBGP cannot use the AS path for loop prevention like eBGP does. Instead, iBGP
+uses two rules: (1) a route learned from an iBGP peer is never re-advertised to another
+iBGP peer (which is why you need full mesh or route reflectors), and (2) the ORIGINATOR_ID
+and CLUSTER_LIST attributes prevent loops in route-reflector topologies.</p>
+</blockquote>
+<hr />
+<h2 id="flashcard-check-1">Flashcard Check #1<a class="headerlink" href="#flashcard-check-1" title="Permanent link">&para;</a></h2>
+<p>Test yourself before moving on. Cover the answers.</p>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What does BGP stand for?</td>
+<td>Border Gateway Protocol</td>
+</tr>
+<tr>
+<td>What is an autonomous system?</td>
+<td>An independently operated network with its own routing policy, identified by an ASN</td>
+</tr>
+<tr>
+<td>What type of routing protocol is BGP?</td>
+<td>Path vector</td>
+</tr>
+<tr>
+<td>What's the difference between eBGP and iBGP?</td>
+<td>eBGP runs between different ASes; iBGP runs within the same AS</td>
+</tr>
+<tr>
+<td>Why can't 50 routers all run iBGP without route reflectors?</td>
+<td>Full mesh requires 1,225 sessions — operationally impossible to maintain</td>
+</tr>
+<tr>
+<td>How does BGP prevent routing loops?</td>
+<td>Each route carries the full AS path; a router rejects routes containing its own ASN</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-3-the-bgp-route-selection-algorithm">Part 3: The BGP Route Selection Algorithm<a class="headerlink" href="#part-3-the-bgp-route-selection-algorithm" title="Permanent link">&para;</a></h2>
+<p>When a BGP router receives multiple routes to the same prefix, it doesn't just pick the
+shortest path. It runs a decision tree with 13+ steps. Most traffic engineering happens in
+the first few.</p>
+<p>Here's the simplified decision tree that covers 95% of real-world behavior:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>                    Multiple routes to same prefix
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>                              │
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>                    ┌─────────▼──────────┐
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>                    │ 1. Highest LOCAL    │
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>                    │    PREFERENCE?      │ ← Set by your network. "I prefer this path."
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>                    └────────┬───────────┘
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>                             │ tie
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>                    ┌────────▼───────────┐
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>                    │ 2. Shortest         │
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>                    │    AS_PATH?         │ ← Fewer hops through fewer networks
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>                    └────────┬───────────┘
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>                             │ tie
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>                    ┌────────▼───────────┐
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>                    │ 3. Lowest ORIGIN    │
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>                    │    type?            │ ← IGP &lt; EGP &lt; Incomplete
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>                    └────────┬───────────┘
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>                             │ tie
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>                    ┌────────▼───────────┐
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>                    │ 4. Lowest MED       │
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>                    │    (Multi-Exit      │ ← "If you're sending me traffic,
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>                    │     Discriminator)? │    use THIS entrance."
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>                    └────────┬───────────┘
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>                             │ tie
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>                    ┌────────▼───────────┐
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>                    │ 5. eBGP over iBGP? │ ← Prefer externally learned routes
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>                    └────────┬───────────┘
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>                             │ tie
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>                    ┌────────▼───────────┐
+<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>                    │ 6. Lowest IGP       │
+<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>                    │    metric to        │ ← "Which exit is closest to ME?"
+<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a>                    │    next hop?        │    (hot potato routing)
+<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a>                    └────────┬───────────┘
+<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a>                             │ tie
+<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a>                    ┌────────▼───────────┐
+<a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a>                    │ 7. Oldest route     │ ← Stability wins
+<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>                    │ 8. Lowest router ID │ ← Tiebreaker
+<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a>                    └────────────────────┘
+</code></pre></div>
+<blockquote>
+<p><strong>Remember:</strong> The mnemonic for the first five steps: <strong>"Lovers Prefer Short Meetings
+Externally."</strong> <strong>L</strong>ocal preference → <strong>P</strong>ath length → <strong>S</strong>hortest origin →
+<strong>M</strong>ED → <strong>E</strong>BGP over iBGP. This covers the attributes you can actually use for
+traffic engineering.</p>
+</blockquote>
+<h3 id="the-two-most-important-knobs">The Two Most Important Knobs<a class="headerlink" href="#the-two-most-important-knobs" title="Permanent link">&para;</a></h3>
+<p><strong>LOCAL_PREF</strong> (step 1) — set within your AS to say "prefer this path." Higher wins. Default
+is 100. If you set LOCAL_PREF 200 on routes from Provider A and leave Provider B at 100, all
+traffic in your network prefers Provider A. This is how you do primary/backup with two ISPs.</p>
+<p><strong>AS_PATH prepending</strong> (step 2) — artificially lengthening the AS path to make a route look
+less attractive to your neighbors. If you announce your prefix through two ISPs but prepend
+your ASN three times on one, the internet sees:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Via ISP-A: AS64500                    # path length 1 — preferred
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Via ISP-B: AS64500 AS64500 AS64500    # path length 3 — backup only
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> AS path prepending is a blunt instrument. You're asking the <em>entire internet</em>
+to prefer one path over another, but you can only influence, not guarantee. A neighboring
+AS with a high LOCAL_PREF for the longer path will still use it — LOCAL_PREF beats AS path
+length. Prepending more than 3x rarely adds value and just wastes resources.</p>
+</blockquote>
+<hr />
+<h2 id="part-4-route-announcements-withdrawals-and-the-pakistanyoutube-disaster">Part 4: Route Announcements, Withdrawals, and the Pakistan/YouTube Disaster<a class="headerlink" href="#part-4-route-announcements-withdrawals-and-the-pakistanyoutube-disaster" title="Permanent link">&para;</a></h2>
+<h3 id="how-routes-propagate">How Routes Propagate<a class="headerlink" href="#how-routes-propagate" title="Permanent link">&para;</a></h3>
+<p>When an AS wants the internet to reach its IP space, it <strong>announces</strong> the prefix to its
+BGP neighbors. Those neighbors evaluate the route, and if they accept it, they announce it
+to their neighbors (prepending their own ASN to the path). The announcement ripples outward
+across the internet.</p>
+<p>When an AS wants to stop advertising a route, it sends a <strong>withdrawal</strong>. Withdrawals also
+propagate, but convergence (everyone agreeing the route is gone) can take minutes — far
+slower than announcements.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a># Timeline of a route announcement
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>T=0s:   AS64500 announces 203.0.113.0/24 to its neighbors
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>T=1s:   Direct peers (AS3356, AS174) install the route
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>T=5s:   Second-tier networks learn the route
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>T=30s:  Most of the internet has converged
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>T=2min: Slow peers and route dampening catch up
+</code></pre></div>
+<h3 id="the-longest-prefix-match-why-hijacking-works">The Longest Prefix Match: Why Hijacking Works<a class="headerlink" href="#the-longest-prefix-match-why-hijacking-works" title="Permanent link">&para;</a></h3>
+<p>Here's the rule that makes BGP both powerful and dangerous: <strong>the most specific route
+always wins.</strong></p>
+<p>If AS64500 announces <code>203.0.113.0/24</code> and AS99999 announces <code>203.0.113.0/25</code> (a more
+specific prefix covering half the range), every router on the internet will send traffic
+for 203.0.113.0–203.0.113.127 to AS99999 — even if AS99999 has no legitimate claim to
+those IPs.</p>
+<p>This is exactly what happened to YouTube in 2008.</p>
+<blockquote>
+<p><strong>War Story:</strong> On February 24, 2008, the Pakistani government ordered ISPs to block
+YouTube. Pakistan Telecom (AS17557) created an internal route for YouTube's prefix
+<code>208.65.153.0/24</code> pointing to a null route (blackhole). But an engineer made a mistake:
+instead of keeping the block internal, the more-specific route <code>208.65.153.0/25</code> leaked
+to PCCW (AS3491), a major Hong Kong-based transit provider. PCCW accepted the route and
+propagated it globally. Because /25 is more specific than YouTube's /24, the hijacked
+route won everywhere. YouTube was unreachable worldwide for approximately two hours.
+The fix required PCCW to manually filter the bogus route and YouTube (Google) to
+announce their own /25s to compete. Source: RIPE NCC analysis, Renesys (now Dyn/Oracle)
+blog post, February 2008.</p>
+</blockquote>
+<p>The YouTube hijack was accidental. But the same technique is used intentionally — for
+surveillance, cryptocurrency theft, and traffic interception.</p>
+<blockquote>
+<p><strong>Trivia:</strong> In April 2018, a BGP hijack redirected traffic destined for Amazon's Route 53
+DNS service. The attackers announced more-specific routes for Route 53's IP space through
+an ISP in Ohio, redirected DNS queries for MyEtherWallet.com to a fake site, and stole
+approximately $150,000 in cryptocurrency. The hijack lasted about two hours. Source:
+Ars Technica, Oracle/Dyn Internet Intelligence reporting, April 2018.</p>
+</blockquote>
+<hr />
+<h2 id="part-5-defending-against-hijacks-rpki-roa-and-prefix-filtering">Part 5: Defending Against Hijacks — RPKI, ROA, and Prefix Filtering<a class="headerlink" href="#part-5-defending-against-hijacks-rpki-roa-and-prefix-filtering" title="Permanent link">&para;</a></h2>
+<p>BGP's trust problem is real: any AS can announce any prefix, and neighbors believe it by
+default. Three defenses exist, layered on top of each other.</p>
+<h3 id="1-prefix-filtering-the-manual-seatbelt">1. Prefix Filtering (the manual seatbelt)<a class="headerlink" href="#1-prefix-filtering-the-manual-seatbelt" title="Permanent link">&para;</a></h3>
+<p>Every BGP session should have filters that define exactly which prefixes a neighbor is
+allowed to send. If your transit provider is AS3356, you build a filter allowing only
+the prefixes they legitimately carry.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Conceptual prefix filter (router config pseudocode)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>ip<span class="w"> </span>prefix-list<span class="w"> </span>FROM-CUSTOMER<span class="w"> </span>permit<span class="w"> </span><span class="m">203</span>.0.113.0/24
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>ip<span class="w"> </span>prefix-list<span class="w"> </span>FROM-CUSTOMER<span class="w"> </span>deny<span class="w"> </span><span class="m">0</span>.0.0.0/0<span class="w"> </span>le<span class="w"> </span><span class="m">32</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>route-map<span class="w"> </span>CUSTOMER-IN<span class="w"> </span>permit<span class="w"> </span><span class="m">10</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span>match<span class="w"> </span>ip<span class="w"> </span>address<span class="w"> </span>prefix-list<span class="w"> </span>FROM-CUSTOMER
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>neighbor<span class="w"> </span><span class="m">10</span>.0.0.2<span class="w"> </span>route-map<span class="w"> </span>CUSTOMER-IN<span class="w"> </span><span class="k">in</span>
+</code></pre></div>
+<p>The problem: maintaining manual prefix lists for thousands of peers is operationally
+brutal. This is where RPKI comes in.</p>
+<h3 id="2-rpki-and-roa-the-cryptographic-fix">2. RPKI and ROA (the cryptographic fix)<a class="headerlink" href="#2-rpki-and-roa-the-cryptographic-fix" title="Permanent link">&para;</a></h3>
+<p><strong>RPKI</strong> (Resource Public Key Infrastructure) lets IP address holders cryptographically
+sign which ASes are authorized to announce their prefixes. The signed object is called a
+<strong>ROA</strong> (Route Origin Authorization).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a># What a ROA says (conceptual)
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>Prefix:         203.0.113.0/24
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>Max prefix len: /24
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>Authorized AS:  AS64500
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>Signed by:      ARIN (the RIR that allocated the IP space)
+</code></pre></div>
+<p>When a router receives a BGP route, it checks: "Is there an ROA for this prefix? Does
+the announcing AS match?" Three outcomes:</p>
+<table>
+<thead>
+<tr>
+<th>ROA Status</th>
+<th>Meaning</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Valid</strong></td>
+<td>ROA exists, AS matches</td>
+<td>Accept</td>
+</tr>
+<tr>
+<td><strong>Invalid</strong></td>
+<td>ROA exists, AS does NOT match</td>
+<td>Drop (if enforcing)</td>
+</tr>
+<tr>
+<td><strong>Not Found</strong></td>
+<td>No ROA exists for this prefix</td>
+<td>Accept (for now)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Under the Hood:</strong> RPKI validation doesn't happen on the router itself. Routers run a
+lightweight RPKI-to-Router (RTR) protocol client that talks to an <strong>RPKI validator</strong>
+(like Routinator, Fort, or rpki-client). The validator fetches signed ROA objects from
+the five RIR trust anchors, validates the cryptographic chain, and feeds the results to
+the router. The router marks each received route as Valid, Invalid, or Not Found.</p>
+</blockquote>
+<p>As of 2025, roughly 50% of IPv4 prefixes and 60% of IPv6 prefixes have ROAs registered.
+Adoption is growing but not universal. The "Not Found" category remains large, which is
+why most operators accept Not Found routes — dropping them would break too much of the
+internet.</p>
+<h3 id="3-bgp-communities-signaling-without-new-protocols">3. BGP Communities: Signaling Without New Protocols<a class="headerlink" href="#3-bgp-communities-signaling-without-new-protocols" title="Permanent link">&para;</a></h3>
+<p>BGP communities are tags attached to routes that carry policy information between ASes.
+They're 32-bit values, typically written as two 16-bit numbers: <code>ASN:value</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Common well-known communities</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="l l-Scalar l-Scalar-Plain">65535:0       NO_EXPORT      — don't advertise outside this AS</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="l l-Scalar l-Scalar-Plain">65535:1       NO_ADVERTISE   — don't advertise to any peer</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="l l-Scalar l-Scalar-Plain">65535:2       NO_EXPORT_SUBCONFED — don't export outside confederation</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="l l-Scalar l-Scalar-Plain"># Operator-defined communities (examples)</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="l l-Scalar l-Scalar-Plain">AS3356:100    Lumen</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">learned from customer</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nt">AS3356:123    Lumen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">learned at Ashburn IX</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="nt">AS3356:666    Lumen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">blackhole this prefix (DDoS mitigation)</span>
+</code></pre></div>
+<p>The blackhole community is the one you'll use in an emergency. If your IP space is under
+DDoS attack, you announce the targeted prefix with the blackhole community to your upstream
+provider. They install a null route — traffic for that prefix is dropped at their edge,
+keeping the rest of your network alive.</p>
+<blockquote>
+<p><strong>Interview Bridge:</strong> "How would you mitigate a DDoS attack at the network level?" The
+answer involves RTBH (Remote Triggered Black Hole) using BGP communities. You sacrifice
+the attacked prefix to save everything else.</p>
+</blockquote>
+<hr />
+<h2 id="flashcard-check-2">Flashcard Check #2<a class="headerlink" href="#flashcard-check-2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What is the first step in BGP route selection?</td>
+<td>Highest LOCAL_PREFERENCE</td>
+</tr>
+<tr>
+<td>What makes BGP hijacking possible?</td>
+<td>Longest prefix match — a more-specific route always wins, regardless of who announces it</td>
+</tr>
+<tr>
+<td>What is a ROA?</td>
+<td>Route Origin Authorization — a cryptographic statement that an AS is authorized to announce a prefix</td>
+</tr>
+<tr>
+<td>What are the three RPKI validation states?</td>
+<td>Valid, Invalid, Not Found</td>
+</tr>
+<tr>
+<td>What does the <code>NO_EXPORT</code> community do?</td>
+<td>Tells neighbors not to advertise the route outside the AS</td>
+</tr>
+<tr>
+<td>What happened in the Pakistan/YouTube incident?</td>
+<td>Pakistan Telecom's /25 route for YouTube leaked globally via PCCW; the more-specific prefix won everywhere, blackholing YouTube for ~2 hours</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-6-bgp-in-the-datacenter-not-just-for-isps-anymore">Part 6: BGP in the Datacenter — Not Just for ISPs Anymore<a class="headerlink" href="#part-6-bgp-in-the-datacenter-not-just-for-isps-anymore" title="Permanent link">&para;</a></h2>
+<p>Here's where BGP gets interesting for DevOps engineers. Around 2012, hyperscalers like
+Facebook and Microsoft started doing something that would have seemed insane to 1990s
+network engineers: running BGP <em>inside</em> their datacenters, on <em>every switch</em>, replacing
+traditional protocols entirely.</p>
+<h3 id="the-clos-topology-and-ebgp-everywhere">The Clos Topology and eBGP Everywhere<a class="headerlink" href="#the-clos-topology-and-ebgp-everywhere" title="Permanent link">&para;</a></h3>
+<p>Modern datacenters use a <strong>Clos topology</strong> (also called spine-leaf or fat-tree). Every leaf
+switch connects to every spine switch. No spanning tree. No VLANs stretching across racks.
+Pure Layer 3 routing.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>             Spine1 (AS65000)    Spine2 (AS65000)
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>            /    |    \          /    |    \
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>         Leaf1  Leaf2  Leaf3  Leaf1  Leaf2  Leaf3
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>        AS65001 AS65002 AS65003
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>          |       |       |
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>        Rack1   Rack2   Rack3
+</code></pre></div>
+<p>Each leaf gets its own ASN. Each spine gets a shared ASN. Every link runs eBGP. The result:</p>
+<ul>
+<li><strong>No spanning tree</strong> — every link is active, ECMP distributes traffic across all spines</li>
+<li><strong>Sub-second failover</strong> — if a spine dies, BGP withdraws routes in milliseconds with BFD</li>
+<li><strong>Uniform latency</strong> — any server is exactly 2 hops from any other server (leaf→spine→leaf)</li>
+<li><strong>Simple troubleshooting</strong> — <code>show bgp summary</code> tells you the state of the whole fabric</li>
+</ul>
+<blockquote>
+<p><strong>Trivia:</strong> Facebook published their datacenter fabric design around 2014, proving you
+could build a massive datacenter network with BGP as the sole routing protocol and zero
+Spanning Tree. This design — documented in RFC 7938 (August 2016, "Use of BGP for
+Routing in Large-Scale Data Centers") — became the template for modern leaf-spine
+architectures industry-wide. BGP was never designed for this, which makes its success
+inside the datacenter one of networking's great plot twists.</p>
+</blockquote>
+<h3 id="why-not-ospf-inside-the-datacenter">Why Not OSPF Inside the Datacenter?<a class="headerlink" href="#why-not-ospf-inside-the-datacenter" title="Permanent link">&para;</a></h3>
+<p>OSPF works for small-to-medium datacenter fabrics, but BGP won the hyperscale race for
+specific reasons:</p>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>OSPF</th>
+<th>BGP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Policy control</td>
+<td>Limited — metric-based</td>
+<td>Rich — LOCAL_PREF, communities, AS path</td>
+</tr>
+<tr>
+<td>Scaling</td>
+<td>Area design gets complex at 500+ nodes</td>
+<td>Flat eBGP scales linearly</td>
+</tr>
+<tr>
+<td>Convergence</td>
+<td>Fast, but flooding can be disruptive</td>
+<td>Controlled with BFD + timers</td>
+</tr>
+<tr>
+<td>Multi-tenancy</td>
+<td>No native support</td>
+<td>VRF + EVPN address families</td>
+</tr>
+<tr>
+<td>Operational model</td>
+<td>Requires area architecture planning</td>
+<td>Simple: each device is its own AS</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Mental Model:</strong> Think of OSPF as a group chat — every router shares everything with
+everyone in the area. BGP is more like bilateral agreements — each pair of neighbors
+negotiates exactly what to share. In a datacenter with thousands of switches, the
+bilateral model gives you finer control.</p>
+</blockquote>
+<hr />
+<h2 id="part-7-bgp-and-kubernetes-calico-metallb-and-pod-routing">Part 7: BGP and Kubernetes — Calico, MetalLB, and Pod Routing<a class="headerlink" href="#part-7-bgp-and-kubernetes-calico-metallb-and-pod-routing" title="Permanent link">&para;</a></h2>
+<p>If you run Kubernetes on bare metal or in a datacenter (not managed cloud), there's a good
+chance BGP is routing traffic to your pods right now.</p>
+<h3 id="calico-bgp-for-pod-networking">Calico: BGP for Pod Networking<a class="headerlink" href="#calico-bgp-for-pod-networking" title="Permanent link">&para;</a></h3>
+<p>Calico is a Kubernetes CNI plugin that uses BGP to distribute pod routes between nodes.
+Instead of encapsulating pod traffic in VXLAN tunnels (like Flannel), Calico can advertise
+each node's pod CIDR via BGP, making pod IPs routable on the physical network.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># What Calico does on each node:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># 1. Assigns pod IPs from the node's CIDR (e.g., 10.244.1.0/24)</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># 2. Creates routes for local pods</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># 3. Runs BIRD (a BGP daemon) to advertise pod routes to other nodes</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1"># On Node 1 (pods in 10.244.1.0/24):</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>$<span class="w"> </span>ip<span class="w"> </span>route<span class="w"> </span>show<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>cali
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="m">10</span>.244.1.5<span class="w"> </span>dev<span class="w"> </span>cali1234abcd<span class="w"> </span>scope<span class="w"> </span>link<span class="w">      </span><span class="c1"># Pod A</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="m">10</span>.244.1.9<span class="w"> </span>dev<span class="w"> </span>cali5678efgh<span class="w"> </span>scope<span class="w"> </span>link<span class="w">      </span><span class="c1"># Pod B</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="m">10</span>.244.2.0/24<span class="w"> </span>via<span class="w"> </span><span class="m">192</span>.168.1.102<span class="w"> </span>dev<span class="w"> </span>eth0<span class="w">    </span><span class="c1"># Node 2's pods — learned via BGP</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="c1"># Check Calico's BGP peering status:</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>$<span class="w"> </span>calicoctl<span class="w"> </span>node<span class="w"> </span>status
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>Calico<span class="w"> </span>process<span class="w"> </span>is<span class="w"> </span>running.
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>IPv4<span class="w"> </span>BGP<span class="w"> </span>status
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>+----------------+-------------------+-------+----------+---+
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="p">|</span><span class="w"> </span>PEER<span class="w"> </span>ADDRESS<span class="w">   </span><span class="p">|</span><span class="w"> </span>PEER<span class="w"> </span>TYPE<span class="w">         </span><span class="p">|</span><span class="w"> </span>STATE<span class="w"> </span><span class="p">|</span><span class="w"> </span>SINCE<span class="w">    </span><span class="p">|</span><span class="w"> </span>INFO<span class="w"> </span><span class="p">|</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>+----------------+-------------------+-------+----------+---+
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="p">|</span><span class="w"> </span><span class="m">192</span>.168.1.102<span class="w">  </span><span class="p">|</span><span class="w"> </span>node-to-node<span class="w"> </span>mesh<span class="w"> </span><span class="p">|</span><span class="w"> </span>up<span class="w">    </span><span class="p">|</span><span class="w"> </span><span class="m">09</span>:15:32<span class="w"> </span><span class="p">|</span><span class="w"> </span>Established<span class="w"> </span><span class="p">|</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="p">|</span><span class="w"> </span><span class="m">192</span>.168.1.103<span class="w">  </span><span class="p">|</span><span class="w"> </span>node-to-node<span class="w"> </span>mesh<span class="w"> </span><span class="p">|</span><span class="w"> </span>up<span class="w">    </span><span class="p">|</span><span class="w"> </span><span class="m">09</span>:15:35<span class="w"> </span><span class="p">|</span><span class="w"> </span>Established<span class="w"> </span><span class="p">|</span>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a>+----------------+-------------------+-------+----------+---+
+</code></pre></div>
+<blockquote>
+<p><strong>Under the Hood:</strong> Calico runs BIRD (the BIRD Internet Routing Daemon — yes, "BIRD" is
+a recursive acronym: <strong>B</strong>IRD <strong>I</strong>nternet <strong>R</strong>outing <strong>D</strong>aemon) on each node. BIRD
+maintains BGP sessions with other nodes, advertising per-pod /32 routes or per-node CIDR
+routes. When a pod is created, Calico programs a route on the node, and BIRD advertises it
+to all peers within seconds. When a pod is deleted, the route is withdrawn. It's the same
+announce/withdraw cycle that runs the internet — now running inside your cluster.</p>
+</blockquote>
+<p>In larger clusters, Calico supports BGP <strong>route reflectors</strong> to avoid the full-mesh problem
+(same concept as ISP route reflectors). You designate 2-3 nodes as reflectors, and all other
+nodes peer only with them.</p>
+<h3 id="metallb-loadbalancer-services-via-bgp">MetalLB: LoadBalancer Services via BGP<a class="headerlink" href="#metallb-loadbalancer-services-via-bgp" title="Permanent link">&para;</a></h3>
+<p>In cloud Kubernetes, <code>type: LoadBalancer</code> services get an external IP automatically from
+the cloud provider. On bare metal, there's no cloud API to call. MetalLB fills this gap
+using BGP.</p>
+<p>MetalLB runs a speaker pod on each node. When a LoadBalancer service is created, MetalLB
+assigns an IP from a configured pool and announces it via BGP to the upstream network.
+The datacenter's ToR (top-of-rack) switches see the BGP route and start forwarding traffic
+to the node.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># MetalLB BGP configuration (simplified)</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metallb.io/v1beta2</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BGPPeer</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tor-switch</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metallb-system</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span><span class="nt">myASN</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64512</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">  </span><span class="nt">peerASN</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">65000</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">  </span><span class="nt">peerAddress</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10.0.0.1</span><span class="w">   </span><span class="c1"># ToR switch</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="nn">---</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metallb.io/v1beta1</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">IPAddressPool</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">production</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">metallb-system</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a><span class="w">  </span><span class="nt">addresses</span><span class="p">:</span>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">203.0.113.100-203.0.113.200</span><span class="w">   </span><span class="c1"># IPs to assign to LoadBalancer services</span>
+</code></pre></div>
+<p>When you create a service, MetalLB announces the assigned IP to the ToR switch via BGP.
+The ToR installs it in its routing table. Traffic from the internet arrives at your cluster
+without any cloud provider magic — just BGP.</p>
+<blockquote>
+<p><strong>Interview Bridge:</strong> "How do you expose Kubernetes services on bare metal without a cloud
+load balancer?" MetalLB in BGP mode is the standard answer. Know that it announces
+routes to upstream routers, and know the difference between its L2 mode (ARP-based,
+single-node bottleneck) and BGP mode (true ECMP across nodes).</p>
+</blockquote>
+<hr />
+<h2 id="part-8-route-leaks-graceful-restart-and-other-things-that-break">Part 8: Route Leaks, Graceful Restart, and Other Things That Break<a class="headerlink" href="#part-8-route-leaks-graceful-restart-and-other-things-that-break" title="Permanent link">&para;</a></h2>
+<h3 id="route-leaks">Route Leaks<a class="headerlink" href="#route-leaks" title="Permanent link">&para;</a></h3>
+<p>A <strong>route leak</strong> is when an AS advertises routes it learned from one peer to another peer
+in violation of the expected routing policy. Unlike a hijack (announcing <em>someone else's</em>
+prefix), a leak announces <em>legitimate routes through the wrong path</em>.</p>
+<p>The classic leak: a customer AS learns full internet routes from its transit provider, then
+accidentally re-advertises all of them to another provider. Suddenly, traffic for half the
+internet is trying to flow through a small customer network that can't handle it.</p>
+<blockquote>
+<p><strong>War Story:</strong> In June 2019, a small Pennsylvania ISP (AS396531) leaked over 20,000 routes
+it learned from one transit provider to another. The leaked routes propagated through
+Verizon's network, causing major routing disruptions for Cloudflare, Amazon, and others
+for several hours. The root cause was a BGP optimizer appliance that re-advertised routes
+without proper filtering. Source: Cloudflare blog, "How Verizon and a BGP Optimizer
+Knocked Large Parts of the Internet Offline Today," June 24, 2019.</p>
+</blockquote>
+<h3 id="graceful-restart">Graceful Restart<a class="headerlink" href="#graceful-restart" title="Permanent link">&para;</a></h3>
+<p>When a BGP speaker restarts (software upgrade, crash, daemon restart), its peers normally
+treat all routes from it as withdrawn — causing a brief traffic disruption. <strong>BGP Graceful
+Restart</strong> (RFC 4724) lets the peer keep forwarding traffic on the old routes while the
+restarting speaker re-establishes its sessions and re-advertises its routes.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a># Timeline without graceful restart:
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>T=0s:   Router restarts
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>T=0s:   Peers withdraw all routes from this router
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>T=30s:  Router finishes booting, re-establishes BGP
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>T=60s:  Routes re-converge
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>        → 60 seconds of disruption
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a># Timeline with graceful restart:
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>T=0s:   Router restarts
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>T=0s:   Peers mark routes as "stale" but KEEP FORWARDING
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>T=30s:  Router finishes booting, re-advertises routes
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>T=31s:  Peers clear stale flag, continue forwarding
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>        → Near-zero disruption
+</code></pre></div>
+<blockquote>
+<p><strong>Gotcha:</strong> Graceful restart has a timer (default varies by vendor, often 120 seconds).
+If the restarting router doesn't come back before the timer expires, all stale routes
+are withdrawn. If your router takes longer than the timer to boot, you get the worst of
+both worlds: stale routes forwarding into a black hole for the duration, followed by a
+mass withdrawal. Size the restart timer to your actual boot time + margin.</p>
+</blockquote>
+<h3 id="the-two-napkins-problem-37-years-later">The "Two Napkins" Problem, 37 Years Later<a class="headerlink" href="#the-two-napkins-problem-37-years-later" title="Permanent link">&para;</a></h3>
+<p>BGP was designed when the internet was a few hundred networks run by people who knew each
+other. The trust model — "I'll believe what my neighbors tell me" — was adequate. Today, BGP
+connects 75,000+ autonomous systems operated by organizations with wildly different
+incentives and competence levels. The protocol has no built-in authentication of route
+announcements. RPKI is the bolt-on fix, but adoption is still partial.</p>
+<p>This is the internet's dirty secret: the system that routes all of humanity's digital
+communication is still, at its core, a trust-based system running on a protocol sketched
+on napkins.</p>
+<hr />
+<h2 id="flashcard-check-3">Flashcard Check #3<a class="headerlink" href="#flashcard-check-3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What CNI plugin uses BGP to distribute pod routes?</td>
+<td>Calico (runs BIRD BGP daemon on each node)</td>
+</tr>
+<tr>
+<td>What does MetalLB do in BGP mode?</td>
+<td>Announces LoadBalancer service IPs to upstream routers via BGP, providing external IPs on bare metal</td>
+</tr>
+<tr>
+<td>What is a route leak?</td>
+<td>When an AS re-advertises routes to a peer in violation of expected policy (not a hijack — the routes are legitimate, just misadvertised)</td>
+</tr>
+<tr>
+<td>What does BGP Graceful Restart do?</td>
+<td>Lets peers keep forwarding on stale routes while the restarting router re-establishes BGP sessions</td>
+</tr>
+<tr>
+<td>What topology do modern datacenters use with BGP?</td>
+<td>Clos / spine-leaf — each leaf has its own ASN, eBGP on every link, no spanning tree</td>
+</tr>
+<tr>
+<td>Why did hyperscalers choose BGP over OSPF for datacenter routing?</td>
+<td>Richer policy control, linear scaling, no area planning, native multi-tenancy support</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="exercises">Exercises<a class="headerlink" href="#exercises" title="Permanent link">&para;</a></h2>
+<h3 id="exercise-1-read-a-bgp-looking-glass-5-minutes">Exercise 1: Read a BGP Looking Glass (5 minutes)<a class="headerlink" href="#exercise-1-read-a-bgp-looking-glass-5-minutes" title="Permanent link">&para;</a></h3>
+<p>BGP looking glasses are public tools that let you see how the internet routes traffic.
+No router access needed.</p>
+<ol>
+<li>Go to https://lg.he.net/ (Hurricane Electric's looking glass)</li>
+<li>Enter your company's public IP (or any IP you know, like <code>8.8.8.8</code>)</li>
+<li>Look at the BGP route:</li>
+<li>What is the origin AS?</li>
+<li>How long is the AS path?</li>
+<li>Are there multiple paths? (indicates the destination is multihomed)</li>
+</ol>
+<details>
+<summary>What to look for</summary>
+
+For `8.8.8.8`, you should see AS15169 (Google) as the origin. The AS path length depends
+on which looking glass location you query from — shorter paths from well-connected IXPs,
+longer paths from smaller networks. If you see multiple paths, Google is reachable through
+several transit providers from the looking glass's perspective.
+</details>
+
+<h3 id="exercise-2-check-rpki-validation-status-5-minutes">Exercise 2: Check RPKI Validation Status (5 minutes)<a class="headerlink" href="#exercise-2-check-rpki-validation-status-5-minutes" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Go to https://rpki-validator.ripe.net/</li>
+<li>Enter any prefix (e.g., <code>1.1.1.0/24</code> — Cloudflare)</li>
+<li>Check: Is it Valid, Invalid, or Not Found?</li>
+<li>Try a few more prefixes — your employer's, your ISP's, a random university</li>
+</ol>
+<details>
+<summary>What you'll find</summary>
+
+Major providers (Cloudflare, Google, Amazon, Microsoft) will show Valid — they've published
+ROAs. Smaller organizations often show Not Found — they haven't set up RPKI yet. If you
+find an Invalid result, that's interesting — it means someone is announcing a prefix that
+contradicts the ROA, which could be a hijack or a misconfiguration.
+</details>
+
+<h3 id="exercise-3-trace-a-bgp-hijack-scenario-15-minutes">Exercise 3: Trace a BGP Hijack Scenario (15 minutes)<a class="headerlink" href="#exercise-3-trace-a-bgp-hijack-scenario-15-minutes" title="Permanent link">&para;</a></h3>
+<p>Walk through this scenario on paper:</p>
+<ul>
+<li>AS64500 legitimately owns <code>198.51.100.0/23</code> and announces it to the internet</li>
+<li>AS99999 (malicious) announces <code>198.51.100.0/24</code> — a more-specific prefix</li>
+</ul>
+<p>Questions:
+1. Which announcement wins for traffic to <code>198.51.100.1</code>? Why?
+2. What about traffic to <code>198.51.101.1</code>?
+3. How could AS64500 defend against this <em>before</em> it happens? (two methods)
+4. How could AS64500 respond <em>after</em> the hijack is detected? (two methods)</p>
+<details>
+<summary>Answers</summary>
+
+1. AS99999's /24 wins for `198.51.100.1` — longest prefix match. The /24 is more specific
+   than the /23.
+2. AS64500's /23 still wins for `198.51.101.1` — the /24 only covers .100.x, not .101.x.
+3. Prevention: (a) Register ROAs via RPKI, so validators can flag AS99999's announcement as
+   Invalid. (b) Ask transit providers to filter — accept only AS64500 for this prefix.
+4. Response: (a) Announce their own /24s (`198.51.100.0/24` + `198.51.101.0/24`) to compete
+   at the same specificity. (b) Contact upstream providers to filter the bogus route. (c)
+   Alert via NANOG/mailing lists to get community pressure on AS99999's upstream.
+</details>
+
+<h3 id="exercise-4-inspect-calico-bgp-on-a-kubernetes-cluster-15-minutes">Exercise 4: Inspect Calico BGP on a Kubernetes Cluster (15 minutes)<a class="headerlink" href="#exercise-4-inspect-calico-bgp-on-a-kubernetes-cluster-15-minutes" title="Permanent link">&para;</a></h3>
+<p>If you have a Kubernetes cluster running Calico:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># 1. Check BGP peering status</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>calicoctl<span class="w"> </span>node<span class="w"> </span>status
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># 2. Look at the routes Calico has programmed</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>ip<span class="w"> </span>route<span class="w"> </span>show<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'cali|bird|bgp'</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># 3. Find a pod IP and trace its route</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>-o<span class="w"> </span>wide<span class="w">  </span><span class="c1"># pick a pod on another node</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>ip<span class="w"> </span>route<span class="w"> </span>get<span class="w"> </span>&lt;pod-ip&gt;<span class="w">    </span><span class="c1"># how does the kernel route to it?</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="c1"># 4. Watch what happens when you delete a pod</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>kubectl<span class="w"> </span>delete<span class="w"> </span>pod<span class="w"> </span>&lt;name&gt;
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="c1"># In another terminal, watch routes change:</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>ip<span class="w"> </span>monitor<span class="w"> </span>route
+</code></pre></div>
+<details>
+<summary>What you'll see</summary>
+
+`calicoctl node status` shows BGP peers (other nodes) and their state. `ip route show`
+will have per-pod /32 routes for local pods (via `cali*` interfaces) and per-node aggregate
+routes for remote pods (via the node's physical interface). When you delete a pod, the /32
+route disappears within seconds — BIRD sends a BGP withdrawal to all peers.
+</details>
+
+<hr />
+<h2 id="cheat-sheet">Cheat Sheet<a class="headerlink" href="#cheat-sheet" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Key Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BGP type</td>
+<td>Path vector protocol (RFC 4271)</td>
+</tr>
+<tr>
+<td>AS number range</td>
+<td>1–64495 (public), 64512–65534 (private 2-byte), 4200000000–4294967294 (private 4-byte)</td>
+</tr>
+<tr>
+<td>eBGP vs iBGP</td>
+<td>eBGP = between ASes, iBGP = within an AS</td>
+</tr>
+<tr>
+<td>Route selection order</td>
+<td>LOCAL_PREF → AS path length → Origin → MED → eBGP &gt; iBGP → IGP metric → age → router ID</td>
+</tr>
+<tr>
+<td>Longest prefix match</td>
+<td>/25 beats /24 beats /23 — always. This enables hijacking.</td>
+</tr>
+<tr>
+<td>RPKI/ROA</td>
+<td>Cryptographic proof of which AS can announce a prefix. States: Valid, Invalid, Not Found</td>
+</tr>
+<tr>
+<td>BGP communities</td>
+<td>32-bit tags for signaling policy: NO_EXPORT, blackhole, location tagging</td>
+</tr>
+<tr>
+<td>Clos/spine-leaf</td>
+<td>Modern DC topology — eBGP on every link, each leaf its own ASN, no STP</td>
+</tr>
+<tr>
+<td>Calico</td>
+<td>K8s CNI using BGP (BIRD daemon) to distribute pod routes between nodes</td>
+</tr>
+<tr>
+<td>MetalLB</td>
+<td>Bare-metal LoadBalancer — announces service IPs via BGP to ToR switches</td>
+</tr>
+<tr>
+<td>Graceful restart</td>
+<td>Peers keep stale routes during speaker restart (RFC 4724)</td>
+</tr>
+<tr>
+<td>BGP port</td>
+<td>TCP 179</td>
+</tr>
+<tr>
+<td>Convergence time</td>
+<td>Announcements: seconds to minutes. Withdrawals: slower. Graceful restart: near-zero</td>
+</tr>
+<tr>
+<td>AS path prepending</td>
+<td>Artificially lengthen path to steer traffic away from a link</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key commands (when you have access to a BGP router):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">show</span><span class="w"> </span><span class="n">bgp</span><span class="w"> </span><span class="n">summary</span><span class="w">              </span><span class="o">#</span><span class="w"> </span><span class="n">Peer</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="n">route</span><span class="w"> </span><span class="n">counts</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">show</span><span class="w"> </span><span class="n">bgp</span><span class="w"> </span><span class="n">ipv4</span><span class="w"> </span><span class="n">unicast</span><span class="w">         </span><span class="o">#</span><span class="w"> </span><span class="k">Full</span><span class="w"> </span><span class="n">BGP</span><span class="w"> </span><span class="k">table</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="k">show</span><span class="w"> </span><span class="n">bgp</span><span class="w"> </span><span class="o">&lt;</span><span class="k">prefix</span><span class="o">&gt;</span><span class="w">             </span><span class="o">#</span><span class="w"> </span><span class="k">Specific</span><span class="w"> </span><span class="n">route</span><span class="w"> </span><span class="k">with</span><span class="w"> </span><span class="k">all</span><span class="w"> </span><span class="n">attributes</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="k">show</span><span class="w"> </span><span class="n">bgp</span><span class="w"> </span><span class="n">neighbors</span><span class="w"> </span><span class="o">&lt;</span><span class="n">ip</span><span class="o">&gt;</span><span class="w"> </span><span class="n">advertised</span><span class="o">-</span><span class="n">routes</span><span class="w">   </span><span class="o">#</span><span class="w"> </span><span class="n">What</span><span class="w"> </span><span class="n">you</span><span class="s1">'re sending</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="s1">show bgp neighbors &lt;ip&gt; received-routes     # What they'</span><span class="n">re</span><span class="w"> </span><span class="n">sending</span><span class="w"> </span><span class="n">you</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="k">show</span><span class="w"> </span><span class="n">bgp</span><span class="w"> </span><span class="n">community</span><span class="w"> </span><span class="o">&lt;</span><span class="n">community</span><span class="o">&gt;</span><span class="w">              </span><span class="o">#</span><span class="w"> </span><span class="n">Routes</span><span class="w"> </span><span class="k">with</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="k">specific</span><span class="w"> </span><span class="n">tag</span>
+</code></pre></div>
+<p><strong>Key commands (Linux host with Calico):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>calicoctl<span class="w"> </span>node<span class="w"> </span>status<span class="w">                </span><span class="c1"># BGP peer state</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>ip<span class="w"> </span>route<span class="w"> </span>show<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>cali<span class="w">            </span><span class="c1"># Pod routes</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>ip<span class="w"> </span>route<span class="w"> </span>get<span class="w"> </span>&lt;pod-ip&gt;<span class="w">                </span><span class="c1"># Trace kernel routing decision</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>calicoctl<span class="w"> </span>get<span class="w"> </span>bgpPeer<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w">       </span><span class="c1"># Calico BGP peering config</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>calicoctl<span class="w"> </span>get<span class="w"> </span>ipPool<span class="w"> </span>-o<span class="w"> </span>yaml<span class="w">         </span><span class="c1"># IP pools allocated to pods</span>
+</code></pre></div>
+<hr />
+<h2 id="takeaways">Takeaways<a class="headerlink" href="#takeaways" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>BGP is the internet's routing protocol</strong>, and it works on trust — any AS can announce any prefix. RPKI is the fix, but adoption is still partial.</p>
+</li>
+<li>
+<p><strong>Longest prefix match is the most important routing concept.</strong> It's why routing works, why CIDR works, and why BGP hijacks work. A /25 always beats a /24.</p>
+</li>
+<li>
+<p><strong>The route selection algorithm is a decision tree, not a single metric.</strong> LOCAL_PREF and AS path length are the two knobs you actually use for traffic engineering.</p>
+</li>
+<li>
+<p><strong>BGP is not just for ISPs anymore.</strong> Modern datacenters run eBGP on every switch (Clos/spine-leaf). Your Kubernetes cluster might be running BGP right now (Calico, MetalLB).</p>
+</li>
+<li>
+<p><strong>The Pakistan/YouTube 2008 hijack is the canonical example</strong> of what goes wrong when route announcements aren't verified — a single misconfiguration took YouTube offline worldwide for two hours.</p>
+</li>
+<li>
+<p><strong>Know your defenses:</strong> prefix filtering (manual), RPKI/ROA (cryptographic), and BGP communities (signaling). Layers of protection because no single layer is complete.</p>
+</li>
+</ol>
+<hr />
+<h2 id="related-lessons">Related Lessons<a class="headerlink" href="#related-lessons" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../what-happens-when-you-click-a-link/">What Happens When You Click a Link</a> — follows a request through DNS, TCP, TLS, and routing</li>
+<li><a href="../kubernetes-services-how-traffic-finds-your-pod/">Kubernetes Services: How Traffic Finds Your Pod</a> — the Kubernetes networking model, kube-proxy, and service routing</li>
+<li><a href="../the-subnet-calculator-in-your-head/">The Subnet Calculator in Your Head</a> — CIDR, prefix lengths, and the math behind longest prefix match</li>
+<li><a href="../why-dns-is-always-the-problem/">Why DNS Is Always the Problem</a> — DNS resolution, TTLs, and the failures that look like routing issues</li>
+<li><a href="../iptables-following-a-packet-through-the-chains/">IPTables: Following a Packet Through the Chains</a> — packet filtering and NAT at the Linux host level</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="August 19, 2026 13:40:59 UTC">August 19, 2026 13:40:59</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-datetime" title="March 23, 2026 02:04:33 UTC">March 23, 2026 02:04:33</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../s3-the-object-store-that-runs-the-internet/" class="md-footer__link md-footer__link--prev" aria-label="Previous: S3: The Object Store That Runs the Internet">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                S3: The Object Store That Runs the Internet
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../slos-when-good-enough-is-a-number/" class="md-footer__link md-footer__link--next" aria-label="Next: SLOs: When Good Enough Is a Number">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                SLOs: When Good Enough Is a Number
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.code.annotate", "content.tabs.link", "navigation.prune", "navigation.footer", "navigation.path", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../_pagefind/pagefind-ui.js"></script>
+      
+        <script src="../../portal/js/random-content.js"></script>
+      
+        <script src="../../portal/js/tier-filter.js"></script>
+      
+        <script src="../../../assets/external/d3js.org/d3.v7.min.js"></script>
+      
+        <script src="../../portal/js/graph.js"></script>
+      
+        <script src="../../../assets/external/cdn.jsdelivr.net/npm/minisearch@7/dist/umd/index.min.js"></script>
+      
+        <script src="../../portal/js/fuzzy-search.js"></script>
+      
+    
+  </body>
+</html>

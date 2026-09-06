@@ -1,0 +1,36 @@
+$ systemctl status data-sync
+* data-sync.service - Data Synchronization Service
+     Loaded: loaded (/etc/systemd/system/data-sync.service; enabled; vendor preset: enabled)
+     Active: failed (Result: start-limit-hit) since Thu 2026-03-05 14:05:32 UTC; 8min ago
+    Process: 18234 ExecStart=/opt/data-sync/bin/data-sync --config /etc/data-sync/config.yaml (code=exited, status=1/FAILURE)
+   Main PID: 18234 (code=exited, status=1/FAILURE)
+        CPU: 42ms
+
+Mar 05 14:05:02 web-prod-03 systemd[1]: data-sync.service: Scheduled restart job, restart counter is at 1.
+Mar 05 14:05:02 web-prod-03 systemd[1]: Started Data Synchronization Service.
+Mar 05 14:05:02 web-prod-03 data-sync[18230]: Error: failed to load environment file /etc/data-sync/env: no such file or directory
+Mar 05 14:05:02 web-prod-03 systemd[1]: data-sync.service: Main process exited, code=exited, status=1/FAILURE
+Mar 05 14:05:02 web-prod-03 systemd[1]: data-sync.service: Failed with result 'exit-code'.
+Mar 05 14:05:32 web-prod-03 systemd[1]: data-sync.service: Start request repeated too quickly.
+Mar 05 14:05:32 web-prod-03 systemd[1]: data-sync.service: Failed with result 'start-limit-hit'.
+Mar 05 14:05:32 web-prod-03 systemd[1]: Failed to start Data Synchronization Service.
+
+$ systemctl cat data-sync
+# /etc/systemd/system/data-sync.service
+[Unit]
+Description=Data Synchronization Service
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=datasync
+Group=datasync
+EnvironmentFile=/etc/data-sync/env
+ExecStart=/opt/data-sync/bin/data-sync --config /etc/data-sync/config.yaml
+Restart=always
+StartLimitBurst=5
+StartLimitIntervalSec=30
+
+[Install]
+WantedBy=multi-user.target

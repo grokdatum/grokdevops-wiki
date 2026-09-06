@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>GrokDevOps Flashcards</title>
+<style>
+  :root {
+    --bg: #1a1a2e; --card-bg: #16213e; --card-flip: #0f3460;
+    --text: #e4e4e4; --dim: #8888aa; --accent: #e94560; --accent2: #533483;
+    --green: #4ecca3; --radius: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; align-items: center;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: pan-y;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    width: 100%; padding: 12px 16px; display: flex; align-items: center;
+    justify-content: space-between; flex-shrink: 0;
+  }
+  .topbar h1 { font-size: 16px; font-weight: 600; }
+  .counter { font-size: 14px; color: var(--dim); }
+
+  /* ── Filter bar ── */
+  .filters {
+    width: 100%; padding: 0 12px 8px; display: flex; flex-wrap: wrap;
+    gap: 6px; flex-shrink: 0; justify-content: center;
+    max-height: 30vh; overflow-y: auto;
+  }
+  .filters button {
+    background: var(--card-bg); color: var(--dim); border: 1px solid #333;
+    border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filters button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ── Progress bar ── */
+  .progress-wrap { width: 100%; padding: 0 16px 8px; flex-shrink: 0; }
+  .progress-bar {
+    height: 4px; background: #333; border-radius: 2px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: var(--green); transition: width 0.3s;
+  }
+
+  /* ── Card area ── */
+  .card-area {
+    flex: 1; width: 100%; max-width: 600px; padding: 8px 16px;
+    display: flex; align-items: center; justify-content: center;
+    perspective: 1000px; min-height: 0;
+  }
+  .card {
+    width: 100%; height: 100%; max-height: 70vh; position: relative;
+    cursor: pointer; transform-style: preserve-3d;
+    transition: transform 0.4s ease;
+  }
+  .card.flipped { transform: rotateY(180deg); }
+  .card-face {
+    position: absolute; inset: 0; border-radius: var(--radius);
+    padding: 24px 20px; backface-visibility: hidden;
+    display: flex; flex-direction: column; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .card-front { background: var(--card-bg); }
+  .card-back { background: var(--card-flip); transform: rotateY(180deg); }
+  .topic-badge {
+    display: inline-block; background: var(--accent2); color: #ddd;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 12px; margin-bottom: 16px;
+    align-self: flex-start; letter-spacing: 0.5px;
+  }
+  .card-text {
+    font-size: 17px; line-height: 1.55; white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .card-back .card-text { font-size: 15px; line-height: 1.5; }
+  .card-label {
+    font-size: 11px; color: var(--dim); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 8px;
+  }
+
+  /* ── Swipe hint ── */
+  .hint { font-size: 12px; color: var(--dim); padding: 4px 0 2px; text-align: center; }
+
+  /* ── Bottom nav ── */
+  .nav {
+    width: 100%; max-width: 600px; padding: 8px 16px 20px;
+    display: flex; gap: 12px; flex-shrink: 0;
+  }
+  .nav button {
+    flex: 1; padding: 14px; border: none; border-radius: var(--radius);
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: transform 0.1s, opacity 0.15s;
+  }
+  .nav button:active { transform: scale(0.96); }
+  .btn-prev { background: var(--card-bg); color: var(--text); }
+  .btn-flip { background: var(--accent); color: #fff; }
+  .btn-next { background: var(--green); color: #1a1a2e; }
+  .btn-shuffle { background: var(--accent2); color: #fff; }
+
+  /* ── Done screen ── */
+  .done {
+    display: none; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; height: 100%; gap: 16px;
+  }
+  .done h2 { font-size: 28px; }
+  .done p { color: var(--dim); font-size: 16px; }
+  .done button {
+    background: var(--green); color: #1a1a2e; border: none;
+    border-radius: var(--radius); padding: 14px 32px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+
+  /* ── Loading screen ── */
+  .loading {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100%; gap: 16px;
+  }
+  .loading p { color: var(--dim); font-size: 16px; }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid #333;
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Slide animation ── */
+  .card-area.slide-left .card { animation: slideLeft 0.25s ease; }
+  .card-area.slide-right .card { animation: slideRight 0.25s ease; }
+  @keyframes slideLeft {
+    0% { transform: translateX(0); opacity: 1; }
+    40% { transform: translateX(-60px); opacity: 0; }
+    60% { transform: translateX(60px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes slideRight {
+    0% { transform: translateX(0); opacity: 1; }
+    40% { transform: translateX(60px); opacity: 0; }
+    60% { transform: translateX(-60px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+
+  /* code-ish answers */
+  .card-text code, .card-text pre {
+    background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;
+    font-family: "SF Mono", "Fira Code", monospace; font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>GrokDevOps Flashcards</h1>
+  <span class="counter" id="counter">Loading...</span>
+</div>
+
+<div class="filters" id="filters"></div>
+
+<div class="progress-wrap">
+  <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+</div>
+
+<div class="card-area" id="cardArea">
+  <div class="card" id="card" onclick="flip()" style="display:none">
+    <div class="card-face card-front">
+      <span class="topic-badge" id="topic"></span>
+      <div class="card-label">Question</div>
+      <div class="card-text" id="question"></div>
+    </div>
+    <div class="card-face card-back">
+      <div class="card-label">Answer</div>
+      <div class="card-text" id="answer"></div>
+    </div>
+  </div>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Loading flashcards...</p>
+  </div>
+  <div class="done" id="done">
+    <h2>Done!</h2>
+    <p>You've gone through all cards in this set.</p>
+    <button onclick="reshuffle()">Shuffle &amp; Restart</button>
+  </div>
+</div>
+
+<div class="hint">tap card to flip &bull; swipe or use buttons to navigate</div>
+
+<div class="nav">
+  <button class="btn-prev" onclick="prev()">&larr; Prev</button>
+  <button class="btn-flip" onclick="flip()">Flip</button>
+  <button class="btn-next" onclick="next()">Next &rarr;</button>
+  <button class="btn-shuffle" onclick="reshuffle()">Shuffle</button>
+</div>
+
+<script>
+let ALL_CARDS = [];
+let deck = [], idx = 0, activeTopic = null;
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function buildFilters() {
+  const topics = [...new Set(ALL_CARDS.map(c => c.t).filter(Boolean))].sort();
+  const el = document.getElementById('filters');
+  el.innerHTML = '';
+  const allBtn = document.createElement('button');
+  allBtn.textContent = `All (${ALL_CARDS.length})`;
+  allBtn.className = 'active';
+  allBtn.onclick = () => filterByTopic(null);
+  el.appendChild(allBtn);
+  topics.forEach(t => {
+    const count = ALL_CARDS.filter(c => c.t === t).length;
+    const btn = document.createElement('button');
+    btn.textContent = `${t} (${count})`;
+    btn.dataset.topic = t;
+    btn.onclick = () => filterByTopic(t);
+    el.appendChild(btn);
+  });
+}
+
+function filterByTopic(topic) {
+  activeTopic = topic;
+  document.querySelectorAll('.filters button').forEach(b => {
+    b.classList.toggle('active',
+      topic === null ? !b.dataset.topic : b.dataset.topic === topic);
+  });
+  reshuffle();
+}
+
+function reshuffle() {
+  const src = activeTopic ? ALL_CARDS.filter(c => c.t === activeTopic) : ALL_CARDS;
+  deck = shuffle([...src]);
+  idx = 0;
+  render();
+  document.getElementById('done').style.display = 'none';
+  document.getElementById('card').style.display = '';
+}
+
+function render() {
+  if (idx >= deck.length) {
+    document.getElementById('card').style.display = 'none';
+    document.getElementById('done').style.display = 'flex';
+    document.getElementById('counter').textContent = `${deck.length} / ${deck.length}`;
+    document.getElementById('progress').style.width = '100%';
+    return;
+  }
+  const c = deck[idx];
+  document.getElementById('card').classList.remove('flipped');
+  document.getElementById('topic').textContent = c.t || '';
+  document.getElementById('topic').style.display = c.t ? '' : 'none';
+  document.getElementById('question').innerHTML = escHtml(c.q);
+  document.getElementById('answer').innerHTML = escHtml(c.a);
+  document.getElementById('counter').textContent = `${idx + 1} / ${deck.length}`;
+  document.getElementById('progress').style.width = `${((idx + 1) / deck.length) * 100}%`;
+}
+
+function flip() { document.getElementById('card').classList.toggle('flipped'); }
+
+function animateSlide(dir) {
+  const area = document.getElementById('cardArea');
+  area.classList.add(dir);
+  setTimeout(() => area.classList.remove(dir), 260);
+}
+
+function next() {
+  if (idx < deck.length) { idx++; animateSlide('slide-left'); setTimeout(render, 130); }
+}
+function prev() {
+  if (idx > 0) { idx--; animateSlide('slide-right'); setTimeout(render, 130); }
+}
+
+// Swipe support
+let touchStartX = 0, touchStartY = 0;
+document.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    if (dx < 0) next(); else prev();
+  }
+});
+
+// Keyboard support
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); flip(); }
+});
+
+// Load cards from external JSON
+fetch('flashcards.json')
+  .then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  })
+  .then(cards => {
+    ALL_CARDS = cards;
+    document.getElementById('loading').style.display = 'none';
+    buildFilters();
+    reshuffle();
+  })
+  .catch(err => {
+    document.getElementById('loading').innerHTML =
+      `<p style="color: var(--accent)">Failed to load cards: ${err.message}</p>
+       <p style="color: var(--dim); font-size: 14px">Make sure flashcards.json is in the same directory.</p>`;
+  });
+</script>
+</body>
+</html>

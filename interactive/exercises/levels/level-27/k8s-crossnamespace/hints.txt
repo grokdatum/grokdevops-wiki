@@ -1,0 +1,464 @@
+## Objective
+Fix cross-namespace service communication using proper DNS FQDN
+
+## Hint 1
+🔍 OBSERVATION HINT
+
+What to Look For:
+==================
+
+Your frontend application is trying to call an API service, but it can't connect.
+The error message says the host cannot be resolved—a classic DNS issue.
+
+Check These Areas:
+------------------
+
+1. **Frontend Pod Logs**
+   Check what error the frontend is seeing:
+   ```bash
+   kubectl logs frontend-app -n k8squest
+   ```
+
+   Look for:
+   • "could not resolve host"
+   • "bad address"
+   • "name or service not known"
+
+2. **Namespaces**
+   Check which namespaces exist:
+   ```bash
+   kubectl get namespaces
+   ```
+
+   Where is the frontend pod?
+   ```bash
+   kubectl get pod frontend-app -o wide
+   ```
+
+   Where is the backend service?
+   ```bash
+   kubectl get service --all-namespaces
+   ```
+
+3. **Service Names**
+   What service name is the frontend trying to access?
+   ```bash
+   kubectl get pod frontend-app -n k8squest -o yaml | grep command -A5
+   ```
+
+   Does that service exist in the k8squest namespace?
+   ```bash
+   kubectl get service api-service -n k8squest
+   ```
+
+   What about in other namespaces?
+   ```bash
+   kubectl get service api-service -n backend-ns
+   ```
+
+🎯 Key Questions:
+-----------------
+
+• What namespace is the frontend pod in?
+• What namespace is the backend service in?
+• Are they in the SAME namespace or DIFFERENT namespaces?
+• What DNS name is the frontend using to reach the backend?
+
+💭 Think About:
+---------------
+
+Kubernetes DNS works like your phone's contacts:
+
+- **Short name** (like "John"): Only works if John is in your current group
+- **Full name** (like "John from Marketing"): Works across different departments
+
+Similarly:
+- **Short service name** ("api-service"): Only works within same namespace
+- **Qualified name** ("api-service.backend-ns"): Works across namespaces
+
+The frontend is trying to call "api-service" but it's in a different namespace!
+
+---
+Read hint-2.txt when you need more specific direction.
+
+## Hint 2
+🧭 DIRECTION HINT
+
+The Problem Identified:
+========================
+
+The frontend is using a SHORT service name that only works within the same
+namespace. Since the backend service is in a DIFFERENT namespace, DNS resolution
+fails.
+
+Current Situation:
+------------------
+
+**Frontend Pod (in k8squest namespace):**
+```yaml
+command:
+  - 'sh'
+  - '-c'
+  - 'wget -q -O- http://api-service'    # ❌ SHORT NAME!
+```
+
+**Backend Service (in backend-ns namespace):**
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  namespace: backend-ns    # Different namespace!
+```
+
+What's Happening:
+-----------------
+
+1. **DNS Search Order:**
+   When you use a short name like "api-service", Kubernetes DNS tries:
+
+   ```
+   1. api-service.k8squest.svc.cluster.local      ❌ Not found (wrong namespace)
+   2. api-service.svc.cluster.local               ❌ Not found (ambiguous)
+   3. api-service.cluster.local                   ❌ Not found
+   4. api-service                                 ❌ Not found
+   ```
+
+   Result: "could not resolve host: api-service"
+
+2. **Why Short Names Don't Work:**
+   - Short names are namespace-scoped
+   - Kubernetes DNS only searches the CURRENT namespace
+   - Frontend is in k8squest → looks for api-service in k8squest
+   - api-service is actually in backend-ns → not found!
+
+The Fix:
+--------
+
+Use a **fully-qualified domain name (FQDN)** that includes the namespace:
+
+```
+http://api-service.backend-ns.svc.cluster.local
+```
+
+Kubernetes DNS Format:
+----------------------
+
+```
+<service-name>.<namespace>.svc.cluster.local
+     |              |        |       |
+     |              |        |       +-- Cluster domain (usually "cluster.local")
+     |              |        +---------- Service subdomain
+     |              +------------------- Namespace
+     +---------------------------------- Service name
+```
+
+**Examples:**
+
+```yaml
+# Same namespace (k8squest → k8squest)
+http://my-service                           ✅ Works
+
+# Cross-namespace (k8squest → backend-ns)
+http://api-service                          ❌ Doesn't work
+http://api-service.backend-ns               ✅ Works (short FQDN)
+http://api-service.backend-ns.svc           ✅ Works
+http://api-service.backend-ns.svc.cluster.local  ✅ Works (full FQDN)
+```
+
+**Best Practice:** Use the full FQDN for clarity and to avoid issues if cluster
+domain is customized.
+
+What to Do:
+-----------
+
+Edit broken.yaml and change the frontend pod command:
+
+**From:**
+```yaml
+command: ['sh', '-c', 'wget -q -O- http://api-service']
+```
+
+**To:**
+```yaml
+command: ['sh', '-c', 'wget -q -O- http://api-service.backend-ns.svc.cluster.local']
+```
+
+Then apply:
+```bash
+kubectl delete pod frontend-app -n k8squest
+kubectl apply -f broken.yaml
+kubectl logs frontend-app -n k8squest -f
+```
+
+You should see "API Response from backend-ns" instead of DNS errors!
+
+Testing DNS Resolution:
+-----------------------
+
+You can test DNS resolution manually:
+
+```bash
+# Test short name (will fail)
+kubectl exec frontend-app -n k8squest -- nslookup api-service
+
+# Test FQDN (will succeed)
+kubectl exec frontend-app -n k8squest -- nslookup api-service.backend-ns.svc.cluster.local
+```
+
+The FQDN should return the service IP.
+
+---
+Read hint-3.txt if you need the exact solution.
+
+## Hint 3
+✅ SOLUTION HINT
+
+Complete Fix:
+=============
+
+Here's exactly what to change in broken.yaml:
+
+**Find the Frontend Pod:**
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend-app
+  namespace: k8squest
+spec:
+  containers:
+  - name: frontend
+    image: busybox:1.36
+    command:
+      - 'sh'
+      - '-c'
+      - 'while true; do echo "Calling API:"; wget -q -O- http://api-service 2>&1; sleep 5; done'
+                                                              # ❌ SHORT NAME
+```
+
+**Change the Service URL:**
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend-app
+  namespace: k8squest
+spec:
+  containers:
+  - name: frontend
+    image: busybox:1.36
+    command:
+      - 'sh'
+      - '-c'
+      - 'while true; do echo "Calling API:"; wget -q -O- http://api-service.backend-ns.svc.cluster.local 2>&1; sleep 5; done'
+                                                              # ✅ FULL FQDN
+```
+
+**The Change:**
+```
+http://api-service
+   ↓
+http://api-service.backend-ns.svc.cluster.local
+```
+
+Step-by-Step:
+-------------
+
+1. **Edit broken.yaml:**
+   Find the frontend-app pod's command and update the URL from
+   `http://api-service` to `http://api-service.backend-ns.svc.cluster.local`
+
+2. **Delete the old pod:**
+   ```bash
+   kubectl delete pod frontend-app -n k8squest
+   ```
+
+3. **Apply the fixed configuration:**
+   ```bash
+   kubectl apply -f broken.yaml
+   ```
+
+   You should see:
+   ```
+   namespace/backend-ns unchanged
+   pod/api-server unchanged
+   service/api-service unchanged
+   pod/frontend-app created
+   ```
+
+4. **Watch the logs:**
+   ```bash
+   kubectl logs frontend-app -n k8squest -f
+   ```
+
+   Before the fix (DNS failure):
+   ```
+   Calling API:
+   wget: bad address 'api-service'
+   Calling API:
+   wget: bad address 'api-service'
+   ```
+
+   After the fix (success):
+   ```
+   Calling API:
+   API Response from backend-ns
+   Calling API:
+   API Response from backend-ns
+   ```
+
+5. **Verify DNS resolution:**
+   ```bash
+   kubectl exec frontend-app -n k8squest -- nslookup api-service.backend-ns.svc.cluster.local
+   ```
+
+   Should return:
+   ```
+   Server:    10.96.0.10
+   Address:   10.96.0.10:53
+
+   Name:      api-service.backend-ns.svc.cluster.local
+   Address:   10.96.XXX.XXX
+   ```
+
+Why This Works:
+---------------
+
+**Kubernetes DNS Resolution:**
+
+1. **Short Name (api-service):**
+   ```
+   frontend-app is in namespace: k8squest
+   DNS search domains: k8squest.svc.cluster.local, svc.cluster.local, cluster.local
+
+   Tries to resolve:
+   - api-service.k8squest.svc.cluster.local    ❌ (service not in k8squest)
+   - api-service.svc.cluster.local             ❌ (ambiguous)
+   - api-service.cluster.local                 ❌ (doesn't exist)
+   - api-service                               ❌ (not a valid host)
+
+   Result: DNS resolution FAILED
+   ```
+
+2. **FQDN (api-service.backend-ns.svc.cluster.local):**
+   ```
+   Explicitly tells DNS:
+   - Look for service named: api-service
+   - In namespace: backend-ns
+   - Service type: svc
+   - Cluster domain: cluster.local
+
+   DNS directly resolves:
+   api-service.backend-ns.svc.cluster.local → 10.96.XXX.XXX ✅
+
+   Result: DNS resolution SUCCEEDED
+   ```
+
+Understanding FQDN Format:
+--------------------------
+
+```
+api-service.backend-ns.svc.cluster.local
+    |          |         |       |
+    |          |         |       +-- Cluster domain (default: cluster.local)
+    |          |         +---------- "svc" for Services (vs "pod" for Pods)
+    |          +-------------------- Namespace where service exists
+    +------------------------------- Service name
+```
+
+**Alternative Formats (all work):**
+
+```bash
+# Full FQDN (most explicit)
+http://api-service.backend-ns.svc.cluster.local
+
+# Short FQDN (omit cluster domain - Kubernetes fills it in)
+http://api-service.backend-ns.svc
+
+# Minimal FQDN (omit svc and cluster domain)
+http://api-service.backend-ns
+
+# SHORT NAME (only works within SAME namespace)
+http://api-service    # Only works if service is in k8squest!
+```
+
+Testing Different Formats:
+---------------------------
+
+```bash
+# Test minimal format (namespace-qualified)
+kubectl exec frontend-app -n k8squest -- wget -q -O- http://api-service.backend-ns
+
+# Test short FQDN
+kubectl exec frontend-app -n k8squest -- wget -q -O- http://api-service.backend-ns.svc
+
+# Test full FQDN (recommended)
+kubectl exec frontend-app -n k8squest -- wget -q -O- http://api-service.backend-ns.svc.cluster.local
+```
+
+All three should work! The full FQDN is most explicit and works even if cluster
+domain is customized.
+
+Common Mistakes:
+----------------
+
+**Mistake 1: Wrong namespace**
+```yaml
+# ❌ Using wrong namespace
+http://api-service.k8squest.svc.cluster.local
+
+# ✅ Correct namespace
+http://api-service.backend-ns.svc.cluster.local
+```
+
+**Mistake 2: Typo in service name**
+```yaml
+# ❌ Typo (missing hyphen)
+http://apiservice.backend-ns.svc.cluster.local
+
+# ✅ Correct service name
+http://api-service.backend-ns.svc.cluster.local
+```
+
+**Mistake 3: Using pod name instead of service name**
+```yaml
+# ❌ Pod name (pods can't be accessed by name across namespaces)
+http://api-server.backend-ns.svc.cluster.local
+
+# ✅ Service name
+http://api-service.backend-ns.svc.cluster.local
+```
+
+Real-World Example:
+-------------------
+
+Imagine you have:
+- Frontend app in namespace: `production`
+- Database in namespace: `databases`
+- Cache in namespace: `cache`
+
+```yaml
+# Frontend connecting to database
+DATABASE_URL: "postgresql://postgres-service.databases.svc.cluster.local:5432/mydb"
+
+# Frontend connecting to cache
+REDIS_URL: "redis://redis-service.cache.svc.cluster.local:6379"
+
+# Frontend connecting to API in same namespace
+API_URL: "http://api-service:8080"    # Short name works (same namespace)
+```
+
+Validation:
+-----------
+
+Run the validation script:
+```bash
+./validate.sh
+```
+
+You should see: ✅ VALIDATION PASSED!
+
+---
+Check solution.yaml to see the complete working configuration.
+

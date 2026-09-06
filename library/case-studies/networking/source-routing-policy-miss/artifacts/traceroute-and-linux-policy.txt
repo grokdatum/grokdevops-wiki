@@ -1,0 +1,41 @@
+### Traceroute from affected host (10.100.0.50) -- taking wrong path ###
+
+$ traceroute 8.8.8.8
+traceroute to 8.8.8.8 (8.8.8.8), 30 hops max, 60 byte packets
+ 1  10.100.0.1 (10.100.0.1)  0.512 ms  0.489 ms  0.501 ms
+ 2  198.51.100.1 (198.51.100.1)  1.234 ms  1.198 ms  1.215 ms    <--- ISP-A! Wrong!
+ 3  198.51.100.5 (198.51.100.5)  2.456 ms  2.412 ms  2.434 ms
+ 4  * * *
+
+# Expected hop 2 should be 203.0.113.1 (ISP-B), not 198.51.100.1 (ISP-A)
+
+### Linux equivalent (if using ip rule/ip route tables) ###
+
+$ ip rule list
+0:      from all lookup local
+100:    from 10.10.0.0/24 lookup 100      <--- Bug: should be 10.100.0.0/24
+32766:  from all lookup main
+32767:  from all lookup default
+
+$ ip route show table 100
+default via 203.0.113.1 dev eth1
+
+$ ip route show table main
+default via 198.51.100.1 dev eth0
+10.100.0.0/24 dev eth0 proto kernel scope link src 10.100.0.1
+
+### After fix: corrected ip rule ###
+
+$ ip rule list
+0:      from all lookup local
+100:    from 10.100.0.0/24 lookup 100     <--- Fixed
+32766:  from all lookup main
+32767:  from all lookup default
+
+### After fix: traceroute now takes ISP-B ###
+
+$ traceroute 8.8.8.8
+traceroute to 8.8.8.8 (8.8.8.8), 30 hops max, 60 byte packets
+ 1  10.100.0.1 (10.100.0.1)  0.498 ms  0.512 ms  0.489 ms
+ 2  203.0.113.1 (203.0.113.1)  1.345 ms  1.302 ms  1.321 ms    <--- ISP-B! Correct!
+ 3  203.0.113.5 (203.0.113.5)  2.567 ms  2.534 ms  2.545 ms

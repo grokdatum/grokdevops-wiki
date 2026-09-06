@@ -1,0 +1,249 @@
+#!/bin/bash
+# quest - exercise CLI for k8squest
+# Usage: quest <command> [args]
+# Must be run from inside an exercise directory.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# ── helpers ──────────────────────────────────────────────────────────
+
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Error: '$1' is not installed or not in PATH."
+    exit 1
+  fi
+}
+
+# ── type detection ───────────────────────────────────────────────────
+
+detect_type() {
+  if [ -f broken.sh ]; then
+    echo "bash"
+  elif [ -f broken.py ]; then
+    echo "python"
+  elif [ -d broken ] && [ -f broken/docker-compose.yml ]; then
+    echo "compose"
+  elif [ -d broken ] && [ -f broken/Dockerfile ]; then
+    echo "docker"
+  elif [ -f broken.yaml ] && head -5 broken.yaml | grep -q "apiVersion:"; then
+    echo "k8s"
+  elif [ -f broken.yaml ]; then
+    echo "ansible"
+  else
+    echo "unknown"
+  fi
+}
+
+# ── commands ─────────────────────────────────────────────────────────
+
+cmd_run() {
+  local t
+  t=$(detect_type)
+  case "$t" in
+    bash)
+      bash broken.sh
+      ;;
+    python)
+      python3 broken.py
+      ;;
+    docker)
+      require_cmd docker
+      docker build -f broken/Dockerfile broken/
+      ;;
+    compose)
+      require_cmd docker
+      docker compose -f broken/docker-compose.yml config
+      ;;
+    k8s)
+      require_cmd kubectl
+      if kubectl apply --dry-run=server -f broken.yaml 2>/dev/null; then
+        :
+      else
+        kubectl apply --dry-run=client -f broken.yaml
+      fi
+      ;;
+    ansible)
+      require_cmd ansible-playbook
+      ansible-playbook --syntax-check broken.yaml
+      ;;
+    *)
+      echo "Cannot detect exercise type in $(pwd)"
+      exit 1
+      ;;
+  esac
+}
+
+cmd_solution() {
+  if [ -d solution ]; then
+    local found=0
+    local f
+    while IFS= read -r -d '' f; do
+      found=1
+      echo "── ${f#solution/} ──"
+      cat "$f"
+      echo ""
+    done < <(find solution -type f -print0 | sort -z)
+    if [ "$found" -eq 0 ]; then
+      echo "No solution found."
+      exit 1
+    fi
+  elif compgen -G 'solution.*' >/dev/null; then
+    local f
+    for f in solution.*; do
+      if [ -f "$f" ]; then
+        echo "── $(basename "$f") ──"
+        cat "$f"
+        return
+      fi
+    done
+    echo "No solution found."
+    exit 1
+  elif [ -f solution ]; then
+    cat solution
+  else
+    echo "No solution found."
+    exit 1
+  fi
+}
+
+cmd_hint() {
+  local n="${1:-1}"
+  case "$n" in
+    1|2|3) ;;
+    *)
+      echo "Hint must be 1, 2, or 3."
+      exit 1
+      ;;
+  esac
+  if [ ! -f hints.txt ]; then
+    echo "No hints.txt in $(pwd)"
+    exit 1
+  fi
+
+  local content
+  content=$(awk -v wanted="$n" '
+    /^## Hint [123]( |$)/ {
+      if ($3 == wanted) { found=1; next }
+      if (found) { exit }
+    }
+    found && /^## / { exit }
+    found { print }
+  ' hints.txt | sed '/./,$!d')
+
+  if [ -z "$content" ]; then
+    echo "No hint ${n} found."
+    exit 1
+  fi
+
+  echo "$content"
+}
+
+cmd_info() {
+  local t
+  t=$(detect_type)
+  local dir
+  dir=$(basename "$(pwd)")
+  local level
+  level=$(basename "$(dirname "$(pwd)")")
+
+  echo "Exercise: $dir"
+  echo "Level:    $level"
+  echo "Type:     $t"
+
+  if [ -f hints.txt ]; then
+    local obj
+    obj=$(awk '
+      /^## Objective/ { found=1; next }
+      found && /^## / { exit }
+      found { print }
+    ' hints.txt | sed '/./,$!d')
+    if [ -n "$obj" ]; then
+      echo ""
+      echo "Objective:"
+      echo "$obj"
+    fi
+  fi
+}
+
+cmd_list() {
+  local levels_dir="$SCRIPT_DIR/levels"
+  if [ ! -d "$levels_dir" ]; then
+    echo "No levels/ directory found."
+    exit 1
+  fi
+
+  local filter="${1:-}"
+  for level_dir in "$levels_dir"/level-*/; do
+    [ -d "$level_dir" ] || continue
+    local level
+    level=$(basename "$level_dir")
+    for ex_dir in "$level_dir"/*/; do
+      [ -d "$ex_dir" ] || continue
+      local ex
+      ex=$(basename "$ex_dir")
+      if [ -z "$filter" ] || echo "$ex" | grep -q "^${filter}"; then
+        echo "levels/$level/$ex"
+      fi
+    done
+  done
+}
+
+# ── main ─────────────────────────────────────────────────────────────
+
+usage() {
+  cat <<'USAGE'
+quest - k8squest exercise CLI
+
+Usage: quest <command> [args]
+
+Commands (run from inside an exercise directory):
+  run          Run/validate the broken artifact for this exercise.
+               Bash/Python: executes the script.
+               Docker/Compose: builds or validates the config.
+               K8s: dry-run applies the manifest.
+               Ansible: syntax-checks the playbook.
+
+  solution     Print the reference solution.
+               Supports solution as a directory, solution.ext, or plain file.
+
+  hint [N]     Show hint N (1, 2, or 3). Defaults to hint 1.
+               Each exercise has 3 progressive hints in hints.txt.
+
+  info         Show exercise name, level, detected type, and objective.
+
+Commands (run from anywhere):
+  list [TRACK] List exercises, one per line (greppable).
+               TRACK filters by prefix: bash, python, docker, ansible, k8s.
+
+  help         Show this help message.
+
+Setup:
+  source activate.sh           (run once from repo root)
+
+Examples:
+  quest list                   # all 250 exercises
+  quest list bash              # just the 50 bash exercises
+  quest list k8s | head -10   # first 10 k8s exercises
+
+  cd levels/level-01/bash-exit-codes
+  quest info                   # what to fix
+  quest run                    # try the broken artifact
+  quest hint 1                 # stuck? get a nudge
+  quest hint 2                 # still stuck?
+  quest solution               # see the answer
+
+Tracks: bash, python, docker, ansible, k8s (50 levels each, 250 total)
+USAGE
+}
+
+case "${1:-}" in
+  run)      cmd_run ;;
+  solution) cmd_solution ;;
+  hint)     cmd_hint "${2:-1}" ;;
+  info)     cmd_info ;;
+  list)     cmd_list "${2:-}" ;;
+  -h|--help|help) usage ;;
+  "")       usage ;;
+  *)        echo "Unknown command: $1"; usage; exit 1 ;;
+esac

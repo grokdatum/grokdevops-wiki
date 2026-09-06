@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+# STATUS: EXPERIMENTAL - may be removed without notice.
+"""
+kb-audit - Audit the interview knowledge base
+
+Checks:
+- Question count per category
+- Files missing Q: or A: markers
+- Empty or near-empty files
+- Malformed question files
+- Duplicate content (by hash)
+- Index integrity
+
+Output: Human-readable report to stdout.
+
+Invariants considered:
+- #5 (Fail Fast): exits non-zero if KB directory not found
+- #6 (Named Errors): all error messages prefixed with "kb-audit:"
+- #8 (Determinism): sorted output, stable ordering
+- #12 (Clean Interfaces): stdout for report, stderr for diagnostics
+"""
+
+import argparse
+import hashlib
+import sys
+from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "tools" / "gd-learn" / "lib" / "python"))
+from error_handler import gd_main  # noqa: E402 -- path bootstrap precedes local import
+
+SCRIPT_NAME = "kb-audit"
+
+# KB location (repo-root relative)
+KB_PATH = Path("training/interactive/knowledge/interview")
+
+
+def find_repo_root() -> Optional[Path]:
+    """Find repository root by looking for INVARIANTS.md."""
+    current = Path(__file__).resolve().parent
+    while current != current.parent:
+        if (current / "INVARIANTS.md").exists():
+            return current
+        current = current.parent
+    return None
+
+
+def find_kb_root() -> Optional[Path]:
+    """Find KB directory at canonical location."""
+    repo_root = find_repo_root()
+    if not repo_root:
+        return None
+
+    path = repo_root / KB_PATH
+    if path.exists() and path.is_dir():
+        return path
+
+    return None
+
+
+@dataclass
+class AuditResult:
+    """Results of knowledge base audit."""
+
+    categories: Dict[str, int]
+    missing_question: List[str]
+    missing_answer: List[str]
+    empty_files: List[str]
+    malformed: List[Tuple[str, str]]
+    duplicates: Dict[str, List[str]]
+    total_questions: int
+    difficulties: Dict[str, int]
+
+
+def hash_content(content: str) -> str:
+    """Hash file content for duplicate detection."""
+    return hashlib.md5(content.encode("utf-8")).hexdigest()[:16]
+
+
+def parse_question(path: Path) -> Tuple[bool, bool, str, Optional[str]]:
+    """
+    Parse a question file and return (has_q, has_a, difficulty, error).
+    """
+    try:
+        content = path.read_text(encoding="utf-8")
+    except Exception as e:
+        return False, False, "unknown", str(e)
+
+    has_q = "Q:" in content or "q:" in content
+    has_a = "A:" in content or "a:" in content
+
+    # Extract difficulty
+    difficulty = "medium"
+    for line in content.split("\n"):
+        if line.lower().startswith("difficulty:"):
+            difficulty = line.split(":", 1)[1].strip().lower()
+            break
+
+    return has_q, has_a, difficulty, None
+
+
+def audit_knowledge_base(kb_root: Path) -> AuditResult:
+    """Perform comprehensive audit of the knowledge base."""
+    categories: Dict[str, int] = defaultdict(int)
+    missing_question: List[str] = []
+    missing_answer: List[str] = []
+    empty_files: List[str] = []
+    malformed: List[Tuple[str, str]] = []
+    content_hashes: Dict[str, List[str]] = defaultdict(list)
+    difficulties: Dict[str, int] = defaultdict(int)
+    total = 0
+
+    # Iterate through all categories
+    for cat_dir in sorted(kb_root.iterdir()):
+        if not cat_dir.is_dir():
+            continue
+        if cat_dir.name.startswith(".") or cat_dir.name.startswith("_"):
+            continue
+
+        for qfile in cat_dir.glob("*.txt"):
+            total += 1
+            rel_path = f"{cat_dir.name}/{qfile.name}"
+
+            # Check file size
+            size = qfile.stat().st_size
+            if size == 0:
+                empty_files.append(rel_path)
+                continue
+
+            # Parse question
+            has_q, has_a, difficulty, error = parse_question(qfile)
+
+            if error:
+                malformed.append((rel_path, error))
+                continue
+
+            if not has_q:
+                missing_question.append(rel_path)
+
+            if not has_a:
+                missing_answer.append(rel_path)
+
+            # Count by category and difficulty
+            categories[cat_dir.name] += 1
+            difficulties[difficulty] += 1
+
+            # Check for duplicates
+            try:
+                content = qfile.read_text(encoding="utf-8")
+                h = hash_content(content)
+                content_hashes[h].append(rel_path)
+            except Exception:
+                pass
+
+    # Filter to only actual duplicates
+    duplicates = {h: files for h, files in content_hashes.items() if len(files) > 1}
+
+    return AuditResult(
+        categories=dict(categories),
+        missing_question=missing_question,
+        missing_answer=missing_answer,
+        empty_files=empty_files,
+        malformed=malformed,
+        duplicates=duplicates,
+        total_questions=total,
+        difficulties=dict(difficulties),
+    )
+
+
+def print_report(result: AuditResult):
+    """Print audit report."""
+    print("=" * 60)
+    print("INTERVIEW KNOWLEDGE BASE AUDIT")
+    print("=" * 60)
+    print()
+
+    # Summary
+    print("## SUMMARY")
+    print(f"Total questions: {result.total_questions}")
+    print(f"Categories: {len(result.categories)}")
+    print()
+
+    # Difficulty breakdown
+    print("## DIFFICULTY BREAKDOWN")
+    for diff in ["easy", "medium", "hard"]:
+        count = result.difficulties.get(diff, 0)
+        pct = (count / result.total_questions * 100) if result.total_questions > 0 else 0
+        print(f"  {diff}: {count} ({pct:.1f}%)")
+    print()
+
+    # Category stats (sorted by count)
+    print("## CATEGORIES (by question count)")
+    sorted_cats = sorted(result.categories.items(), key=lambda x: x[1], reverse=True)
+    for cat, count in sorted_cats:
+        print(f"  {cat}: {count}")
+    print()
+
+    # Issues
+    issue_count = (
+        len(result.missing_question)
+        + len(result.missing_answer)
+        + len(result.empty_files)
+        + len(result.malformed)
+        + len(result.duplicates)
+    )
+
+    print(f"## ISSUES FOUND: {issue_count}")
+    print()
+
+    if result.empty_files:
+        print(f"### Empty files ({len(result.empty_files)})")
+        for f in result.empty_files[:10]:
+            print(f"  {f}")
+        if len(result.empty_files) > 10:
+            print(f"  ... and {len(result.empty_files) - 10} more")
+        print()
+
+    if result.missing_question:
+        print(f"### Missing Q: marker ({len(result.missing_question)})")
+        for f in result.missing_question[:10]:
+            print(f"  {f}")
+        if len(result.missing_question) > 10:
+            print(f"  ... and {len(result.missing_question) - 10} more")
+        print()
+
+    if result.missing_answer:
+        print(f"### Missing A: marker ({len(result.missing_answer)})")
+        for f in result.missing_answer[:10]:
+            print(f"  {f}")
+        if len(result.missing_answer) > 10:
+            print(f"  ... and {len(result.missing_answer) - 10} more")
+        print()
+
+    if result.malformed:
+        print(f"### Malformed files ({len(result.malformed)})")
+        for path, error in result.malformed[:10]:
+            print(f"  {path}: {error}")
+        if len(result.malformed) > 10:
+            print(f"  ... and {len(result.malformed) - 10} more")
+        print()
+
+    if result.duplicates:
+        print(f"### Duplicate content ({len(result.duplicates)} sets)")
+        for h, files in list(result.duplicates.items())[:5]:
+            print(f"  Hash {h}:")
+            for f in files:
+                print(f"    {f}")
+        if len(result.duplicates) > 5:
+            print(f"  ... and {len(result.duplicates) - 5} more duplicate sets")
+        print()
+
+    # Verdict
+    print("=" * 60)
+    if issue_count == 0:
+        print("RESULT: PASS - Knowledge base is healthy")
+    else:
+        print(f"RESULT: {issue_count} issues found - see above for details")
+    print("=" * 60)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog=SCRIPT_NAME,
+        description="Audit the interview knowledge base for issues.",
+    )
+    parser.add_argument(
+        "--kb-path",
+        type=Path,
+        default=None,
+        help="Override KB path (default: auto-detect from repo)",
+    )
+    args = parser.parse_args()
+
+    # Find KB root
+    if args.kb_path:
+        kb_root = args.kb_path
+        if not kb_root.exists():
+            print(
+                f"{SCRIPT_NAME}: error: specified KB path does not exist: {kb_root}",
+                file=sys.stderr,
+            )
+            return 2
+    else:
+        kb_root = find_kb_root()
+
+    if kb_root is None:
+        repo_root = find_repo_root()
+        if repo_root is None:
+            print(
+                f"{SCRIPT_NAME}: error: could not find repository root (no INVARIANTS.md)",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"{SCRIPT_NAME}: error: knowledge base not found at {repo_root / KB_PATH}",
+                file=sys.stderr,
+            )
+        return 2
+
+    print(f"{SCRIPT_NAME}: using KB at {kb_root}", file=sys.stderr)
+
+    result = audit_knowledge_base(kb_root)
+    print_report(result)
+
+    # Return non-zero if issues found
+    issue_count = (
+        len(result.missing_question)
+        + len(result.missing_answer)
+        + len(result.empty_files)
+        + len(result.malformed)
+        + len(result.duplicates)
+    )
+    return 1 if issue_count > 0 else 0
+
+
+if __name__ == "__main__":
+    gd_main(main)

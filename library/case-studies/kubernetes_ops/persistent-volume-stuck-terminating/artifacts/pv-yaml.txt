@@ -1,0 +1,40 @@
+$ kubectl get pv pv-data-warehouse-01 -o yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-data-warehouse-01
+  uid: 3a4b5c6d-7e8f-9a0b-1c2d-3e4f5a6b7c8d
+  creationTimestamp: "2026-01-15T10:30:00Z"
+  deletionTimestamp: "2026-03-05T11:00:00Z"
+  finalizers:
+  - kubernetes.io/pv-protection
+  - external-provisioner.volume.kubernetes.io/finalizer
+  annotations:
+    pv.kubernetes.io/provisioned-by: ebs.csi.aws.com
+spec:
+  capacity:
+    storage: 500Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ebs-gp3
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-0a1b2c3d4e5f67890
+    fsType: ext4
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: topology.ebs.csi.aws.com/zone
+          operator: In
+          values:
+          - us-east-1a
+status:
+  phase: Terminating
+
+$ kubectl get pvc --all-namespaces | grep pv-data-warehouse
+(no output -- PVC already deleted)
+
+$ kubectl get volumeattachment | grep pv-data-warehouse
+csi-a1b2c3d4e5   ebs.csi.aws.com   pv-data-warehouse-01   node-2.internal   false   3h

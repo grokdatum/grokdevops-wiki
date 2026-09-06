@@ -1,0 +1,31 @@
+---
+- name: Configure load balancer with backend servers
+  hosts: loadbalancers
+  become: true
+  tasks:
+    - name: Generate load balancer config
+      ansible.builtin.copy:
+        content: |
+          upstream backend {
+              server {{ hostvars['web1']['ansible_host'] }}:8080;
+              server {{ hostvars['web2']['ansible_host'] }}:8080;
+          }
+
+          server {
+              listen 80;
+              location / {
+                  proxy_pass http://backend;
+              }
+          }
+        dest: /etc/nginx/conf.d/loadbalancer.conf
+      notify: Reload nginx
+
+    - name: Get db server IP
+      ansible.builtin.debug:
+        msg: "DB server IP is {{ hostvars['db1']['ansible_default_ipv4']['address'] }}"
+
+  handlers:
+    - name: Reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded

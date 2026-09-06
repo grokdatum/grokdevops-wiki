@@ -1,0 +1,40 @@
+---
+tags:
+- k8s
+- l1
+- flashcard-deck
+- etcd
+---
+<!-- wiki:breadcrumb:start -->
+[Portal](../../../../library/portal/index.md) | **Level:** [L1: Foundations](../../../../library/portal/levels.md) | **Topics:** [etcd](../../../../library/portal/topics.md) | **Domain:** Kubernetes
+<!-- wiki:breadcrumb:end -->
+
+id	category	difficulty	tags	question	answer	source_path
+etcd/a1b2c3d4e5f6	etcd	easy	k8s, etcd, state	What does etcd store in a Kubernetes cluster?	All Kubernetes cluster state: resource definitions (Pods, Deployments, Services), RBAC policies, Secrets, ConfigMaps, leases, and CRD instances. It does NOT store container images, logs, metrics, or persistent volume data.\n\nRemember: etcd = Kubernetes brain. If it dies without backup, ALL cluster state is lost. Back up daily.\n\nGotcha: etcd stores API objects only — not images, logs, metrics, or PV data.	training/library/topics/etcd/primer.md
+etcd/b3c4d5e6f7a8	etcd	easy	k8s, etcd, quorum	How many members can fail in a 3-member etcd cluster while maintaining quorum?	One member. A 3-member cluster has a quorum of 2, so it tolerates exactly 1 failure. This is why 3 is the minimum recommended production size.\n\nRemember: quorum = (N/2)+1. 3 members: quorum=2, tolerates 1 failure. 5 members: quorum=3, tolerates 2.	training/library/topics/etcd/primer.md
+etcd/c5d6e7f8a9b0	etcd	easy	k8s, etcd, backup	What command creates an etcd snapshot backup?	etcdctl snapshot save /path/to/snapshot.db (with appropriate --endpoints, --cacert, --cert, and --key flags for TLS-secured clusters). Verify with etcdctl snapshot status.\n\nGotcha: verify with etcdctl snapshot status. Corrupt snapshots give false confidence — worse than no backup.	training/library/topics/etcd/primer.md
+etcd/d7e8f9a0b1c2	etcd	medium	k8s, etcd, raft, consensus	Why should etcd clusters always have an odd number of members?	Even-numbered clusters require the same quorum as the next odd number but tolerate fewer failures. A 4-member cluster needs quorum of 3 (same as 5 members) but can only tolerate 1 failure (vs 2 for a 5-member cluster). Even sizes add cost without improving fault tolerance.	training/library/topics/etcd/primer.md
+etcd/e9f0a1b2c3d4	etcd	medium	k8s, etcd, compaction, defrag	What is the difference between compaction and defragmentation in etcd?	Compaction removes old key revision history, marking the space as free but not reclaiming it on disk. Defragmentation reclaims that freed space, reducing the actual database file size. Both are needed for maintenance: compact first, then defrag.	training/library/topics/etcd/primer.md
+etcd/f1a2b3c4d5e6	etcd	medium	k8s, etcd, disk-full	What happens when etcd exceeds its database size quota, and how do you fix it?	etcd enters alarm mode and rejects all writes (the cluster becomes read-only). Fix: run etcdctl compact to remove old revisions, etcdctl defrag to reclaim space, then etcdctl alarm disarm to clear the alarm. Optionally increase --quota-backend-bytes.	training/library/topics/etcd/primer.md
+etcd/a3b4c5d6e7f8	etcd	medium	k8s, etcd, performance	Why is SSD storage mandatory for production etcd, and what metric indicates disk problems?	etcd requires fast synchronous writes for its write-ahead log (WAL). Spinning disks cause high fsync latency, triggering frequent leader elections and API server timeouts. Monitor wal_fsync_duration_seconds — if p99 exceeds 10ms, disk is the bottleneck.	training/library/topics/etcd/primer.md
+etcd/b5c6d7e8f9a0	etcd	medium	k8s, etcd, restore	What is critical to remember when restoring an etcd snapshot to a multi-member cluster?	The restore must be performed on every member of the new cluster, each with its own unique --name and --initial-advertise-peer-urls. The API server and etcd must be stopped first. Restore creates a new data directory; you then point etcd config to it and restart.	training/library/topics/etcd/primer.md
+etcd/c7d8e9f0a1b2	etcd	hard	k8s, etcd, disaster-recovery, quorum-loss	What are the two recovery options when an etcd cluster loses quorum, and which is preferred?	Option 1 (preferred): Restore from a recent snapshot onto new nodes. Option 2 (last resort): Force a surviving member to start a new single-member cluster with --force-new-cluster, then add new members. The force option risks data inconsistency and should only be used when no snapshot is available.	training/library/topics/etcd/primer.md
+etcd/d9e0f1a2b3c4	etcd	hard	k8s, etcd, certificates, tls	How does certificate expiry cause etcd failure, and how do you prevent it?	Expired TLS certificates prevent etcd members from communicating with each other and with the API server, causing TLS handshake errors. The cluster effectively goes down. Prevention: monitor expiry dates (openssl x509 -in cert -noout -enddate), automate rotation, and for kubeadm clusters run kubeadm certs renew all before expiry.	training/library/topics/etcd/primer.md
+etcd/e1f2a3b4c5d6	etcd	hard	k8s, etcd, network-partition, split-brain	Can etcd experience a true split-brain during a network partition? Explain.	No. Raft consensus prevents true split-brain. During a network partition, only the partition containing the majority (quorum) can accept writes. The minority partition becomes read-only. However, stale reads from the minority partition can confuse monitoring tools. Once the partition resolves, members reconcile automatically via Raft log replication.	training/library/topics/etcd/primer.md
+
+<!-- wiki:related:start -->
+---
+
+## Wiki Navigation
+
+### Related Content
+
+- [Interview: etcd Space Exceeded](../../../../library/interview-scenarios/14-etcd-space-exceeded.md) (Scenario, L3) — etcd
+- [Runbook: etcd Backup & Restore](../../../../library/runbooks/kubernetes/etcd_backup_restore.md) (Runbook, L2) — etcd
+- [Runbook: etcd High Latency / Slow Operations](../../../../library/runbooks/kubernetes/etcd-latency.md) (Runbook, L3) — etcd
+- [Scenario: etcd Troubleshooting](../../../../library/scenarios/etcd/etcd-troubleshooting.md) (Scenario, L3) — etcd
+- [Skillcheck: etcd](../../../../library/skillchecks/etcd.skillcheck.md) (Assessment, L2) — etcd
+- [etcd](../../../../library/topics/etcd/index.md) (Topic Pack, L1) — etcd
+- [etcd Drills](../../../../library/drills/etcd_drills.md) (Drill, L2) — etcd
+
+<!-- wiki:related:end -->

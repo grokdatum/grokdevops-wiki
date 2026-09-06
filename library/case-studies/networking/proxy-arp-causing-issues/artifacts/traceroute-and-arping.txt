@@ -1,0 +1,28 @@
+### Traceroute from 10.1.1.50 to 10.2.2.50 ###
+
+$ traceroute 10.2.2.50
+traceroute to 10.2.2.50 (10.2.2.50), 30 hops max, 60 byte packets
+ 1  10.2.2.50 (10.2.2.50)  1.234 ms  1.187 ms  1.203 ms
+
+# Note: appears as a single hop -- the host thinks 10.2.2.50 is directly reachable
+# because the ARP table has a MAC entry for it (the router's MAC via proxy ARP).
+# The router forwards the packet, but the TTL decrement makes it look like one hop.
+
+### arping from 10.1.1.50 to remote subnet IP ###
+
+$ arping -I eth0 -c 3 10.2.2.50
+ARPING 10.2.2.50 from 10.1.1.50 eth0
+Unicast reply from 10.2.2.50 [00:1A:2B:3C:4D:01]  0.891ms
+Unicast reply from 10.2.2.50 [00:1A:2B:3C:4D:01]  0.823ms
+Unicast reply from 10.2.2.50 [00:1A:2B:3C:4D:01]  0.847ms
+Sent 3 probes (1 broadcast(s))
+Received 3 response(s)
+
+# The MAC 00:1A:2B:3C:4D:01 belongs to the router's Gi0/0 interface, NOT to 10.2.2.50.
+# This confirms the router is answering ARP requests on behalf of remote hosts (proxy ARP).
+
+### Host 10.1.1.50 routing table (no default gateway configured!) ###
+
+$ ip route
+10.1.1.0/24 dev eth0 proto kernel scope link src 10.1.1.50
+# No default route -- host relies entirely on proxy ARP for off-subnet traffic

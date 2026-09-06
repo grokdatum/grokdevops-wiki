@@ -1,0 +1,55 @@
+## Objective
+Fix the liveness probe configuration so pods stay running
+
+## Hint 1
+🔍 Observation Hint:
+
+Check the pods:
+`kubectl get pods -n k8squest -l app=api`
+
+Look at the RESTARTS column. Are the pods constantly restarting?
+
+Describe one of the pods:
+`kubectl describe pod <pod-name> -n k8squest`
+
+Look at the Events section at the bottom. What do you see?
+
+## Hint 2
+🧭 Direction Hint:
+
+The Events show "Liveness probe failed: HTTP probe failed with statuscode: 404"
+
+This means the liveness probe is checking an endpoint that returns 404 (not found).
+
+Check the deployment configuration:
+`kubectl get deployment api-server -n k8squest -o yaml | grep -A 10 livenessProbe`
+
+Look at the `path` being checked. Is that the correct health endpoint?
+
+## Hint 3
+💡 Near-Solution Hint:
+
+The liveness probe is checking `/nonexistent-healthz` which doesn't exist (404 error).
+
+The nginx server responds successfully on the root path `/`.
+
+Steps to fix:
+1. Edit the deployment:
+   `kubectl edit deployment api-server -n k8squest`
+
+2. Find the livenessProbe section and change:
+   ```yaml
+   path: /nonexistent-healthz
+   ```
+   to:
+   ```yaml
+   path: /
+   ```
+
+3. Save and exit. The deployment will automatically roll out fixed pods.
+
+4. Wait 30 seconds and verify:
+   `kubectl get pods -n k8squest -l app=api`
+
+Pods should be Running with low restart counts!
+
